@@ -324,13 +324,7 @@ export default function LoginPage() {
         <div className="lg:w-1/2 flex items-center justify-center p-8 lg:p-12">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-[#122652]">Sign In</h2>
-              <p className="text-gray-600 mt-2">
-                Don't have an account?{' '}
-                <Link href="/auth/register" className="text-[#E67E22] font-semibold hover:underline">
-                  Create account
-                </Link>
-              </p>
+              <h2 className="text-3xl font-bold text-[#122652]">Sign In</h2> 
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">

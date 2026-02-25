@@ -1,5 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css"; 
+import Topbar from "@/components/common/topbar";
+import Sidebar from "@/components/common/sidebar";
+import "./globals.css";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -18,8 +21,21 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}> 
-        {children} 
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        {/* Topbar সবসময় উপরে থাকবে */}
+      
+        
+        {/* Main container for Sidebar and Page content */}
+        <div style={{ display: "flex", height: "calc(100vh - 60px)" }}> {/* Topbar এর height 60px ধরে নেওয়া হয়েছে */}
+          {/* Sidebar বামে স্থির থাকবে */}
+          <Sidebar />
+          
+          {/* Page content ডানদিকে থাকবে এবং স্ক্রলযোগ্য হবে */}
+          <main style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+              <Topbar />
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );
