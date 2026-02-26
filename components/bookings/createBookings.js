@@ -205,8 +205,7 @@ export default function CreateBooking() {
   const [serverErrors, setServerErrors] = useState([]);
 
   // Form Data State
-  const [formData, setFormData] = useState({
-    customer: '',
+  const [formData, setFormData] = useState({ 
     customerReference: '',
     shipmentDetails: {
       shipmentType: '',
@@ -278,15 +277,13 @@ export default function CreateBooking() {
 
   const origins = [
     { value: 'China Warehouse', label: 'China' },
-    { value: 'Thailand Warehouse', label: 'Thailand' },
-    { value: 'Vietnam Warehouse', label: 'Vietnam' }
+    { value: 'Thailand Warehouse', label: 'Thailand' }, 
   ];
 
   const destinations = [
     { value: 'USA', label: 'USA' },
     { value: 'UK', label: 'UK' },
-    { value: 'Canada', label: 'Canada' },
-    { value: 'Germany', label: 'Germany' }
+    { value: 'Canada', label: 'Canada' }, 
   ];
 
   const shippingModes = [
@@ -301,7 +298,7 @@ export default function CreateBooking() {
     'Automotive', 'Pharmaceuticals', 'Food', 'Others'
   ];
 
-  const currencies = ['USD', 'GBP', 'EUR', 'CNY'];
+  const currencies = ['USD', 'GBP', 'CAD', 'THB', 'CNY'];
 
   // Calculate totals
   useEffect(() => {
@@ -471,7 +468,7 @@ export default function CreateBooking() {
         setShowSuccess(true);
         toast.success('Booking created successfully!');
         setTimeout(() => {
-          router.push('/all_bookings');
+          router.push('/Bookings/all_bookings');
         }, 2000);
       } else {
         setServerErrors([{ msg: response.message || 'Failed to create booking' }]);
@@ -521,7 +518,7 @@ export default function CreateBooking() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header - Compact */}
-      <div className="bg-white border-b sticky top-0 z-10">
+      <div className="bg-white border-b ">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center space-x-4">
@@ -1194,22 +1191,7 @@ export default function CreateBooking() {
               )}
             </div>
           </div>
-        </form>
-
-        {/* Quick Tips */}
-        <div className="mt-3 bg-blue-50 rounded-md p-2 border border-blue-100">
-          <div className="flex items-start">
-            <Info className="h-3.5 w-3.5 text-blue-500 mt-0.5" />
-            <div className="ml-1.5">
-              <p className="text-xs font-medium text-blue-700">Quick Tips</p>
-              <ul className="text-xs text-blue-600 mt-0.5 space-y-0.5">
-                <li>• Fields marked with * are required</li>
-                <li>• Destination must be different from origin</li>
-                <li>• Double-check contact details for delivery</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+        </form> 
       </div>
 
       {/* Animation Styles */}

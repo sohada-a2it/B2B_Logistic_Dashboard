@@ -32,7 +32,7 @@ export default function RootLayout({ children }) {
           
           {/* Page content ডানদিকে থাকবে এবং স্ক্রলযোগ্য হবে */}
           <main style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-              <Topbar />
+              {/* <Topbar /> */}
             {children}
           </main>
         </div>

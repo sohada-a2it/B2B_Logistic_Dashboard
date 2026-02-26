@@ -1,5 +1,11 @@
 'use client';
-
+import { 
+  setAuthToken, 
+  setUserDetails, 
+  setEmail,
+  getAuthToken,  // Optional - for testing
+  getUserDetails // Optional - for testing
+} from '@/helper/SessionHelper'; // Adjust path according to your file structure
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -156,43 +162,63 @@ export default function LoginPage() {
     setErrors(validationErrors);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Touch all fields to show errors
-    setTouched({
-      email: true,
-      password: true
-    });
+ // LoginPage component e login function call er por
 
-    const validationErrors = validateForm();
-    setErrors(validationErrors);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  setTouched({
+    email: true,
+    password: true
+  });
 
-    if (Object.keys(validationErrors).length === 0) {
-      setLoading(true);
-      try {
-        const response = await login(formData.email, formData.password);
-        
-        if (response.success) {
-          toast.success('Login successful! Redirecting to dashboard...', {
-            position: 'top-right',
-            autoClose: 2000,
-          });
-          
-          setTimeout(() => {
-            router.push('/dashboard');
-          }, 2000);
+  const validationErrors = validateForm();
+  setErrors(validationErrors);
+
+  if (Object.keys(validationErrors).length === 0) {
+    setLoading(true);
+    try {
+      const response = await login(formData.email, formData.password);
+      
+      if (response.success) {
+        // ============ IMPORTANT PART ============
+        // Save to localStorage using your utility functions
+        if (response.token) {
+          setAuthToken(response.token);
         }
-      } catch (error) {
-        toast.error(error.message || 'Invalid email or password', {
+        
+        if (response.user) {
+          setUserDetails(response.user);
+        }
+        
+        // If you want to save email separately
+        setEmail(formData.email);
+        
+        // ========================================
+        
+        toast.success('Login successful! Redirecting to dashboard...', {
           position: 'top-right',
-          autoClose: 5000,
+          autoClose: 2000,
         });
-      } finally {
-        setLoading(false);
+        
+        // Optional: Check if token saved correctly
+        console.log('Token saved:', getAuthToken());
+        console.log('User details saved:', getUserDetails());
+        
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 2000);
       }
+    } catch (error) {
+      toast.error(error.message || 'Invalid email or password', {
+        position: 'top-right',
+        autoClose: 5000,
+      });
+    } finally {
+      setLoading(false);
     }
-  };
+  }
+};
 
   const renderIcon = (type) => {
     switch(type) {

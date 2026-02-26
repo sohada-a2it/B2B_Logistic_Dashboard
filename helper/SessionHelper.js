@@ -28,6 +28,6 @@ const getUserDetails = ()=>{
 }
 const logout = ()=>{
     localStorage.clear();
-    window.location.href = "/login"
+    window.location.href = "/"
 }
 export { setAuthToken,getAuthToken,setEmail,getEmail,setOTP,getOTP,setUserDetails,getUserDetails,logout}

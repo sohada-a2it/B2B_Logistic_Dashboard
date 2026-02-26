@@ -144,7 +144,7 @@ export const createAdmin = async (adminData) => {
 // Create Staff (Admin Only)
 export const createStaff = async (staffData) => {
   try {
-    const response = await axiosInstance.post('/users/staff', staffData);
+    const response = await axiosInstance.post('/admin/staff/create', staffData);
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to create staff' };
@@ -154,7 +154,7 @@ export const createStaff = async (staffData) => {
 // Get All Users (Admin Only)
 export const getAllUsers = async () => {
   try {
-    const response = await axiosInstance.get('/users');
+    const response = await axiosInstance.get('/admin/users');
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to get users' };
@@ -164,7 +164,7 @@ export const getAllUsers = async () => {
 // Get User By ID (Admin Only)
 export const getUserById = async (userId) => {
   try {
-    const response = await axiosInstance.get(`/users/${userId}`);
+    const response = await axiosInstance.get(`/admin/getUsers/${userId}`);
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to get user' };
@@ -174,7 +174,7 @@ export const getUserById = async (userId) => {
 // Update User (Admin Only)
 export const updateUser = async (userId, userData) => {
   try {
-    const response = await axiosInstance.put(`/users/${userId}`, userData);
+    const response = await axiosInstance.put(`/admin/updateUsers/${userId}`, userData);
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to update user' };
@@ -184,7 +184,7 @@ export const updateUser = async (userId, userData) => {
 // Delete User (Admin Only)
 export const deleteUser = async (userId) => {
   try {
-    const response = await axiosInstance.delete(`/users/${userId}`);
+    const response = await axiosInstance.delete(`/admin/users/${userId}`);
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to delete user' };
@@ -194,7 +194,7 @@ export const deleteUser = async (userId) => {
 // Get Users By Role (Admin Only)
 export const getUsersByRole = async (role) => {
   try {
-    const response = await axiosInstance.get(`/users/role/${role}`);
+    const response = await axiosInstance.get(`/admin/users/role/${role}`);
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to get users by role' };

@@ -5,22 +5,28 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation'; 
 import { HiChartBar, HiCog, HiCube, HiCurrencyDollar, HiHome, HiOutlineArchive, HiOutlineChartBar, HiOutlineChevronDown, HiOutlineChevronLeft, HiOutlineChevronRight, HiOutlineChevronUp, HiOutlineClipboardList, HiOutlineClock, HiOutlineCog, HiOutlineCube, HiOutlineCurrencyDollar, HiOutlineDocumentReport, HiOutlineDocumentText, HiOutlineDownload, HiOutlineGlobeAlt, HiOutlineHome, HiOutlineLogout, HiOutlineOfficeBuilding, HiOutlinePlus, HiOutlineQuestionMarkCircle, HiOutlineSearch, HiOutlineShieldCheck, HiOutlineTemplate, HiOutlineTruck, HiOutlineUserGroup, HiOutlineUsers, HiTruck, HiUsers } from 'react-icons/hi';
+import Image from 'next/image'; 
 
 // Logo Component
 const Logo = ({ collapsed }) => (
-  <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-start'} px-4 py-6`}>
+  <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-center'} px-4 py-6`}>
     <div className="flex items-center space-x-2">
-      <div 
-        className="w-8 h-8 rounded-lg flex items-center justify-center"
-        style={{ backgroundColor: '#E67E22' }}
-      >
-        <HiOutlineTruck className="w-5 h-5 text-white" />
-      </div>
-      {!collapsed && (
-        <span className="text-xl font-bold text-gray-800">
-          <span style={{ color: '#E67E22' }}>Logi</span>
-          <span style={{ color: '#3C719D' }}>Track</span>
-        </span>
+      {collapsed ? (
+        <Image 
+          src="/logo.png"
+          alt="LogiSwift" 
+          width={32} 
+          height={32}
+          className="flex-shrink-0"
+        />
+      ) : (
+        <Image 
+          src="/logo.png"
+          alt="LogiSwift" 
+          width={120} 
+          height={32}
+          className="items-center"
+        />
       )}
     </div>
   </div>
@@ -30,69 +36,60 @@ const Logo = ({ collapsed }) => (
 const menuItems = [
   {
     title: 'Dashboard',
-    path: '/admin',
+    path: '/dashboard',
     icon: <HiOutlineHome className="w-5 h-5" />,
     activeIcon: <HiHome className="w-5 h-5" />,
   },
   {
-    title: 'Shipments',
-    path: '/admin/shipments',
+    title: 'Bookings',
+    path: '/admin/Bookings',
     icon: <HiOutlineTruck className="w-5 h-5" />,
-    activeIcon: <HiTruck className="w-5 h-5" />,
-    badge: 12,
+    activeIcon: <HiTruck className="w-5 h-5" />, 
     badgeColor: '#E67E22',
     children: [
       {
-        title: 'All Shipments',
-        path: '/shipments/all_bookings',
+        title: 'All Bookings',
+        path: '/Bookings/all_bookings',
         icon: <HiOutlineClipboardList className="w-4 h-4" />,
       },
       {
         title: 'Create New',
-        path: '/shipments/create_shipment',
+        path: '/Bookings/create_bookings',
         icon: <HiOutlinePlus className="w-4 h-4" />,
-      },
-      {
-        title: 'Pending Approvals',
-        path: '/admin/shipments/pending',
-        icon: <HiOutlineClock className="w-4 h-4" />,
-        badge: 5,
-      },
-      {
-        title: 'Active Shipments',
-        path: '/admin/shipments/active',
-        icon: <HiOutlineTruck className="w-4 h-4" />,
-      },
-      {
-        title: 'Completed',
-        path: '/admin/shipments/completed',
-        icon: <HiOutlineTruck className="w-4 h-4" />,
-      },
+      }, 
     ],
   },
   {
-    title: 'Customers',
+    title: 'Shipping',
+    path: '/admin/Bookings',
+    icon: <HiOutlineTruck className="w-5 h-5" />,
+    activeIcon: <HiTruck className="w-5 h-5" />, 
+    badgeColor: '#E67E22',
+    children: [
+      {
+        title: 'All Shipping',
+        path: '/shippings/all_shipping',
+        icon: <HiOutlineClipboardList className="w-4 h-4" />,
+      }
+    ],
+  },
+  {
+    title: 'User Roles',
     path: '/admin/customers',
     icon: <HiOutlineUsers className="w-5 h-5" />,
-    activeIcon: <HiUsers className="w-5 h-5" />,
-    badge: 8,
+    activeIcon: <HiUsers className="w-5 h-5" />, 
     badgeColor: '#3C719D',
     children: [
       {
-        title: 'All Customers',
-        path: '/admin/customers',
+        title: 'All Users',
+        path: '/users/customers',
         icon: <HiOutlineUserGroup className="w-4 h-4" />,
       },
       {
-        title: 'Add New',
-        path: '/admin/customers/create',
+        title: 'Create Staff',
+        path: '/users/create_staff',
         icon: <HiOutlinePlus className="w-4 h-4" />,
-      },
-      {
-        title: 'Active Accounts',
-        path: '/admin/customers/active',
-        icon: <HiOutlinePlus className="w-4 h-4" />,
-      },
+      }, 
     ],
   },
   {
@@ -127,8 +124,7 @@ const menuItems = [
     title: 'Finance',
     path: '/admin/finance',
     icon: <HiOutlineCurrencyDollar className="w-5 h-5" />,
-    activeIcon: <HiCurrencyDollar className="w-5 h-5" />,
-    badge: 3,
+    activeIcon: <HiCurrencyDollar className="w-5 h-5" />, 
     badgeColor: '#10B981',
     children: [
       {
@@ -157,7 +153,7 @@ const menuItems = [
     children: [
       {
         title: 'Shipment Reports',
-        path: '/admin/reports/shipments',
+        path: '/admin/reports/Bookings',
         icon: <HiOutlineDocumentReport className="w-4 h-4" />,
       },
       {
@@ -208,9 +204,12 @@ const menuItems = [
 ];
 
 // Menu Item Component
-const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '' }) => {
+const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, openMenuKey, setOpenMenuKey }) => {
   const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
+  
+  // Create a unique key for this menu item
+  const menuKey = item.title;
+  const isOpen = openMenuKey === menuKey;
   
   const hasChildren = item.children && item.children.length > 0;
   const isActive = pathname === item.path || 
@@ -229,15 +228,15 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '' }) => {
       child.title.toLowerCase().includes(searchTerm.toLowerCase())
     ) : false;
 
+  // Auto-open if has active child or matches search
   useEffect(() => {
-    // Auto-open if has active child or matches search
     if (hasChildren && !collapsed) {
       const hasActiveChild = item.children.some(child => pathname === child.path);
       if (hasActiveChild || hasMatchingChild) {
-        setIsOpen(true);
+        setOpenMenuKey(menuKey);
       }
     }
-  }, [pathname, hasChildren, item.children, collapsed, hasMatchingChild]);
+  }, [pathname, hasChildren, item.children, collapsed, hasMatchingChild, menuKey, setOpenMenuKey]);
 
   // Don't render if doesn't match search and no children match
   if (searchTerm && !matchesSearch && !hasMatchingChild) {
@@ -247,8 +246,53 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '' }) => {
   const handleClick = (e) => {
     if (hasChildren) {
       e.preventDefault();
-      // Always allow toggling regardless of collapsed state
-      setIsOpen(!isOpen);
+      e.stopPropagation();
+      
+      if (collapsed) {
+        // In collapsed state, toggle the menu
+        if (isOpen) {
+          setOpenMenuKey(null); // Close if already open
+        } else {
+          setOpenMenuKey(menuKey); // Open this menu
+        }
+      } else {
+        // In expanded state, close other menus and toggle this one
+        if (isOpen) {
+          setOpenMenuKey(null); // Close if already open
+        } else {
+          setOpenMenuKey(menuKey); // Open this menu, closing others
+        }
+      }
+    } else {
+      // For items without children, navigate and close any open menus
+      setOpenMenuKey(null);
+      onMenuClick?.();
+    }
+  };
+
+  const handleChildClick = () => {
+    setOpenMenuKey(null);
+    onMenuClick?.();
+  };
+
+  const handleToggleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (collapsed) {
+      // In collapsed state, toggle the menu
+      if (isOpen) {
+        setOpenMenuKey(null);
+      } else {
+        setOpenMenuKey(menuKey);
+      }
+    } else {
+      // In expanded state, close other menus and toggle this one
+      if (isOpen) {
+        setOpenMenuKey(null);
+      } else {
+        setOpenMenuKey(menuKey);
+      }
     }
   };
 
@@ -266,6 +310,7 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '' }) => {
           }
           ${collapsed ? 'justify-center' : 'justify-start'}
           group relative
+          cursor-pointer
         `}
         style={{
           backgroundColor: isActive ? '#E67E22' : 'transparent',
@@ -288,13 +333,16 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '' }) => {
               </span>
             )}
             {hasChildren && (
-              <span className="ml-2">
+              <button 
+                onClick={handleToggleClick}
+                className="ml-2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
                 {isOpen ? (
                   <HiOutlineChevronUp className="w-4 h-4" />
                 ) : (
                   <HiOutlineChevronDown className="w-4 h-4" />
                 )}
-              </span>
+              </button>
             )}
           </>
         )}
@@ -310,29 +358,11 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '' }) => {
                 </span>
               )}
             </div>
-            
-            {/* Dropdown indicator for collapsed state */}
-            {hasChildren && (
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsOpen(!isOpen);
-                }}
-                className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-[#E67E22]"
-              >
-                {isOpen ? (
-                  <HiOutlineChevronUp className="w-4 h-4" />
-                ) : (
-                  <HiOutlineChevronDown className="w-4 h-4" />
-                )}
-              </button>
-            )}
           </>
         )}
       </Link>
 
-      {/* Children menu - show even in collapsed state when open */}
+      {/* Children menu - show when open */}
       {hasChildren && isOpen && (
         <div className={`
           ${collapsed ? 'absolute left-full top-0 ml-2 bg-white rounded-lg shadow-xl border border-gray-200 min-w-[200px] z-50' : 'mt-1'}
@@ -346,9 +376,26 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '' }) => {
                 collapsed={collapsed}
                 depth={collapsed ? 0 : depth + 1}
                 searchTerm={searchTerm}
+                onMenuClick={handleChildClick}
+                openMenuKey={openMenuKey}
+                setOpenMenuKey={setOpenMenuKey}
               />
             ))}
         </div>
+      )}
+
+      {/* Dropdown indicator for collapsed state - separate clickable area */}
+      {collapsed && hasChildren && (
+        <button
+          onClick={handleToggleClick}
+          className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-[#E67E22] focus:outline-none"
+        >
+          {isOpen ? (
+            <HiOutlineChevronUp className="w-4 h-4" />
+          ) : (
+            <HiOutlineChevronDown className="w-4 h-4" />
+          )}
+        </button>
       )}
     </div>
   );
@@ -433,6 +480,7 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [openMenuKey, setOpenMenuKey] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -450,6 +498,12 @@ export default function Sidebar() {
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
+  };
+
+  const handleMenuClick = () => {
+    if (isMobile) {
+      setMobileOpen(false);
+    }
   };
 
   return (
@@ -488,7 +542,7 @@ export default function Sidebar() {
           {!isMobile && (
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="absolute -right-3 top-16 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:text-[#E67E22] hover:border-[#E67E22] transition-all duration-200 shadow-md z-10"
+              className="absolute -right-3 top-6 w-8 h-8 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:text-[#E67E22] hover:border-[#E67E22] transition-all duration-200 shadow-md z-50"
             >
               {collapsed ? (
                 <HiOutlineChevronRight className="w-3 h-3" />
@@ -531,6 +585,9 @@ export default function Sidebar() {
                 item={item} 
                 collapsed={collapsed} 
                 searchTerm={searchTerm}
+                onMenuClick={handleMenuClick}
+                openMenuKey={openMenuKey}
+                setOpenMenuKey={setOpenMenuKey}
               />
             ))}
           </div>
