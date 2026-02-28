@@ -28,6 +28,8 @@ const Button = ({
   disabled = false,
   onClick,
   className = '',
+  icon: Icon,
+  iconPosition = 'left'
 }) => {
   const baseClasses = 'rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center';
   
@@ -58,7 +60,11 @@ const Button = ({
           <span>Please wait...</span>
         </div>
       ) : (
-        children
+        <div className="flex items-center">
+          {Icon && iconPosition === 'left' && <Icon className="h-3.5 w-3.5 mr-1.5" />}
+          {children}
+          {Icon && iconPosition === 'right' && <Icon className="h-3.5 w-3.5 ml-1.5" />}
+        </div>
       )}
     </button>
   );
@@ -346,7 +352,14 @@ export default function CreateBooking() {
   const handleCargoChange = (index, field, value) => {
     setFormData(prev => {
       const newData = { ...prev };
-      newData.shipmentDetails.cargoDetails[index][field] = value;
+      
+      if (field.includes('.')) {
+        const [parent, child] = field.split('.');
+        newData.shipmentDetails.cargoDetails[index][parent][child] = value;
+      } else {
+        newData.shipmentDetails.cargoDetails[index][field] = value;
+      }
+      
       return newData;
     });
   };
@@ -392,57 +405,64 @@ export default function CreateBooking() {
 
     // Step 1 validation
     if (!formData.shipmentDetails.shipmentType) {
-      newErrors['shipmentDetails.shipmentType'] = 'Required';
+      newErrors['shipmentDetails.shipmentType'] = 'Shipment type is required';
     }
     if (!formData.shipmentDetails.origin) {
-      newErrors['shipmentDetails.origin'] = 'Required';
+      newErrors['shipmentDetails.origin'] = 'Origin is required';
     }
     if (!formData.shipmentDetails.destination) {
-      newErrors['shipmentDetails.destination'] = 'Required';
+      newErrors['shipmentDetails.destination'] = 'Destination is required';
     }
     if (!formData.estimatedDepartureDate) {
-      newErrors.estimatedDepartureDate = 'Required';
+      newErrors.estimatedDepartureDate = 'Departure date is required';
     }
     if (!formData.estimatedArrivalDate) {
-      newErrors.estimatedArrivalDate = 'Required';
+      newErrors.estimatedArrivalDate = 'Arrival date is required';
+    }
+
+    // Check if arrival date is after departure date
+    if (formData.estimatedDepartureDate && formData.estimatedArrivalDate) {
+      if (new Date(formData.estimatedArrivalDate) < new Date(formData.estimatedDepartureDate)) {
+        newErrors.estimatedArrivalDate = 'Arrival date must be after departure date';
+      }
     }
 
     // Step 2 validation (cargo)
     formData.shipmentDetails.cargoDetails.forEach((item, index) => {
       if (!item.description) {
-        newErrors[`cargo_desc_${index}`] = 'Required';
+        newErrors[`cargo_desc_${index}`] = 'Description is required';
       }
       if (!item.cartons || item.cartons < 1) {
-        newErrors[`cargo_cartons_${index}`] = 'Min 1';
+        newErrors[`cargo_cartons_${index}`] = 'Minimum 1 carton required';
       }
       if (!item.weight || item.weight <= 0) {
-        newErrors[`cargo_weight_${index}`] = 'Required';
+        newErrors[`cargo_weight_${index}`] = 'Weight is required';
       }
       if (!item.volume || item.volume <= 0) {
-        newErrors[`cargo_volume_${index}`] = 'Required';
+        newErrors[`cargo_volume_${index}`] = 'Volume is required';
       }
     });
 
     // Step 3 validation
     if (!formData.deliveryAddress.consigneeName) {
-      newErrors['deliveryAddress.consigneeName'] = 'Required';
+      newErrors['deliveryAddress.consigneeName'] = 'Consignee name is required';
     }
     if (!formData.deliveryAddress.email) {
-      newErrors['deliveryAddress.email'] = 'Required';
+      newErrors['deliveryAddress.email'] = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.deliveryAddress.email)) {
-      newErrors['deliveryAddress.email'] = 'Invalid email';
+      newErrors['deliveryAddress.email'] = 'Invalid email format';
     }
     if (!formData.deliveryAddress.phone) {
-      newErrors['deliveryAddress.phone'] = 'Required';
+      newErrors['deliveryAddress.phone'] = 'Phone number is required';
     }
     if (!formData.deliveryAddress.addressLine1) {
-      newErrors['deliveryAddress.addressLine1'] = 'Required';
+      newErrors['deliveryAddress.addressLine1'] = 'Address is required';
     }
     if (!formData.deliveryAddress.city) {
-      newErrors['deliveryAddress.city'] = 'Required';
+      newErrors['deliveryAddress.city'] = 'City is required';
     }
     if (!formData.deliveryAddress.country) {
-      newErrors['deliveryAddress.country'] = 'Required';
+      newErrors['deliveryAddress.country'] = 'Country is required';
     }
 
     setErrors(newErrors);
@@ -453,20 +473,38 @@ export default function CreateBooking() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      toast.error('Please fill all required fields');
-      return;
-    }
+    if (currentStep !== 4) {
+    return;
+  }
+
+  if (!validateForm()) {
+    toast.error('Please fill all required fields');
+    return;
+  }
 
     setIsSubmitting(true);
     setServerErrors([]);
 
     try {
-      const response = await createBooking(formData);
+      // Format data for API
+      const bookingData = {
+        ...formData,
+        bookingNumber: generateBookingNumber(),
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const response = await createBooking(bookingData);
       
       if (response.success) {
         setShowSuccess(true);
         toast.success('Booking created successfully!');
+        
+        // Store in localStorage as backup
+        const existingBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+        localStorage.setItem('bookings', JSON.stringify([...existingBookings, bookingData]));
+        
         setTimeout(() => {
           router.push('/Bookings/all_bookings');
         }, 2000);
@@ -483,6 +521,14 @@ export default function CreateBooking() {
     }
   };
 
+  // Generate Booking Number
+  const generateBookingNumber = () => {
+    const prefix = 'BKG';
+    const timestamp = Date.now().toString().slice(-8);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `${prefix}${timestamp}${random}`;
+  };
+
   // Next Step
   const nextStep = () => {
     let isValid = true;
@@ -494,7 +540,7 @@ export default function CreateBooking() {
           !formData.estimatedDepartureDate ||
           !formData.estimatedArrivalDate) {
         isValid = false;
-        toast.error('Please complete step 1');
+        toast.error('Please complete all required fields in step 1');
       }
     } else if (currentStep === 2) {
       const hasInvalidCargo = formData.shipmentDetails.cargoDetails.some(
@@ -503,6 +549,16 @@ export default function CreateBooking() {
       if (hasInvalidCargo) {
         isValid = false;
         toast.error('Please complete all cargo details');
+      }
+    } else if (currentStep === 3) {
+      if (!formData.deliveryAddress.consigneeName ||
+          !formData.deliveryAddress.email ||
+          !formData.deliveryAddress.phone ||
+          !formData.deliveryAddress.addressLine1 ||
+          !formData.deliveryAddress.city ||
+          !formData.deliveryAddress.country) {
+        isValid = false;
+        toast.error('Please complete all required delivery address fields');
       }
     }
 
@@ -515,10 +571,35 @@ export default function CreateBooking() {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
+  // Save as Draft
+  const saveAsDraft = () => {
+    const draftData = {
+      ...formData,
+      bookingNumber: generateBookingNumber(),
+      status: 'draft',
+      savedAt: new Date().toISOString()
+    };
+    
+    localStorage.setItem('bookingDraft', JSON.stringify(draftData));
+    toast.info('Draft saved successfully!');
+  };
+
+  // Load Draft
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('bookingDraft');
+    if (savedDraft) {
+      const shouldLoad = window.confirm('Found a saved draft. Would you like to load it?');
+      if (shouldLoad) {
+        setFormData(JSON.parse(savedDraft));
+        toast.success('Draft loaded successfully');
+      }
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header - Compact */}
-      <div className="bg-white border-b ">
+      <div className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center space-x-4">
@@ -538,6 +619,14 @@ export default function CreateBooking() {
             </div>
             
             <div className="flex items-center space-x-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={saveAsDraft}
+                icon={Save}
+              >
+                Save Draft
+              </Button>
               <span className="text-xs text-gray-500">
                 Step {currentStep}/4
               </span>
@@ -561,14 +650,14 @@ export default function CreateBooking() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-3">
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
             <div className="flex items-start">
-              <AlertCircle className="h-4 w-4 text-red-500 mt-0.5" />
+              <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
               <div className="ml-2 flex-1">
-                <p className="text-xs font-medium text-red-800">Error</p>
+                <p className="text-xs font-medium text-red-800">Error creating booking</p>
                 {serverErrors.map((error, index) => (
                   <p key={index} className="text-xs text-red-600">{error.msg}</p>
                 ))}
               </div>
-              <button onClick={() => setServerErrors([])}>
+              <button onClick={() => setServerErrors([])} className="flex-shrink-0">
                 <X className="h-4 w-4 text-red-500" />
               </button>
             </div>
@@ -579,7 +668,7 @@ export default function CreateBooking() {
       {/* Success Modal */}
       {showSuccess && (
         <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm mx-4 animate-fadeIn">
             <div className="text-center">
               <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3">
                 <CheckCircle className="h-6 w-6 text-green-600" />
@@ -596,8 +685,8 @@ export default function CreateBooking() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <form onSubmit={handleSubmit} className="bg-white rounded-lg border shadow-sm">
           {/* Step Indicators */}
-          <div className="border-b px-4 py-2 bg-gray-50">
-            <div className="flex items-center justify-between">
+          <div className="border-b px-4 py-2 bg-gray-50 rounded-t-lg">
+            <div className="flex items-center justify-between max-w-2xl mx-auto">
               <StepIndicator step={1} currentStep={currentStep} title="Shipment" />
               <ChevronRight className="h-3 w-3 text-gray-400" />
               <StepIndicator step={2} currentStep={currentStep} title="Cargo" />
@@ -612,7 +701,7 @@ export default function CreateBooking() {
           <div className="p-4">
             {/* Step 1: Shipment Info */}
             {currentStep === 1 && (
-              <div className="space-y-3">
+              <div className="space-y-3 animate-fadeIn">
                 <div className="grid grid-cols-2 gap-3">
                   <Select
                     label="Shipment Type"
@@ -669,6 +758,7 @@ export default function CreateBooking() {
                     required
                     icon={Calendar}
                     error={errors.estimatedDepartureDate}
+                    min={new Date().toISOString().split('T')[0]}
                   />
                   
                   <Input
@@ -680,6 +770,7 @@ export default function CreateBooking() {
                     required
                     icon={Calendar}
                     error={errors.estimatedArrivalDate}
+                    min={formData.estimatedDepartureDate || new Date().toISOString().split('T')[0]}
                   />
                 </div>
 
@@ -698,7 +789,7 @@ export default function CreateBooking() {
                     name="shipmentDetails.incoterms"
                     value={formData.shipmentDetails.incoterms}
                     onChange={handleInputChange}
-                    placeholder="e.g., EXW"
+                    placeholder="e.g., EXW, FOB"
                     icon={Tag}
                   />
                 </div>
@@ -716,19 +807,35 @@ export default function CreateBooking() {
                     Pickup required from origin
                   </label>
                 </div>
+
+                <div className="bg-blue-50 rounded-md p-2 mt-2">
+                  <div className="flex items-start">
+                    <Info className="h-3.5 w-3.5 text-blue-500 mt-0.5 mr-1.5 flex-shrink-0" />
+                    <p className="text-xs text-blue-700">
+                      Fill in the basic shipment information to get started. You can add more details later.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Step 2: Cargo Details */}
             {currentStep === 2 && (
-              <div className="space-y-3">
+              <div className="space-y-3 animate-fadeIn">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-medium text-gray-700">Cargo Items</h3>
+                  <span className="text-xs text-gray-500">
+                    {formData.shipmentDetails.cargoDetails.length} item(s)
+                  </span>
+                </div>
+
                 {formData.shipmentDetails.cargoDetails.map((item, index) => (
                   <div key={index} className="border rounded-md p-3 bg-gray-50 relative">
                     {index > 0 && (
                       <button
                         type="button"
                         onClick={() => removeCargoItem(index)}
-                        className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-0.5 hover:bg-red-200"
+                        className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-0.5 hover:bg-red-200 transition-colors"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -752,7 +859,6 @@ export default function CreateBooking() {
                         value={item.productCategory}
                         onChange={(e) => handleCargoChange(index, 'productCategory', e.target.value)}
                         options={productCategories.map(cat => ({ value: cat, label: cat }))}
-                        required
                         icon={Tag}
                       />
 
@@ -799,26 +905,24 @@ export default function CreateBooking() {
                         error={errors[`cargo_volume_${index}`]}
                       />
 
-                      <Input
-                        label="Value"
-                        type="number"
-                        value={item.value.amount}
-                        onChange={(e) => handleCargoChange(index, 'value', { 
-                          ...item.value, 
-                          amount: parseFloat(e.target.value) || 0 
-                        })}
-                        icon={DollarSign}
-                      />
+                      <div className="col-span-2 grid grid-cols-2 gap-2">
+                        <Input
+                          label="Value"
+                          type="number"
+                          value={item.value.amount}
+                          onChange={(e) => handleCargoChange(index, 'value.amount', parseFloat(e.target.value) || 0)}
+                          icon={DollarSign}
+                          min="0"
+                          step="0.01"
+                        />
 
-                      <Select
-                        label="Currency"
-                        value={item.value.currency}
-                        onChange={(e) => handleCargoChange(index, 'value', { 
-                          ...item.value, 
-                          currency: e.target.value 
-                        })}
-                        options={currencies.map(curr => ({ value: curr, label: curr }))}
-                      />
+                        <Select
+                          label="Currency"
+                          value={item.value.currency}
+                          onChange={(e) => handleCargoChange(index, 'value.currency', e.target.value)}
+                          options={currencies.map(curr => ({ value: curr, label: curr }))}
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -828,14 +932,14 @@ export default function CreateBooking() {
                   variant="outline"
                   size="sm"
                   onClick={addCargoItem}
-                  icon={<Plus className="h-3.5 w-3.5" />}
+                  icon={Plus}
                   className="w-full"
                 >
-                  Add Item
+                  Add Another Item
                 </Button>
 
                 {formData.shipmentDetails.cargoDetails.length > 0 && (
-                  <div className="bg-blue-50 rounded-md p-2 mt-2">
+                  <div className="bg-blue-50 rounded-md p-3 mt-2">
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div>
                         <div className="text-xs text-gray-500">Total Cartons</div>
@@ -863,7 +967,7 @@ export default function CreateBooking() {
 
             {/* Step 3: Addresses */}
             {currentStep === 3 && (
-              <div className="space-y-3">
+              <div className="space-y-4 animate-fadeIn">
                 {/* Delivery Address */}
                 <div className="border rounded-md p-3">
                   <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
@@ -943,7 +1047,7 @@ export default function CreateBooking() {
                     />
 
                     <Input
-                      label="State"
+                      label="State/Province"
                       name="deliveryAddress.state"
                       value={formData.deliveryAddress.state}
                       onChange={handleInputChange}
@@ -975,7 +1079,7 @@ export default function CreateBooking() {
                         onChange={handleInputChange}
                         className="h-3.5 w-3.5 text-[#2563eb] focus:ring-[#2563eb] border-gray-300 rounded"
                       />
-                      <span className="ml-2 text-xs text-gray-600">Residential address</span>
+                      <span className="ml-2 text-xs text-gray-600">This is a residential address</span>
                     </label>
                   </div>
                 </div>
@@ -1015,9 +1119,19 @@ export default function CreateBooking() {
 
                       <div className="col-span-2">
                         <Input
-                          label="Address"
+                          label="Address Line 1"
                           name="pickupAddress.addressLine1"
                           value={formData.pickupAddress.addressLine1}
+                          onChange={handleInputChange}
+                          icon={MapPin}
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <Input
+                          label="Address Line 2"
+                          name="pickupAddress.addressLine2"
+                          value={formData.pickupAddress.addressLine2}
                           onChange={handleInputChange}
                           icon={MapPin}
                         />
@@ -1031,9 +1145,23 @@ export default function CreateBooking() {
                       />
 
                       <Input
+                        label="State/Province"
+                        name="pickupAddress.state"
+                        value={formData.pickupAddress.state}
+                        onChange={handleInputChange}
+                      />
+
+                      <Input
                         label="Country"
                         name="pickupAddress.country"
                         value={formData.pickupAddress.country}
+                        onChange={handleInputChange}
+                      />
+
+                      <Input
+                        label="Postal Code"
+                        name="pickupAddress.postalCode"
+                        value={formData.pickupAddress.postalCode}
                         onChange={handleInputChange}
                       />
 
@@ -1044,6 +1172,7 @@ export default function CreateBooking() {
                         value={formData.pickupAddress.pickupDate}
                         onChange={handleInputChange}
                         icon={Calendar}
+                        min={new Date().toISOString().split('T')[0]}
                       />
 
                       <Input
@@ -1062,9 +1191,12 @@ export default function CreateBooking() {
 
             {/* Step 4: Review */}
             {currentStep === 4 && (
-              <div className="space-y-3">
+              <div className="space-y-3 animate-fadeIn">
                 <div className="bg-gray-50 rounded-md p-3">
-                  <h3 className="text-xs font-medium text-gray-700 mb-2">Shipment Overview</h3>
+                  <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
+                    <Package className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
+                    Shipment Overview
+                  </h3>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <span className="text-gray-500">Type:</span>{' '}
@@ -1086,23 +1218,35 @@ export default function CreateBooking() {
                     </div>
                     <div>
                       <span className="text-gray-500">Departure:</span>{' '}
-                      <span className="font-medium">{formData.estimatedDepartureDate}</span>
+                      <span className="font-medium">{new Date(formData.estimatedDepartureDate).toLocaleDateString()}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Arrival:</span>{' '}
-                      <span className="font-medium">{formData.estimatedArrivalDate}</span>
+                      <span className="font-medium">{new Date(formData.estimatedArrivalDate).toLocaleDateString()}</span>
                     </div>
+                    {formData.customerReference && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Reference:</span>{' '}
+                        <span className="font-medium">{formData.customerReference}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="bg-gray-50 rounded-md p-3">
-                  <h3 className="text-xs font-medium text-gray-700 mb-2">Cargo Summary</h3>
-                  <div className="space-y-2">
+                  <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
+                    <Box className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
+                    Cargo Summary
+                  </h3>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
                     {formData.shipmentDetails.cargoDetails.map((item, index) => (
                       <div key={index} className="text-xs border-b last:border-0 pb-1 last:pb-0">
                         <div className="font-medium">{item.description}</div>
-                        <div className="text-gray-500">
-                          {item.cartons} ctns | {item.weight} kg | {item.volume} CBM
+                        <div className="text-gray-500 flex justify-between">
+                          <span>{item.cartons} ctns | {item.weight} kg | {item.volume} CBM</span>
+                          {item.value.amount > 0 && (
+                            <span className="font-medium">{item.value.currency} {item.value.amount.toLocaleString()}</span>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1114,17 +1258,20 @@ export default function CreateBooking() {
                     </div>
                     <div>
                       <span className="text-gray-500">Total Weight:</span>{' '}
-                      <span className="font-medium">{formData.shipmentDetails.totalWeight} kg</span>
+                      <span className="font-medium">{formData.shipmentDetails.totalWeight.toFixed(1)} kg</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Total Volume:</span>{' '}
-                      <span className="font-medium">{formData.shipmentDetails.totalVolume} CBM</span>
+                      <span className="font-medium">{formData.shipmentDetails.totalVolume.toFixed(3)} CBM</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="bg-gray-50 rounded-md p-3">
-                  <h3 className="text-xs font-medium text-gray-700 mb-2">Delivery Address</h3>
+                  <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
+                    <Home className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
+                    Delivery Address
+                  </h3>
                   <div className="text-xs">
                     <p className="font-medium">{formData.deliveryAddress.consigneeName}</p>
                     {formData.deliveryAddress.companyName && (
@@ -1137,14 +1284,57 @@ export default function CreateBooking() {
                     <p className="text-gray-600">
                       {formData.deliveryAddress.city}
                       {formData.deliveryAddress.state && `, ${formData.deliveryAddress.state}`}
-                    </p>
-                    <p className="text-gray-600">
-                      {formData.deliveryAddress.country}
                       {formData.deliveryAddress.postalCode && ` - ${formData.deliveryAddress.postalCode}`}
                     </p>
+                    <p className="text-gray-600">{formData.deliveryAddress.country}</p>
                     <p className="text-gray-600 mt-1">
                       <span className="text-gray-500">Phone:</span> {formData.deliveryAddress.phone}<br />
                       <span className="text-gray-500">Email:</span> {formData.deliveryAddress.email}
+                    </p>
+                    {formData.deliveryAddress.isResidential && (
+                      <p className="text-xs text-blue-600 mt-1">🏠 Residential Address</p>
+                    )}
+                  </div>
+                </div>
+
+                {formData.shipmentDetails.pickupRequired && (
+                  <div className="bg-gray-50 rounded-md p-3">
+                    <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
+                      <Building className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
+                      Pickup Address
+                    </h3>
+                    <div className="text-xs">
+                      <p className="font-medium">{formData.pickupAddress.companyName || formData.pickupAddress.contactPerson}</p>
+                      {formData.pickupAddress.contactPerson && (
+                        <p className="text-gray-600">Contact: {formData.pickupAddress.contactPerson}</p>
+                      )}
+                      <p className="text-gray-600">{formData.pickupAddress.addressLine1}</p>
+                      {formData.pickupAddress.addressLine2 && (
+                        <p className="text-gray-600">{formData.pickupAddress.addressLine2}</p>
+                      )}
+                      <p className="text-gray-600">
+                        {formData.pickupAddress.city}
+                        {formData.pickupAddress.state && `, ${formData.pickupAddress.state}`}
+                      </p>
+                      <p className="text-gray-600">{formData.pickupAddress.country}</p>
+                      {formData.pickupAddress.phone && (
+                        <p className="text-gray-600 mt-1">📞 {formData.pickupAddress.phone}</p>
+                      )}
+                      {formData.pickupAddress.pickupDate && (
+                        <p className="text-gray-600 mt-1">
+                          📅 Pickup: {new Date(formData.pickupAddress.pickupDate).toLocaleDateString()}
+                          {formData.pickupAddress.pickupTime && ` at ${formData.pickupAddress.pickupTime}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-green-50 rounded-md p-2">
+                  <div className="flex items-center">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-500 mr-1.5" />
+                    <p className="text-xs text-green-700">
+                      Please review all information before submitting. You can save as draft or create booking.
                     </p>
                   </div>
                 </div>
@@ -1159,7 +1349,7 @@ export default function CreateBooking() {
                   variant="secondary"
                   size="sm"
                   onClick={prevStep}
-                  icon={<ChevronLeft className="h-3.5 w-3.5" />}
+                  icon={ChevronLeft}
                 >
                   Back
                 </Button>
@@ -1173,10 +1363,10 @@ export default function CreateBooking() {
                   variant="primary"
                   size="sm"
                   onClick={nextStep}
-                  icon={<ChevronRight className="h-3.5 w-3.5" />}
+                  icon={ChevronRight}
                   iconPosition="right"
                 >
-                  Next
+                  Next Step
                 </Button>
               ) : (
                 <Button
@@ -1184,14 +1374,24 @@ export default function CreateBooking() {
                   variant="success"
                   size="sm"
                   isLoading={isSubmitting}
-                  icon={<Save className="h-3.5 w-3.5" />}
+                  icon={Save}
                 >
                   Create Booking
                 </Button>
               )}
             </div>
           </div>
-        </form> 
+        </form>
+
+        {/* Progress Summary */}
+        <div className="mt-4 text-center">
+          <p className="text-xs text-gray-500">
+            {currentStep === 1 && "📦 Step 1: Enter basic shipment information"}
+            {currentStep === 2 && "📦 Step 2: Add cargo details"}
+            {currentStep === 3 && "📦 Step 3: Enter delivery and pickup addresses"}
+            {currentStep === 4 && "📦 Step 4: Review and confirm your booking"}
+          </p>
+        </div>
       </div>
 
       {/* Animation Styles */}

@@ -1,195 +1,538 @@
 import axiosInstance from '@/lib/axiosInstance';
-import Cookies from 'js-cookie';
 
 // ==================== BOOKING API FUNCTIONS ====================
 
-// Create new booking
+// 1. CREATE BOOKING (Customer)
 export const createBooking = async (bookingData) => {
   try {
-    const response = await axiosInstance.post('/create-bookings', bookingData);
-    return response.data;
+    const response = await axiosInstance.post('/createBooking', bookingData);
+    return {
+      success: true,
+      data: response.data.data,
+      message: response.data.message
+    };
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to create booking' };
+    console.error('Create booking error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to create booking',
+      error: error.response?.data
+    };
   }
 };
 
-// Get all bookings with filters and pagination
-export const getBookings = async () => {
-    try {
-        const response = await axiosInstance.get('/all-bookings');
-        
-        if (response.data.success) {
-            return {
-                success: true,
-                data: response.data.data,
-                pagination: response.data.pagination,
-                statistics: response.data.statistics,
-                message: response.data.message
-            };
-        }
-        
-        throw new Error(response.data.message || 'Failed to fetch bookings');
-        
-    } catch (error) {
-        console.error('Get bookings error:', error);
-        return {
-            success: false,
-            message: error.response?.data?.message || error.message || 'Failed to fetch bookings',
-            error: error.response?.data?.error || error
-        };
+// 2. GET ALL BOOKINGS (Admin/Staff)
+export const getAllBookings = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams({
+      page: params.page || 1,
+      limit: params.limit || 20,
+      ...(params.status && { status: params.status }),
+      ...(params.search && { search: params.search }),
+      ...(params.startDate && { startDate: params.startDate }),
+      ...(params.endDate && { endDate: params.endDate }),
+      ...(params.sortBy && { sortBy: params.sortBy }),
+      ...(params.sortOrder && { sortOrder: params.sortOrder })
+    });
+
+    const response = await axiosInstance.get(`/getAllBooking?${queryParams}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        pagination: response.data.pagination,
+        message: response.data.message
+      };
     }
+    
+    throw new Error(response.data.message || 'Failed to fetch bookings');
+    
+  } catch (error) {
+    console.error('Get all bookings error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch bookings',
+      error: error.response?.data
+    };
+  }
 };
 
-// Get single booking by ID
+// 3. GET SINGLE BOOKING BY ID
 export const getBookingById = async (bookingId) => {
   try {
-    const response = await axiosInstance.get(`/getBooking-by-id/${bookingId}`);
-    return response.data;
+    const response = await axiosInstance.get(`/bookings/${bookingId}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch booking');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch booking' };
+    console.error('Get booking by id error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch booking',
+      error: error.response?.data
+    };
   }
 };
 
-// Update booking
-export const updateBooking = async (bookingId, bookingData) => {
+// 4. UPDATE PRICE QUOTE (Admin)
+export const updatePriceQuote = async (bookingId, quoteData) => {
   try {
-    const response = await axiosInstance.put(`/updateBooking-by-id/${bookingId}`, bookingData);
-    return response.data;
+    const response = await axiosInstance.put(`/booking/${bookingId}/price-quote`, quoteData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to update price quote');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to update booking' };
+    console.error('Update price quote error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to update price quote',
+      error: error.response?.data
+    };
   }
 };
 
-// Update booking status
-export const updateBookingStatus = async (bookingId, statusData) => {
+// 5. CUSTOMER ACCEPT QUOTE
+export const acceptQuote = async (bookingId, notes = '') => {
   try {
-    const response = await axiosInstance.patch(`/booking/${bookingId}/status`, statusData);
-    return response.data;
+    const response = await axiosInstance.put(`/booking/${bookingId}/accept`, { notes });
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to accept quote');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to update booking status' };
+    console.error('Accept quote error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to accept quote',
+      error: error.response?.data
+    };
   }
 };
 
-// Assign booking to staff or container
-export const assignBooking = async (bookingId, assignmentData) => {
+// 6. CUSTOMER REJECT QUOTE
+export const rejectQuote = async (bookingId, reason = '') => {
   try {
-    const response = await axiosInstance.post(`/bookings/${bookingId}/assign`, assignmentData);
-    return response.data;
+    const response = await axiosInstance.post(`/bookings/${bookingId}/reject-quote`, { reason });
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to reject quote');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to assign booking' };
+    console.error('Reject quote error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to reject quote',
+      error: error.response?.data
+    };
   }
 };
 
-// Add note to booking
-export const addBookingNote = async (bookingId, noteData) => {
+// 7. CANCEL BOOKING
+export const cancelBooking = async (bookingId, reason = '') => {
   try {
-    const response = await axiosInstance.post(`/bookings/${bookingId}/notes`, noteData);
-    return response.data;
+    const response = await axiosInstance.post(`/bookings/${bookingId}/cancel`, { reason });
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to cancel booking');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to add note' };
+    console.error('Cancel booking error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to cancel booking',
+      error: error.response?.data
+    };
   }
 };
 
-// Cancel booking
-export const cancelBooking = async (bookingId, cancelData) => {
+// 8. GET MY BOOKINGS (Customer)
+export const getMyBookings = async (params = {}) => {
   try {
-    const response = await axiosInstance.post(`/bookings/${bookingId}/cancel`, cancelData);
-    return response.data;
+    const queryParams = new URLSearchParams({
+      page: params.page || 1,
+      limit: params.limit || 10,
+      ...(params.status && { status: params.status }),
+      ...(params.sort && { sort: params.sort || '-createdAt' })
+    });
+
+    const response = await axiosInstance.get(`/bookings/my-bookings?${queryParams}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        summary: response.data.summary,
+        pagination: response.data.pagination,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch my bookings');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to cancel booking' };
+    console.error('Get my bookings error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch bookings',
+      error: error.response?.data
+    };
   }
 };
 
-// Get booking timeline
-export const getBookingTimeline = async (bookingId) => {
+// 9. GET MY BOOKING BY ID (Customer)
+export const getMyBookingById = async (bookingId) => {
   try {
-    const response = await axiosInstance.get(`/bookings/${bookingId}/timeline`);
-    return response.data;
+    const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch booking');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch timeline' };
+    console.error('Get my booking by id error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch booking',
+      error: error.response?.data
+    };
   }
 };
 
-// Get booking statistics for dashboard
-export const getBookingStats = async () => {
+// 10. GET MY BOOKING TIMELINE (Customer)
+export const getMyBookingTimeline = async (bookingId) => {
   try {
-    const response = await axiosInstance.get('/stats/dashboard');
-    return response.data;
+    const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}/timeline`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch timeline');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch booking statistics' };
+    console.error('Get booking timeline error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch timeline',
+      error: error.response?.data
+    };
   }
 };
 
-// Bulk update bookings
-export const bulkUpdateBookings = async (bulkUpdateData) => {
+// 11. GET MY BOOKING INVOICES (Customer)
+export const getMyBookingInvoices = async (bookingId) => {
   try {
-    const response = await axiosInstance.post('/bulk-booking-update', bulkUpdateData);
-    return response.data;
+    const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}/invoices`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch invoices');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to bulk update bookings' };
+    console.error('Get booking invoices error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch invoices',
+      error: error.response?.data
+    };
   }
 };
 
-// Track booking by tracking number (Public)
-export const trackBooking = async (trackingNumber) => {
+// 12. GET MY BOOKING QUOTE DETAILS (Customer)
+export const getMyBookingQuote = async (bookingId) => {
+  try {
+    const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}/quote`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch quote details');
+    
+  } catch (error) {
+    console.error('Get booking quote error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch quote details',
+      error: error.response?.data
+    };
+  }
+};
+
+// 13. GET MY BOOKINGS SUMMARY (Customer Dashboard)
+export const getMyBookingsSummary = async () => {
+  try {
+    const response = await axiosInstance.get('/my-bookings/summary');
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch summary');
+    
+  } catch (error) {
+    console.error('Get bookings summary error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch summary',
+      error: error.response?.data
+    };
+  }
+};
+
+// 14. DOWNLOAD BOOKING DOCUMENT
+export const downloadBookingDocument = async (bookingId, documentId) => {
+  try {
+    const response = await axiosInstance.get(`/bookings/${bookingId}/documents/${documentId}/download`, {
+      responseType: 'blob'
+    });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Get filename from content-disposition header or use default
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'document.pdf';
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1].replace(/['"]/g, '');
+      }
+    }
+    
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    
+    return {
+      success: true,
+      message: 'Document downloaded successfully'
+    };
+    
+  } catch (error) {
+    console.error('Download document error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to download document',
+      error: error.response?.data
+    };
+  }
+};
+
+// 15. TRACK BY NUMBER (Public)
+export const trackByNumber = async (trackingNumber) => {
   try {
     const response = await axiosInstance.get(`/bookings/track/${trackingNumber}`);
-    return response.data;
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Tracking number not found');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to track booking' };
+    console.error('Track by number error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to track shipment',
+      error: error.response?.data
+    };
   }
 };
 
-// ==================== BOOKING HELPER FUNCTIONS ====================
+// ==================== HELPER FUNCTIONS ====================
 
 // Get status color for UI
 export const getStatusColor = (status) => {
   const statusColors = {
     'booking_requested': 'info',
+    'price_quoted': 'warning',
     'booking_confirmed': 'primary',
-    'pickup_scheduled': 'warning',
-    'received_at_warehouse': 'info',
-    'consolidation_in_progress': 'warning',
-    'loaded_in_container': 'primary',
-    'loaded_on_flight': 'primary',
-    'in_transit': 'info',
-    'arrived_at_destination': 'success',
-    'customs_clearance': 'warning',
-    'out_for_delivery': 'info',
-    'delivered': 'success',
     'cancelled': 'error',
-    'returned': 'warning'
+    'rejected': 'error',
+    'delivered': 'success'
   };
   
   return statusColors[status] || 'default';
+};
+
+// Get pricing status color
+export const getPricingStatusColor = (status) => {
+  const pricingColors = {
+    'pending': 'default',
+    'quoted': 'warning',
+    'accepted': 'success',
+    'rejected': 'error',
+    'expired': 'default'
+  };
+  
+  return pricingColors[status] || 'default';
 };
 
 // Get status display text
 export const getStatusDisplayText = (status) => {
   const statusTexts = {
     'booking_requested': 'Booking Requested',
+    'price_quoted': 'Price Quoted',
     'booking_confirmed': 'Booking Confirmed',
-    'pickup_scheduled': 'Pickup Scheduled',
-    'received_at_warehouse': 'Received at Warehouse',
-    'consolidation_in_progress': 'Consolidation in Progress',
-    'loaded_in_container': 'Loaded in Container',
-    'loaded_on_flight': 'Loaded on Flight',
-    'in_transit': 'In Transit',
-    'arrived_at_destination': 'Arrived at Destination',
-    'customs_clearance': 'Customs Clearance',
-    'out_for_delivery': 'Out for Delivery',
-    'delivered': 'Delivered',
     'cancelled': 'Cancelled',
-    'returned': 'Returned'
+    'rejected': 'Rejected',
+    'delivered': 'Delivered'
   };
   
   return statusTexts[status] || status;
 };
 
-// Format date for display
-export const formatBookingDate = (dateString) => {
+// Get pricing status display text
+export const getPricingStatusDisplayText = (status) => {
+  const pricingTexts = {
+    'pending': 'Pending',
+    'quoted': 'Quoted',
+    'accepted': 'Accepted',
+    'rejected': 'Rejected',
+    'expired': 'Expired'
+  };
+  
+  return pricingTexts[status] || status;
+};
+
+// Get shipment type display
+export const getShipmentTypeDisplay = (type) => {
+  const types = {
+    'air_freight': 'Air Freight',
+    'sea_freight': 'Sea Freight',
+    'express_courier': 'Express Courier'
+  };
+  
+  return types[type] || type;
+};
+
+// Get origin display
+export const getOriginDisplay = (origin) => {
+  const origins = {
+    'China Warehouse': 'China Warehouse',
+    'Thailand Warehouse': 'Thailand Warehouse'
+  };
+  
+  return origins[origin] || origin;
+};
+
+// Get destination display
+export const getDestinationDisplay = (destination) => {
+  const destinations = {
+    'USA': 'United States',
+    'UK': 'United Kingdom',
+    'Canada': 'Canada'
+  };
+  
+  return destinations[destination] || destination;
+};
+
+// Get shipping mode display
+export const getShippingModeDisplay = (mode) => {
+  const modes = {
+    'DDP': 'Delivered Duty Paid',
+    'DDU': 'Delivered Duty Unpaid',
+    'FOB': 'Free on Board',
+    'CIF': 'Cost, Insurance & Freight'
+  };
+  
+  return modes[mode] || mode;
+};
+
+// Format date
+export const formatDate = (dateString, format = 'medium') => {
   if (!dateString) return 'N/A';
+  
   const date = new Date(dateString);
+  
+  if (format === 'short') {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+  
+  if (format === 'long') {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+  
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -199,153 +542,127 @@ export const formatBookingDate = (dateString) => {
   });
 };
 
-// Calculate progress percentage
-export const calculateProgressPercentage = (status) => {
-  const progressMap = {
-    'booking_requested': 10,
-    'booking_confirmed': 20,
-    'pickup_scheduled': 30,
-    'received_at_warehouse': 40,
-    'consolidation_in_progress': 50,
-    'loaded_in_container': 60,
-    'loaded_on_flight': 60,
-    'in_transit': 70,
-    'arrived_at_destination': 80,
-    'customs_clearance': 85,
-    'out_for_delivery': 90,
-    'delivered': 100,
-    'cancelled': 0,
-    'returned': 0
-  };
+// Format currency
+export const formatCurrency = (amount, currency = 'USD') => {
+  if (!amount && amount !== 0) return 'N/A';
   
-  return progressMap[status] || 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
 };
 
-// Check if status is active (not delivered or cancelled)
-export const isActiveBooking = (status) => {
-  const activeStatuses = [
-    'booking_requested',
-    'booking_confirmed',
-    'pickup_scheduled',
-    'received_at_warehouse',
-    'consolidation_in_progress',
-    'loaded_in_container',
-    'loaded_on_flight',
-    'in_transit',
-    'arrived_at_destination',
-    'customs_clearance',
-    'out_for_delivery'
-  ];
+// Check if quote is valid
+export const isQuoteValid = (quote) => {
+  if (!quote || !quote.validUntil) return false;
+  return new Date() <= new Date(quote.validUntil);
+};
+
+// Calculate days remaining for quote
+export const getQuoteDaysRemaining = (validUntil) => {
+  if (!validUntil) return 0;
   
-  return activeStatuses.includes(status);
+  const now = new Date();
+  const validDate = new Date(validUntil);
+  const diffTime = validDate - now;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return Math.max(0, diffDays);
 };
 
 // Check if booking can be cancelled
 export const canCancelBooking = (status) => {
-  const cancellableStatuses = [
-    'booking_requested',
-    'booking_confirmed',
-    'pickup_scheduled'
-  ];
-  
+  const cancellableStatuses = ['booking_requested', 'price_quoted'];
   return cancellableStatuses.includes(status);
 };
 
-// Check if booking can be edited
-export const canEditBooking = (status) => {
-  const editableStatuses = [
-    'booking_requested',
-    'booking_confirmed',
-    'pickup_scheduled',
-    'received_at_warehouse'
-  ];
+// Check if booking can be quoted (Admin)
+export const canQuoteBooking = (status, pricingStatus) => {
+  return status === 'booking_requested' && pricingStatus === 'pending';
+};
+
+// Check if customer can respond to quote
+export const canRespondToQuote = (status, pricingStatus, quoteValid) => {
+  return status === 'price_quoted' && 
+         pricingStatus === 'quoted' && 
+         quoteValid === true;
+};
+
+// Calculate total from cargo details
+export const calculateCargoTotals = (cargoDetails) => {
+  if (!cargoDetails || !cargoDetails.length) {
+    return { totalCartons: 0, totalWeight: 0, totalVolume: 0 };
+  }
   
-  return editableStatuses.includes(status);
+  return cargoDetails.reduce((totals, item) => {
+    return {
+      totalCartons: totals.totalCartons + (item.cartons || 0),
+      totalWeight: totals.totalWeight + ((item.weight || 0) * (item.cartons || 0)),
+      totalVolume: totals.totalVolume + ((item.volume || 0) * (item.cartons || 0))
+    };
+  }, { totalCartons: 0, totalWeight: 0, totalVolume: 0 });
 };
 
-// Get shipment type display
-export const getShipmentTypeDisplay = (type) => {
-  const types = {
-    'air_freight': 'Air Freight',
-    'sea_freight': 'Sea Freight',
-    'road_freight': 'Road Freight',
-    'rail_freight': 'Rail Freight'
-  };
+// Format cargo details for display
+export const formatCargoDetails = (cargoDetails) => {
+  if (!cargoDetails || !cargoDetails.length) return [];
   
-  return types[type] || type;
+  return cargoDetails.map((item, index) => ({
+    ...item,
+    displayName: `${item.description} (${item.cartons} ctns, ${item.weight} kg, ${item.volume} cbm)`
+  }));
 };
 
-// Format currency
-export const formatCurrency = (amount, currency = 'USD') => {
-  if (!amount && amount !== 0) return 'N/A';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency
-  }).format(amount);
-};
-
-// Format weight with unit
-export const formatWeight = (weight, unit = 'kg') => {
-  if (!weight && weight !== 0) return 'N/A';
-  return `${weight.toFixed(2)} ${unit}`;
-};
-
-// Format volume with unit
-export const formatVolume = (volume, unit = 'cbm') => {
-  if (!volume && volume !== 0) return 'N/A';
-  return `${volume.toFixed(3)} ${unit}`;
-};
-
-// ==================== BOOKING EXPORT FUNCTIONS ====================
-
-// Export bookings as CSV
-export const exportBookingsToCSV = (bookings) => {
-  if (!bookings || !bookings.length) return null;
+// Export bookings to CSV
+export const exportBookingsToCSV = (bookings, filename = 'bookings.csv') => {
+  if (!bookings || !bookings.length) return;
 
   const headers = [
     'Booking Number',
     'Tracking Number',
     'Customer',
     'Status',
+    'Pricing Status',
     'Origin',
     'Destination',
     'Shipment Type',
+    'Shipping Mode',
     'Total Cartons',
     'Total Weight (kg)',
     'Total Volume (cbm)',
     'Quoted Amount',
+    'Quoted Currency',
     'Created Date',
-    'Estimated Arrival'
+    'Confirmed Date'
   ];
 
   const csvData = bookings.map(booking => [
     booking.bookingNumber,
-    booking.trackingNumber,
-    booking.customer?.companyName || 'N/A',
+    booking.trackingNumber || 'N/A',
+    booking.customer?.companyName || `${booking.customer?.firstName || ''} ${booking.customer?.lastName || ''}`.trim() || 'N/A',
     getStatusDisplayText(booking.status),
-    booking.shipmentDetails?.origin || 'N/A',
-    booking.shipmentDetails?.destination || 'N/A',
+    getPricingStatusDisplayText(booking.pricingStatus),
+    getOriginDisplay(booking.shipmentDetails?.origin),
+    getDestinationDisplay(booking.shipmentDetails?.destination),
     getShipmentTypeDisplay(booking.shipmentDetails?.shipmentType),
+    getShippingModeDisplay(booking.shipmentDetails?.shippingMode),
     booking.shipmentDetails?.totalCartons || 0,
     booking.shipmentDetails?.totalWeight || 0,
     booking.shipmentDetails?.totalVolume || 0,
-    booking.quotedAmount || 0,
-    formatBookingDate(booking.createdAt),
-    formatBookingDate(booking.estimatedArrivalDate)
+    booking.quotedPrice?.amount || '',
+    booking.quotedPrice?.currency || '',
+    formatDate(booking.createdAt, 'short'),
+    booking.confirmedAt ? formatDate(booking.confirmedAt, 'short') : 'N/A'
   ]);
 
   const csvContent = [
     headers.join(','),
-    ...csvData.map(row => row.join(','))
+    ...csvData.map(row => row.map(cell => 
+      typeof cell === 'string' && cell.includes(',') ? `"${cell}"` : cell
+    ).join(','))
   ].join('\n');
-
-  return csvContent;
-};
-
-// Download bookings as CSV file
-export const downloadBookingsAsCSV = (bookings, filename = 'bookings.csv') => {
-  const csvContent = exportBookingsToCSV(bookings);
-  if (!csvContent) return;
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -359,249 +676,25 @@ export const downloadBookingsAsCSV = (bookings, filename = 'bookings.csv') => {
   link.click();
   document.body.removeChild(link);
 };
-// ==================== DELETE OPERATIONS ====================
 
-// Soft delete booking (Move to trash)
-export const deleteBooking = async (bookingId, reason = '') => {
-  try {
-    const response = await axiosInstance.delete(`/delete-booking/${bookingId}`, {
-      data: { reason } // For deletion reason
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Delete booking error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to delete booking',
-      error: error.response?.data?.error || error
-    };
-  }
-};
+// ==================== REACT HOOKS ====================
 
-// Hard delete booking (Permanent deletion - Admin only)
-export const hardDeleteBooking = async (bookingId) => {
-  try {
-    const response = await axiosInstance.delete(`/booking/${bookingId}/hard-delete`);
-    return response.data;
-  } catch (error) {
-    console.error('Hard delete booking error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to permanently delete booking',
-      error: error.response?.data?.error || error
-    };
-  }
-};
-
-// Bulk soft delete bookings
-export const bulkDeleteBookings = async (bookingIds, reason = '') => {
-  try {
-    const response = await axiosInstance.post('/bookings/bulk-delete', {
-      bookingIds,
-      reason
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Bulk delete bookings error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to bulk delete bookings',
-      error: error.response?.data?.error || error
-    };
-  }
-};
-
-// Bulk hard delete bookings (Admin only)
-export const bulkHardDeleteBookings = async (bookingIds, confirm = true) => {
-  try {
-    const response = await axiosInstance.delete('/bookings/bulk-hard-delete', {
-      data: { bookingIds },
-      params: { confirm }
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Bulk hard delete bookings error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to bulk hard delete bookings',
-      error: error.response?.data?.error || error
-    };
-  }
-};
-
-// Restore soft-deleted booking
-export const restoreBooking = async (bookingId) => {
-  try {
-    const response = await axiosInstance.post(`/bookings/${bookingId}/restore`);
-    return response.data;
-  } catch (error) {
-    console.error('Restore booking error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to restore booking',
-      error: error.response?.data?.error || error
-    };
-  }
-};
-
-// Bulk restore bookings
-export const bulkRestoreBookings = async (bookingIds) => {
-  try {
-    const response = await axiosInstance.post('/bookings/bulk-restore', { bookingIds });
-    return response.data;
-  } catch (error) {
-    console.error('Bulk restore bookings error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to bulk restore bookings',
-      error: error.response?.data?.error || error
-    };
-  }
-};
-
-// Get deleted bookings (Trash)
-export const getDeletedBookings = async (params = {}) => {
-  try {
-    const queryParams = new URLSearchParams({
-      page: params.page || 1,
-      limit: params.limit || 10,
-      ...(params.startDate && { startDate: params.startDate }),
-      ...(params.endDate && { endDate: params.endDate }),
-      ...(params.search && { search: params.search }),
-      ...(params.sortBy && { sortBy: params.sortBy }),
-      ...(params.sortOrder && { sortOrder: params.sortOrder })
-    });
-
-    const response = await axiosInstance.get(`/bookings/deleted/trash?${queryParams}`);
-    
-    if (response.data.success) {
-      return {
-        success: true,
-        data: response.data.data,
-        pagination: response.data.pagination,
-        stats: response.data.stats,
-        message: response.data.message
-      };
-    }
-    
-    throw new Error(response.data.message || 'Failed to fetch deleted bookings');
-    
-  } catch (error) {
-    console.error('Get deleted bookings error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || 'Failed to fetch deleted bookings',
-      error: error.response?.data?.error || error
-    };
-  }
-};
-
-// Empty trash (Permanently delete all soft-deleted bookings - Admin only)
-export const emptyTrash = async (confirm = true) => {
-  try {
-    const response = await axiosInstance.delete('/bookings/empty-trash', {
-      params: { confirm }
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Empty trash error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to empty trash',
-      error: error.response?.data?.error || error
-    };
-  }
-};
-
-// ==================== DELETE HELPER FUNCTIONS ====================
-
-// Check if booking can be soft deleted
-export const canDeleteBooking = (status, userRole) => {
-  // Admin can delete any booking
-  if (userRole === 'admin') return true;
-  
-  // Operations staff can only delete certain statuses
-  const deletableStatuses = [
-    'booking_requested',
-    'booking_confirmed',
-    'cancelled'
-  ];
-  
-  return deletableStatuses.includes(status);
-};
-
-// Check if booking can be hard deleted (Admin only)
-export const canHardDeleteBooking = (userRole) => {
-  return userRole === 'admin';
-};
-
-// Check if booking can be restored
-export const canRestoreBooking = (booking, userRole) => {
-  if (!booking.isDeleted) return false;
-  
-  // Admin can restore any deleted booking
-  if (userRole === 'admin') return true;
-  
-  // Operations staff can only restore their own deleted bookings
-  return booking.deletedBy?._id === userRole; // Assuming userRole contains user ID for non-admins
-};
-
-// Get deletion type badge color
-export const getDeletionTypeColor = (deletedByRole) => {
-  return deletedByRole === 'admin' ? 'error' : 'warning';
-};
-
-// Format deletion reason for display
-export const formatDeletionReason = (reason, defaultText = 'No reason provided') => {
-  return reason || defaultText;
-};
-
-// Get days in trash
-export const getDaysInTrash = (deletedAt) => {
-  if (!deletedAt) return 0;
-  
-  const deletedDate = new Date(deletedAt);
-  const currentDate = new Date();
-  const diffTime = Math.abs(currentDate - deletedDate);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  return diffDays;
-};
-
-// Check if booking is auto-deletable (in trash for more than X days)
-export const isAutoDeletable = (deletedAt, maxDays = 30) => {
-  const daysInTrash = getDaysInTrash(deletedAt);
-  return daysInTrash > maxDays;
-};
-
-// Get deletion confirmation message
-export const getDeletionConfirmationMessage = (booking, isHardDelete = false) => {
-  if (isHardDelete) {
-    return `Are you sure you want to permanently delete booking ${booking.bookingNumber}? This action cannot be undone!`;
-  }
-  return `Are you sure you want to move booking ${booking.bookingNumber} to trash?`;
-};
-
-// Get bulk deletion confirmation message
-export const getBulkDeletionConfirmationMessage = (count, isHardDelete = false) => {
-  if (isHardDelete) {
-    return `Are you sure you want to permanently delete ${count} booking(s)? This action cannot be undone!`;
-  }
-  return `Are you sure you want to move ${count} booking(s) to trash?`;
-};
-
-// ==================== DELETE HOOKS (for React) ====================
-
-// Custom hook for delete operations (to be used in React components)
-export const useBookingDeletion = () => {
+// Custom hook for booking operations
+export const useBooking = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [booking, setBooking] = useState(null);
 
-  const performSoftDelete = async (bookingId, reason) => {
+  const fetchBooking = async (bookingId) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await deleteBooking(bookingId, reason);
+      const result = await getBookingById(bookingId);
+      if (result.success) {
+        setBooking(result.data);
+      } else {
+        setError(result.message);
+      }
       return result;
     } catch (err) {
       setError(err.message);
@@ -611,11 +704,14 @@ export const useBookingDeletion = () => {
     }
   };
 
-  const performHardDelete = async (bookingId) => {
+  const updateQuote = async (bookingId, quoteData) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await hardDeleteBooking(bookingId);
+      const result = await updatePriceQuote(bookingId, quoteData);
+      if (result.success && result.data) {
+        setBooking(result.data);
+      }
       return result;
     } catch (err) {
       setError(err.message);
@@ -625,11 +721,48 @@ export const useBookingDeletion = () => {
     }
   };
 
-  const performRestore = async (bookingId) => {
+  const accept = async (bookingId, notes) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await restoreBooking(bookingId);
+      const result = await acceptQuote(bookingId, notes);
+      if (result.success && result.data?.booking) {
+        setBooking(result.data.booking);
+      }
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reject = async (bookingId, reason) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await rejectQuote(bookingId, reason);
+      if (result.success) {
+        setBooking(result.data);
+      }
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancel = async (bookingId, reason) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await cancelBooking(bookingId, reason);
+      if (result.success) {
+        setBooking(result.data);
+      }
       return result;
     } catch (err) {
       setError(err.message);
@@ -642,87 +775,68 @@ export const useBookingDeletion = () => {
   return {
     loading,
     error,
-    softDelete: performSoftDelete,
-    hardDelete: performHardDelete,
-    restore: performRestore
+    booking,
+    fetchBooking,
+    updateQuote,
+    accept,
+    reject,
+    cancel
   };
 };
 
-// ==================== DELETE BATCH OPERATIONS ====================
+// Custom hook for customer bookings
+export const useCustomerBookings = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [pagination, setPagination] = useState(null);
 
-// Export deleted bookings report
-export const exportDeletedBookingsReport = async (params = {}) => {
-  try {
-    const response = await getDeletedBookings({ ...params, limit: 1000 }); // Get up to 1000 records
-    
-    if (!response.success || !response.data) {
-      throw new Error('Failed to fetch deleted bookings data');
+  const fetchMyBookings = async (params = {}) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getMyBookings(params);
+      if (result.success) {
+        setBookings(result.data);
+        setSummary(result.summary);
+        setPagination(result.pagination);
+      } else {
+        setError(result.message);
+      }
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const headers = [
-      'Booking Number',
-      'Tracking Number',
-      'Customer',
-      'Original Status',
-      'Deleted By',
-      'Deleted At',
-      'Days in Trash',
-      'Deletion Reason',
-      'Restored'
-    ];
+  const fetchSummary = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getMyBookingsSummary();
+      if (result.success) {
+        setSummary(result.data);
+      }
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const csvData = response.data.map(booking => [
-      booking.bookingNumber,
-      booking.trackingNumber || 'N/A',
-      booking.customer?.companyName || 'N/A',
-      getStatusDisplayText(booking.status),
-      booking.deletedBy?.name || 'N/A',
-      formatBookingDate(booking.deletedAt),
-      getDaysInTrash(booking.deletedAt),
-      formatDeletionReason(booking.deletionReason),
-      booking.restoredAt ? 'Yes' : 'No'
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...csvData.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `deleted-bookings-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    return { success: true, message: 'Report exported successfully' };
-
-  } catch (error) {
-    console.error('Export deleted bookings report error:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to export report'
-    };
-  }
-};
-
-// Clean up old deleted bookings (to be called periodically)
-export const cleanupOldDeletedBookings = async (daysOld = 30) => {
-  try {
-    const response = await axiosInstance.delete('/bookings/cleanup-old', {
-      params: { days: daysOld }
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Cleanup old deleted bookings error:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to cleanup old bookings'
-    };
-  }
+  return {
+    loading,
+    error,
+    bookings,
+    summary,
+    pagination,
+    fetchMyBookings,
+    fetchSummary
+  };
 };

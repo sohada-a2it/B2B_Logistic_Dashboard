@@ -1,33 +1,131 @@
-// services/shipmentService.js
+// services/shipping.js - getAllShipments ফাংশন আপডেট
+
 import axiosInstance from '@/lib/axiosInstance';
+import Cookies from 'js-cookie';
+
+// 1. GET ALL SHIPMENTS (with filters & pagination) 
 
 // ==================== SHIPMENT API FUNCTIONS ====================
 
-// Create new shipment from booking
-export const createShipment = async (shipmentData) => {
+// 1. GET ALL SHIPMENTS (Admin/Staff) - বুকিংয়ের মতো
+export const getAllShipments = async (params = {}) => {
   try {
-    const response = await axiosInstance.post('/createShipment', shipmentData);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to create shipment' };
-  }
-};
-
-// Get all shipments with filters and pagination
-export const getShipments = async (params = {}) => {
-  try {
+    console.log('📦 Fetching shipments with params:', params);
+    
     const queryParams = new URLSearchParams({
       page: params.page || 1,
-      limit: params.limit || 10,
+      limit: params.limit || 20,
       ...(params.status && { status: params.status }),
       ...(params.mode && { mode: params.mode }),
-      ...(params.shipmentType && { shipmentType: params.shipmentType }),
       ...(params.search && { search: params.search }),
+      ...(params.startDate && { startDate: params.startDate }),
+      ...(params.endDate && { endDate: params.endDate }),
       ...(params.sortBy && { sortBy: params.sortBy }),
       ...(params.sortOrder && { sortOrder: params.sortOrder })
     });
 
-    const response = await axiosInstance.get(`/shipments?${queryParams}`);
+    // বুকিংয়ের মতো endpoint - /getAllShipment
+    const response = await axiosInstance.get(`/getAllShipment?${queryParams}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data || [],
+        summary: response.data.summary,
+        pagination: response.data.pagination || {
+          total: response.data.data?.length || 0,
+          page: params.page || 1,
+          limit: params.limit || 20,
+          pages: Math.ceil((response.data.data?.length || 0) / (params.limit || 20))
+        },
+        message: response.data.message || 'Shipments fetched successfully'
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch shipments');
+    
+  } catch (error) {
+    console.error('❌ Get all shipments error:', error);
+    return {
+      success: false,
+      data: [],
+      message: error.response?.data?.error || error.message || 'Failed to fetch shipments',
+      error: error.response?.data,
+      pagination: {
+        total: 0,
+        page: params.page || 1,
+        limit: params.limit || 20,
+        pages: 0
+      }
+    };
+  }
+};
+
+// 2. GET SINGLE SHIPMENT BY ID - বুকিংয়ের মতো
+export const getShipmentById = async (shipmentId) => {
+  try {
+    const response = await axiosInstance.get(`/shipments/${shipmentId}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch shipment');
+    
+  } catch (error) {
+    console.error('Get shipment by id error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch shipment',
+      error: error.response?.data
+    };
+  }
+};
+
+// 3. UPDATE SHIPMENT STATUS - বুকিংয়ের মতো
+export const updateShipmentStatus = async (shipmentId, statusData) => {
+  try {
+    const response = await axiosInstance.patch(`/shipments/${shipmentId}/status`, statusData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to update status');
+    
+  } catch (error) {
+    console.error('Update shipment status error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to update status',
+      error: error.response?.data
+    };
+  }
+};
+
+// বাকি ফাংশনগুলো একইভাবে আপডেট করুন...
+
+// 2. GET MY SHIPMENTS (Customer)
+export const getMyShipments = async (params = {}) => {
+  try {
+    const safeParams = params || {};
+    
+    const queryParams = new URLSearchParams({
+      page: safeParams.page || 1,
+      limit: safeParams.limit || 10,
+      ...(safeParams.status && { status: safeParams.status }),
+      ...(safeParams.sort && { sort: safeParams.sort || '-createdAt' })
+    });
+
+    const response = await axiosInstance.get(`/shipments/my-shipments?${queryParams}`);
     
     if (response.data.success) {
       return {
@@ -38,155 +136,620 @@ export const getShipments = async (params = {}) => {
       };
     }
     
-    throw new Error(response.data.message || 'Failed to fetch shipments');
+    throw new Error(response.data.message || 'Failed to fetch my shipments');
     
   } catch (error) {
-    console.error('Get shipments error:', error);
+    console.error('Get my shipments error:', error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to fetch shipments',
-      error: error.response?.data?.error || error
+      message: error.response?.data?.error || error.message || 'Failed to fetch my shipments',
+      error: error.response?.data
     };
   }
 };
 
-// Get single shipment by ID
-export const getShipmentById = async (shipmentId) => {
+// 3. GET MY SHIPMENT BY ID (Customer)
+export const getMyShipmentById = async (shipmentId) => {
   try {
-    const response = await axiosInstance.get(`/shipments/${shipmentId}`);
-    return response.data;
+    const response = await axiosInstance.get(`/shipments/my-shipments/${shipmentId}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch shipment');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch shipment' };
+    console.error('Get my shipment by id error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch shipment',
+      error: error.response?.data
+    };
   }
 };
 
-// Update shipment
-export const updateShipment = async (shipmentId, shipmentData) => {
+// 4. GET MY SHIPMENT TIMELINE (Customer)
+export const getMyShipmentTimeline = async (shipmentId) => {
   try {
-    const response = await axiosInstance.put(`/shipments/${shipmentId}`, shipmentData);
-    return response.data;
+    const response = await axiosInstance.get(`/shipments/my-shipments/${shipmentId}/timeline`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch timeline');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to update shipment' };
+    console.error('Get my shipment timeline error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch timeline',
+      error: error.response?.data
+    };
   }
 };
 
-// Update shipment status
-export const updateShipmentStatus = async (shipmentId, statusData) => {
+// 5. GET SINGLE SHIPMENT BY ID
+// export const getShipmentById = async (shipmentId) => {
+//   try {
+//     const response = await axiosInstance.get(`/shipments/${shipmentId}`);
+    
+//     if (response.data.success) {
+//       return {
+//         success: true,
+//         data: response.data.data,
+//         message: response.data.message
+//       };
+//     }
+    
+//     throw new Error(response.data.message || 'Failed to fetch shipment');
+    
+//   } catch (error) {
+//     console.error('Get shipment by id error:', error);
+//     return {
+//       success: false,
+//       message: error.response?.data?.error || error.message || 'Failed to fetch shipment',
+//       error: error.response?.data
+//     };
+//   }
+// };
+
+// 6. CREATE SHIPMENT (from Booking)
+export const createShipment = async (shipmentData) => {
   try {
-    const response = await axiosInstance.patch(`/shipments/${shipmentId}/status`, statusData);
-    return response.data;
+    const response = await axiosInstance.post('/shipments/create', shipmentData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to create shipment');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to update shipment status' };
+    console.error('Create shipment error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to create shipment',
+      error: error.response?.data
+    };
   }
 };
 
-// Add tracking update
-export const addTrackingUpdate = async (shipmentId, trackingData) => {
+// 7. UPDATE SHIPMENT
+export const updateShipment = async (shipmentId, updateData) => {
   try {
-    const response = await axiosInstance.post(`/shipments/${shipmentId}/tracking`, trackingData);
-    return response.data;
+    const response = await axiosInstance.put(`/shipments/${shipmentId}`, updateData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to update shipment');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to add tracking update' };
+    console.error('Update shipment error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to update shipment',
+      error: error.response?.data
+    };
   }
 };
 
-// Add cost to shipment
-export const addShipmentCost = async (shipmentId, costData) => {
-  try {
-    const response = await axiosInstance.post(`/shipments/${shipmentId}/costs`, costData);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to add cost' };
-  }
-};
-
-// Assign shipment to staff
-export const assignShipment = async (shipmentId, assignmentData) => {
-  try {
-    const response = await axiosInstance.post(`/shipments/${shipmentId}/assign`, assignmentData);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to assign shipment' };
-  }
-};
-
-// Add document to shipment
-export const addShipmentDocument = async (shipmentId, documentData) => {
-  try {
-    const response = await axiosInstance.post(`/shipments/${shipmentId}/documents`, documentData);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to add document' };
-  }
-};
-
-// Add internal note
-export const addInternalNote = async (shipmentId, noteData) => {
-  try {
-    const response = await axiosInstance.post(`/shipments/${shipmentId}/notes/internal`, noteData);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to add internal note' };
-  }
-};
-
-// Add customer note
-export const addCustomerNote = async (shipmentId, noteData) => {
-  try {
-    const response = await axiosInstance.post(`/shipments/${shipmentId}/notes/customer`, noteData);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to add customer note' };
-  }
-};
-
-// Get shipment timeline
-export const getShipmentTimeline = async (shipmentId) => {
-  try {
-    const response = await axiosInstance.get(`/shipments/${shipmentId}/timeline`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch timeline' };
-  }
-};
-
-// Track shipment by tracking number (Public)
-export const trackShipment = async (trackingNumber) => {
-  try {
-    const response = await axiosInstance.get(`/shipments/track/${trackingNumber}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to track shipment' };
-  }
-};
-
-// Get shipment statistics for dashboard
-export const getShipmentStats = async () => {
-  try {
-    const response = await axiosInstance.get('/shipments/stats/dashboard');
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch shipment statistics' };
-  }
-};
-
-// Cancel shipment
-export const cancelShipment = async (shipmentId, cancelData) => {
-  try {
-    const response = await axiosInstance.post(`/shipments/${shipmentId}/cancel`, cancelData);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'Failed to cancel shipment' };
-  }
-};
-
-// Delete shipment
+// 8. DELETE SHIPMENT
 export const deleteShipment = async (shipmentId) => {
   try {
     const response = await axiosInstance.delete(`/shipments/${shipmentId}`);
-    return response.data;
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to delete shipment');
+    
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to delete shipment' };
+    console.error('Delete shipment error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to delete shipment',
+      error: error.response?.data
+    };
+  }
+};
+
+// 9. UPDATE SHIPMENT STATUS
+// export const updateShipmentStatus = async (shipmentId, statusData) => {
+//   try {
+//     const response = await axiosInstance.patch(`/shipments/${shipmentId}/status`, statusData);
+    
+//     if (response.data.success) {
+//       return {
+//         success: true,
+//         data: response.data.data,
+//         message: response.data.message
+//       };
+//     }
+    
+//     throw new Error(response.data.message || 'Failed to update status');
+    
+//   } catch (error) {
+//     console.error('Update shipment status error:', error);
+//     return {
+//       success: false,
+//       message: error.response?.data?.error || error.message || 'Failed to update status',
+//       error: error.response?.data
+//     };
+//   }
+// };
+
+// 10. ASSIGN SHIPMENT TO STAFF
+export const assignShipment = async (shipmentId, assignmentData) => {
+  try {
+    const response = await axiosInstance.post(`/shipments/${shipmentId}/assign`, assignmentData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to assign shipment');
+    
+  } catch (error) {
+    console.error('Assign shipment error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to assign shipment',
+      error: error.response?.data
+    };
+  }
+};
+
+// 11. ADD TRACKING UPDATE
+export const addTrackingUpdate = async (shipmentId, trackingData) => {
+  try {
+    const response = await axiosInstance.post(`/shipments/${shipmentId}/tracking`, trackingData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to add tracking update');
+    
+  } catch (error) {
+    console.error('Add tracking update error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to add tracking update',
+      error: error.response?.data
+    };
+  }
+};
+
+// 12. GET SHIPMENT TIMELINE
+export const getShipmentTimeline = async (shipmentId) => {
+  try {
+    const response = await axiosInstance.get(`/shipments/${shipmentId}/timeline`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch timeline');
+    
+  } catch (error) {
+    console.error('Get shipment timeline error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch timeline',
+      error: error.response?.data
+    };
+  }
+};
+
+// 13. UPDATE TRANSPORT DETAILS
+export const updateTransportDetails = async (shipmentId, transportData) => {
+  try {
+    const response = await axiosInstance.post(`/shipments/${shipmentId}/transport`, transportData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to update transport details');
+    
+  } catch (error) {
+    console.error('Update transport details error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to update transport',
+      error: error.response?.data
+    };
+  }
+};
+
+// 14. ADD DOCUMENT TO SHIPMENT
+export const addShipmentDocument = async (shipmentId, documentData) => {
+  try {
+    const response = await axiosInstance.post(`/shipments/${shipmentId}/documents`, documentData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to add document');
+    
+  } catch (error) {
+    console.error('Add document error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to add document',
+      error: error.response?.data
+    };
+  }
+};
+
+// 15. ADD INTERNAL NOTE
+export const addInternalNote = async (shipmentId, noteData) => {
+  try {
+    const response = await axiosInstance.post(`/shipments/${shipmentId}/notes/internal`, noteData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to add internal note');
+    
+  } catch (error) {
+    console.error('Add internal note error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to add note',
+      error: error.response?.data
+    };
+  }
+};
+
+// 16. ADD CUSTOMER NOTE
+export const addCustomerNote = async (shipmentId, noteData) => {
+  try {
+    const response = await axiosInstance.post(`/shipments/${shipmentId}/notes/customer`, noteData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to add customer note');
+    
+  } catch (error) {
+    console.error('Add customer note error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to add note',
+      error: error.response?.data
+    };
+  }
+};
+
+// 17. CANCEL SHIPMENT
+export const cancelShipment = async (shipmentId, cancelData) => {
+  try {
+    const response = await axiosInstance.post(`/shipments/${shipmentId}/cancel`, cancelData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to cancel shipment');
+    
+  } catch (error) {
+    console.error('Cancel shipment error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to cancel shipment',
+      error: error.response?.data
+    };
+  }
+};
+
+// 18. ADD COST TO SHIPMENT
+export const addShipmentCost = async (shipmentId, costData) => {
+  try {
+    const response = await axiosInstance.post(`/shipments/${shipmentId}/costs`, costData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to add cost');
+    
+  } catch (error) {
+    console.error('Add cost error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to add cost',
+      error: error.response?.data
+    };
+  }
+};
+
+// 19. GET SHIPMENT COSTS
+export const getShipmentCosts = async (shipmentId) => {
+  try {
+    const response = await axiosInstance.get(`/shipments/${shipmentId}/costs`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch costs');
+    
+  } catch (error) {
+    console.error('Get shipment costs error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch costs',
+      error: error.response?.data
+    };
+  }
+};
+
+// 20. UPDATE COST
+export const updateShipmentCost = async (shipmentId, costId, updateData) => {
+  try {
+    const response = await axiosInstance.put(`/shipments/${shipmentId}/costs/${costId}`, updateData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to update cost');
+    
+  } catch (error) {
+    console.error('Update cost error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to update cost',
+      error: error.response?.data
+    };
+  }
+};
+
+// 21. DELETE COST
+export const deleteShipmentCost = async (shipmentId, costId) => {
+  try {
+    const response = await axiosInstance.delete(`/shipments/${shipmentId}/costs/${costId}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to delete cost');
+    
+  } catch (error) {
+    console.error('Delete cost error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to delete cost',
+      error: error.response?.data
+    };
+  }
+};
+
+// 22. GET PENDING WAREHOUSE SHIPMENTS
+export const getPendingWarehouseShipments = async () => {
+  try {
+    const response = await axiosInstance.get('/shipments/warehouse/pending');
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch warehouse shipments');
+    
+  } catch (error) {
+    console.error('Get warehouse shipments error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch warehouse shipments',
+      error: error.response?.data
+    };
+  }
+};
+
+// 23. RECEIVE AT WAREHOUSE
+export const receiveAtWarehouse = async (shipmentId, receiveData) => {
+  try {
+    const response = await axiosInstance.patch(`/shipments/${shipmentId}/warehouse/receive`, receiveData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to receive at warehouse');
+    
+  } catch (error) {
+    console.error('Receive at warehouse error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to receive',
+      error: error.response?.data
+    };
+  }
+};
+
+// 24. PROCESS WAREHOUSE
+export const processWarehouse = async (shipmentId, processData) => {
+  try {
+    const response = await axiosInstance.patch(`/shipments/${shipmentId}/warehouse/process`, processData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to process warehouse');
+    
+  } catch (error) {
+    console.error('Process warehouse error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to process',
+      error: error.response?.data
+    };
+  }
+};
+
+// 25. GET SHIPMENT STATISTICS
+export const getShipmentStatistics = async (dateRange = {}) => {
+  try {
+    const safeDateRange = dateRange || {};
+    
+    const queryParams = new URLSearchParams({
+      ...(safeDateRange.startDate && { startDate: safeDateRange.startDate }),
+      ...(safeDateRange.endDate && { endDate: safeDateRange.endDate })
+    });
+
+    const response = await axiosInstance.get(`/shipments/stats/dashboard?${queryParams}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch statistics');
+    
+  } catch (error) {
+    console.error('Get shipment statistics error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to fetch statistics',
+      error: error.response?.data
+    };
+  }
+};
+
+// 26. TRACK BY NUMBER (Public)
+export const trackShipmentByNumber = async (trackingNumber) => {
+  try {
+    const response = await axiosInstance.get(`/shipments/track/${trackingNumber}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Tracking number not found');
+    
+  } catch (error) {
+    console.error('Track shipment error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to track shipment',
+      error: error.response?.data
+    };
   }
 };
 
@@ -195,20 +758,17 @@ export const deleteShipment = async (shipmentId) => {
 // Get status color for UI
 export const getShipmentStatusColor = (status) => {
   const statusColors = {
-    'Pending': 'warning',
-    'Picked Up from Warehouse': 'info',
-    'Received at Warehouse': 'info',
-    'Consolidation in Progress': 'warning',
-    'Loaded in Container': 'primary',
-    'Loaded on Vessel': 'primary',
-    'Departed': 'info',
-    'In Transit': 'info',
-    'Arrived at Destination Port': 'success',
-    'Customs Clearance': 'warning',
-    'Out for Delivery': 'info',
-    'Delivered': 'success',
-    'Cancelled': 'error',
-    'Returned': 'warning'
+    'pending': 'warning',
+    'received_at_warehouse': 'info',
+    'consolidation_in_progress': 'warning',
+    'ready_for_shipping': 'primary',
+    'in_transit': 'info',
+    'arrived_at_destination': 'success',
+    'customs_clearance': 'warning',
+    'out_for_delivery': 'info',
+    'delivered': 'success',
+    'cancelled': 'error',
+    'draft': 'default'
   };
   
   return statusColors[status] || 'default';
@@ -217,52 +777,94 @@ export const getShipmentStatusColor = (status) => {
 // Get status display text
 export const getShipmentStatusDisplayText = (status) => {
   const statusTexts = {
-    'Pending': 'Pending',
-    'Picked Up from Warehouse': 'Picked Up',
-    'Received at Warehouse': 'At Warehouse',
-    'Consolidation in Progress': 'Consolidating',
-    'Loaded in Container': 'Loaded',
-    'Loaded on Vessel': 'Loaded on Vessel',
-    'Departed': 'Departed',
-    'In Transit': 'In Transit',
-    'Arrived at Destination Port': 'Arrived',
-    'Customs Clearance': 'Customs Clearance',
-    'Out for Delivery': 'Out for Delivery',
-    'Delivered': 'Delivered',
-    'Cancelled': 'Cancelled',
-    'Returned': 'Returned'
+    'pending': 'Pending',
+    'received_at_warehouse': 'Received at Warehouse',
+    'consolidation_in_progress': 'Consolidation in Progress',
+    'ready_for_shipping': 'Ready for Shipping',
+    'in_transit': 'In Transit',
+    'arrived_at_destination': 'Arrived at Destination',
+    'customs_clearance': 'Customs Clearance',
+    'out_for_delivery': 'Out for Delivery',
+    'delivered': 'Delivered',
+    'cancelled': 'Cancelled',
+    'draft': 'Draft'
   };
   
   return statusTexts[status] || status;
 };
 
-// Get shipment mode display
+// Get mode display text
 export const getShipmentModeDisplay = (mode) => {
   const modes = {
-    'air': 'Air Freight',
-    'sea': 'Sea Freight',
-    'road': 'Road Freight',
-    'rail': 'Rail Freight'
+    'air_freight': 'Air Freight',
+    'sea_freight': 'Sea Freight',
+    'road_freight': 'Road Freight',
+    'rail_freight': 'Rail Freight',
+    'express_courier': 'Express Courier'
   };
   
   return modes[mode] || mode;
 };
 
-// Get shipment type display
-export const getShipmentTypeDisplay = (type) => {
-  const types = {
-    'export': 'Export',
-    'import': 'Import',
-    'domestic': 'Domestic'
+// Get progress percentage
+export const getShipmentProgress = (status) => {
+  const progressMap = {
+    'pending': 10,
+    'received_at_warehouse': 25,
+    'consolidation_in_progress': 35,
+    'ready_for_shipping': 45,
+    'in_transit': 60,
+    'arrived_at_destination': 75,
+    'customs_clearance': 85,
+    'out_for_delivery': 95,
+    'delivered': 100,
+    'cancelled': 0,
+    'draft': 5
   };
   
-  return types[type] || type;
+  return progressMap[status] || 0;
 };
 
-// Format date for display
-export const formatShipmentDate = (dateString) => {
+// Check if shipment is active
+export const isShipmentActive = (status) => {
+  const activeStatuses = [
+    'pending',
+    'received_at_warehouse',
+    'consolidation_in_progress',
+    'ready_for_shipping',
+    'in_transit',
+    'arrived_at_destination',
+    'customs_clearance',
+    'out_for_delivery'
+  ];
+  
+  return activeStatuses.includes(status);
+};
+
+// Format date
+export const formatShipmentDate = (dateString, format = 'medium') => {
   if (!dateString) return 'N/A';
+  
   const date = new Date(dateString);
+  
+  if (format === 'short') {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+  
+  if (format === 'long') {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+  
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -272,167 +874,187 @@ export const formatShipmentDate = (dateString) => {
   });
 };
 
-// Calculate progress percentage
-export const calculateShipmentProgress = (status) => {
-  const progressMap = {
-    'Pending': 10,
-    'Picked Up from Warehouse': 20,
-    'Received at Warehouse': 30,
-    'Consolidation in Progress': 40,
-    'Loaded in Container': 50,
-    'Loaded on Vessel': 60,
-    'Departed': 70,
-    'In Transit': 75,
-    'Arrived at Destination Port': 80,
-    'Customs Clearance': 85,
-    'Out for Delivery': 90,
-    'Delivered': 100,
-    'Cancelled': 0,
-    'Returned': 0
-  };
-  
-  return progressMap[status] || 0;
-};
-
-// Check if shipment is active (not delivered or cancelled)
-export const isActiveShipment = (status) => {
-  const activeStatuses = [
-    'Pending',
-    'Picked Up from Warehouse',
-    'Received at Warehouse',
-    'Consolidation in Progress',
-    'Loaded in Container',
-    'Loaded on Vessel',
-    'Departed',
-    'In Transit',
-    'Arrived at Destination Port',
-    'Customs Clearance',
-    'Out for Delivery'
-  ];
-  
-  return activeStatuses.includes(status);
-};
-
-// Check if shipment can be cancelled
-export const canCancelShipment = (status) => {
-  const cancellableStatuses = [
-    'Pending',
-    'Picked Up from Warehouse',
-    'Received at Warehouse'
-  ];
-  
-  return cancellableStatuses.includes(status);
-};
-
-// Check if shipment can be edited
-export const canEditShipment = (status) => {
-  const editableStatuses = [
-    'Pending',
-    'Picked Up from Warehouse',
-    'Received at Warehouse'
-  ];
-  
-  return editableStatuses.includes(status);
-};
-
 // Format currency
 export const formatShipmentCurrency = (amount, currency = 'USD') => {
   if (!amount && amount !== 0) return 'N/A';
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
   }).format(amount);
 };
 
-// Format weight with unit
-export const formatShipmentWeight = (weight, unit = 'kg') => {
+// Format weight
+export const formatWeight = (weight, unit = 'kg') => {
   if (!weight && weight !== 0) return 'N/A';
   return `${weight.toFixed(2)} ${unit}`;
 };
 
-// Format volume with unit
-export const formatShipmentVolume = (volume, unit = 'cbm') => {
+// Format volume
+export const formatVolume = (volume, unit = 'cbm') => {
   if (!volume && volume !== 0) return 'N/A';
   return `${volume.toFixed(3)} ${unit}`;
 };
 
+// Calculate total weight from packages
+export const calculateTotalWeight = (packages) => {
+  if (!packages || !packages.length) return 0;
+  
+  return packages.reduce((total, pkg) => {
+    return total + ((pkg.weight || 0) * (pkg.quantity || 1));
+  }, 0);
+};
+
+// Calculate total volume from packages
+export const calculateTotalVolume = (packages) => {
+  if (!packages || !packages.length) return 0;
+  
+  return packages.reduce((total, pkg) => {
+    return total + ((pkg.volume || 0) * (pkg.quantity || 1));
+  }, 0);
+};
+
 // Check if ETA is on track
-export const isShipmentOnTrack = (estimatedDelivery, actualDelivery, status) => {
-  if (!estimatedDelivery || status === 'Delivered') return true;
-  if (!actualDelivery) return true;
-  
-  const estimated = new Date(estimatedDelivery);
-  const actual = new Date(actualDelivery);
-  
-  return actual <= estimated;
+export const isOnTrack = (estimatedDelivery, actualDelivery, status) => {
+  if (status === 'delivered' && actualDelivery && estimatedDelivery) {
+    return new Date(actualDelivery) <= new Date(estimatedDelivery);
+  }
+  return true;
 };
 
 // Get days in transit
-export const getDaysInTransit = (departureDate, currentStatus) => {
+export const getDaysInTransit = (departureDate) => {
   if (!departureDate) return 0;
   
   const departure = new Date(departureDate);
   const now = new Date();
   const diffTime = Math.abs(now - departure);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// ==================== SHIPMENT DASHBOARD FUNCTIONS ====================
+
+// Get shipment summary
+export const getShipmentSummary = (shipments) => {
+  if (!shipments || !shipments.length) {
+    return {
+      total: 0,
+      active: 0,
+      delivered: 0,
+      cancelled: 0,
+      pending: 0,
+      inTransit: 0
+    };
+  }
+
+  return {
+    total: shipments.length,
+    active: shipments.filter(s => isShipmentActive(s.status)).length,
+    delivered: shipments.filter(s => s.status === 'delivered').length,
+    cancelled: shipments.filter(s => s.status === 'cancelled').length,
+    pending: shipments.filter(s => s.status === 'pending').length,
+    inTransit: shipments.filter(s => s.status === 'in_transit').length
+  };
+};
+
+// Group shipments by status
+export const groupShipmentsByStatus = (shipments) => {
+  if (!shipments || !shipments.length) return {};
+
+  return shipments.reduce((groups, shipment) => {
+    const status = shipment.status || 'unknown';
+    if (!groups[status]) {
+      groups[status] = [];
+    }
+    groups[status].push(shipment);
+    return groups;
+  }, {});
+};
+
+// Group shipments by mode
+export const groupShipmentsByMode = (shipments) => {
+  if (!shipments || !shipments.length) return {};
+
+  return shipments.reduce((groups, shipment) => {
+    const mode = shipment.shipmentDetails?.shipmentType || 'unknown';
+    if (!groups[mode]) {
+      groups[mode] = [];
+    }
+    groups[mode].push(shipment);
+    return groups;
+  }, {});
+};
+
+// Get top routes
+export const getTopRoutes = (shipments, limit = 5) => {
+  if (!shipments || !shipments.length) return [];
+
+  const routeCounts = {};
   
-  return currentStatus === 'Delivered' ? 0 : diffDays;
+  shipments.forEach(shipment => {
+    const origin = shipment.shipmentDetails?.origin || 'Unknown';
+    const destination = shipment.shipmentDetails?.destination || 'Unknown';
+    const route = `${origin} → ${destination}`;
+    
+    routeCounts[route] = (routeCounts[route] || 0) + 1;
+  });
+
+  return Object.entries(routeCounts)
+    .map(([route, count]) => ({ route, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
 };
 
 // ==================== SHIPMENT EXPORT FUNCTIONS ====================
 
-// Export shipments as CSV
-export const exportShipmentsToCSV = (shipments) => {
-  if (!shipments || !shipments.length) return null;
+// Export shipments to CSV
+export const exportShipmentsToCSV = (shipments, filename = 'shipments.csv') => {
+  if (!shipments || !shipments.length) return;
 
   const headers = [
     'Shipment Number',
     'Tracking Number',
     'Booking Number',
+    'Customer',
     'Status',
     'Mode',
-    'Type',
     'Origin',
     'Destination',
+    'Packages',
     'Total Weight (kg)',
     'Total Volume (cbm)',
     'Total Cost',
     'Created Date',
     'Estimated Delivery',
-    'Actual Delivery',
-    'Assigned To'
+    'Actual Delivery'
   ];
 
   const csvData = shipments.map(shipment => [
-    shipment.shipmentNumber,
-    shipment.trackingNumber,
+    shipment.shipmentNumber || 'N/A',
+    shipment.trackingNumber || 'N/A',
     shipment.bookingId?.bookingNumber || 'N/A',
+    shipment.customerId?.companyName || `${shipment.customerId?.firstName || ''} ${shipment.customerId?.lastName || ''}`.trim() || 'N/A',
     getShipmentStatusDisplayText(shipment.status),
-    getShipmentModeDisplay(shipment.mode),
-    getShipmentTypeDisplay(shipment.shipmentType),
-    shipment.origin?.location || 'N/A',
-    shipment.destination?.location || 'N/A',
-    shipment.totalWeight || 0,
-    shipment.totalVolume || 0,
-    shipment.totalCost || 0,
-    formatShipmentDate(shipment.createdDate),
-    formatShipmentDate(shipment.estimatedDelivery),
-    formatShipmentDate(shipment.actualDelivery),
-    shipment.assignedTo?.name || 'Unassigned'
+    getShipmentModeDisplay(shipment.shipmentDetails?.shipmentType),
+    shipment.shipmentDetails?.origin || 'N/A',
+    shipment.shipmentDetails?.destination || 'N/A',
+    shipment.packages?.length || 0,
+    calculateTotalWeight(shipment.packages).toFixed(2),
+    calculateTotalVolume(shipment.packages).toFixed(3),
+    formatShipmentCurrency(shipment.totalCost),
+    formatShipmentDate(shipment.createdAt, 'short'),
+    shipment.transport?.estimatedArrival ? formatShipmentDate(shipment.transport.estimatedArrival, 'short') : 'N/A',
+    shipment.actualDeliveryDate ? formatShipmentDate(shipment.actualDeliveryDate, 'short') : 'N/A'
   ]);
 
   const csvContent = [
     headers.join(','),
-    ...csvData.map(row => row.join(','))
+    ...csvData.map(row => row.map(cell => 
+      typeof cell === 'string' && cell.includes(',') ? `"${cell}"` : cell
+    ).join(','))
   ].join('\n');
-
-  return csvContent;
-};
-
-// Download shipments as CSV file
-export const downloadShipmentsAsCSV = (shipments, filename = 'shipments.csv') => {
-  const csvContent = exportShipmentsToCSV(shipments);
-  if (!csvContent) return;
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -447,18 +1069,24 @@ export const downloadShipmentsAsCSV = (shipments, filename = 'shipments.csv') =>
   document.body.removeChild(link);
 };
 
-// ==================== SHIPMENT HOOKS (for React) ====================
+// ==================== REACT HOOKS ====================
 
 // Custom hook for shipment operations
 export const useShipmentOperations = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [shipment, setShipment] = useState(null);
 
-  const performStatusUpdate = async (shipmentId, statusData) => {
+  const fetchShipment = async (shipmentId) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await updateShipmentStatus(shipmentId, statusData);
+      const result = await getShipmentById(shipmentId);
+      if (result.success) {
+        setShipment(result.data);
+      } else {
+        setError(result.message);
+      }
       return result;
     } catch (err) {
       setError(err.message);
@@ -468,7 +1096,24 @@ export const useShipmentOperations = () => {
     }
   };
 
-  const performTrackingUpdate = async (shipmentId, trackingData) => {
+  const updateStatus = async (shipmentId, statusData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await updateShipmentStatus(shipmentId, statusData);
+      if (result.success) {
+        setShipment(result.data);
+      }
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addTracking = async (shipmentId, trackingData) => {
     try {
       setLoading(true);
       setError(null);
@@ -482,7 +1127,7 @@ export const useShipmentOperations = () => {
     }
   };
 
-  const performCostAddition = async (shipmentId, costData) => {
+  const addCost = async (shipmentId, costData) => {
     try {
       setLoading(true);
       setError(null);
@@ -496,7 +1141,7 @@ export const useShipmentOperations = () => {
     }
   };
 
-  const performAssignment = async (shipmentId, assignmentData) => {
+  const assign = async (shipmentId, assignmentData) => {
     try {
       setLoading(true);
       setError(null);
@@ -513,159 +1158,48 @@ export const useShipmentOperations = () => {
   return {
     loading,
     error,
-    updateStatus: performStatusUpdate,
-    addTracking: performTrackingUpdate,
-    addCost: performCostAddition,
-    assign: performAssignment
+    shipment,
+    fetchShipment,
+    updateStatus,
+    addTracking,
+    addCost,
+    assign
   };
 };
 
-// ==================== SHIPMENT DASHBOARD FUNCTIONS ====================
+// Custom hook for customer shipments
+export const useCustomerShipments = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [shipments, setShipments] = useState([]);
+  const [pagination, setPagination] = useState(null);
 
-// Get shipment summary for dashboard
-export const getShipmentSummary = (shipments) => {
-  if (!shipments || !shipments.length) {
-    return {
-      total: 0,
-      active: 0,
-      delivered: 0,
-      cancelled: 0,
-      onTime: 0,
-      delayed: 0
-    };
-  }
-
-  const total = shipments.length;
-  const active = shipments.filter(s => isActiveShipment(s.status)).length;
-  const delivered = shipments.filter(s => s.status === 'Delivered').length;
-  const cancelled = shipments.filter(s => s.status === 'Cancelled').length;
-  const onTime = shipments.filter(s => 
-    s.status === 'Delivered' && isShipmentOnTrack(s.estimatedDelivery, s.actualDelivery)
-  ).length;
-  const delayed = delivered - onTime;
-
-  return {
-    total,
-    active,
-    delivered,
-    cancelled,
-    onTime,
-    delayed
-  };
-};
-
-// Group shipments by status
-export const groupShipmentsByStatus = (shipments) => {
-  if (!shipments || !shipments.length) return {};
-
-  return shipments.reduce((acc, shipment) => {
-    const status = shipment.status;
-    if (!acc[status]) {
-      acc[status] = [];
-    }
-    acc[status].push(shipment);
-    return acc;
-  }, {});
-};
-
-// Group shipments by mode
-export const groupShipmentsByMode = (shipments) => {
-  if (!shipments || !shipments.length) return {};
-
-  return shipments.reduce((acc, shipment) => {
-    const mode = shipment.mode || 'unknown';
-    if (!acc[mode]) {
-      acc[mode] = [];
-    }
-    acc[mode].push(shipment);
-    return acc;
-  }, {});
-};
-
-// Calculate average transit time
-export const calculateAvgTransitTime = (shipments) => {
-  const deliveredShipments = shipments.filter(s => 
-    s.status === 'Delivered' && s.actualDelivery && s.createdDate
-  );
-
-  if (!deliveredShipments.length) return 0;
-
-  const totalDays = deliveredShipments.reduce((sum, shipment) => {
-    const created = new Date(shipment.createdDate);
-    const delivered = new Date(shipment.actualDelivery);
-    const days = Math.ceil((delivered - created) / (1000 * 60 * 60 * 24));
-    return sum + days;
-  }, 0);
-
-  return Math.round(totalDays / deliveredShipments.length);
-};
-
-// Get top routes
-export const getTopRoutes = (shipments, limit = 5) => {
-  if (!shipments || !shipments.length) return [];
-
-  const routeCount = shipments.reduce((acc, shipment) => {
-    const route = `${shipment.origin?.location || 'Unknown'} → ${shipment.destination?.location || 'Unknown'}`;
-    acc[route] = (acc[route] || 0) + 1;
-    return acc;
-  }, {});
-
-  return Object.entries(routeCount)
-    .map(([route, count]) => ({ route, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
-};
-
-// ==================== SHIPMENT VALIDATION FUNCTIONS ====================
-
-// Validate shipment data before creation
-export const validateShipmentData = (shipmentData) => {
-  const errors = [];
-
-  if (!shipmentData.bookingId) {
-    errors.push('Booking ID is required');
-  }
-
-  if (!shipmentData.mode) {
-    errors.push('Shipment mode is required');
-  }
-
-  if (!shipmentData.shipmentType) {
-    errors.push('Shipment type is required');
-  }
-
-  if (!shipmentData.origin?.location) {
-    errors.push('Origin location is required');
-  }
-
-  if (!shipmentData.destination?.location) {
-    errors.push('Destination location is required');
-  }
-
-  if (shipmentData.packages && shipmentData.packages.length) {
-    shipmentData.packages.forEach((pkg, index) => {
-      if (!pkg.packageType) {
-        errors.push(`Package ${index + 1}: Package type is required`);
+  const fetchMyShipments = async (params = {}) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const safeParams = params || {};
+      const result = await getMyShipments(safeParams);
+      if (result.success) {
+        setShipments(result.data);
+        setPagination(result.pagination);
+      } else {
+        setError(result.message);
       }
-      if (!pkg.quantity || pkg.quantity < 1) {
-        errors.push(`Package ${index + 1}: Valid quantity is required`);
-      }
-    });
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
-};
 
-// Check if tracking update is valid
-export const isValidTrackingUpdate = (trackingData) => {
-  const requiredFields = ['location', 'status'];
-  const missingFields = requiredFields.filter(field => !trackingData[field]);
-  
   return {
-    isValid: missingFields.length === 0,
-    missingFields
+    loading,
+    error,
+    shipments,
+    pagination,
+    fetchMyShipments
   };
 };

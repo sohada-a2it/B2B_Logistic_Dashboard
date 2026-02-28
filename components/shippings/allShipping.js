@@ -1,1741 +1,3170 @@
-// pages/CreateShipment.jsx
-"use client"
-import React, { useState, useEffect } from 'react';
-import { 
-  Package, 
-  Truck, 
-  MapPin, 
-  User, 
-  FileText, 
-  ChevronRight, 
-  ChevronLeft, 
-  Check, 
-  X, 
-  Plus, 
-  Trash2, 
-  Save, 
-  AlertCircle,
-  Info,
-  Building2,
-  Weight,
-  Box,
-  Search,
-  CheckCircle2,
-  AlertTriangle,
-  Loader2,
-  Calendar,
-  Clock,
-  Globe,
-  Phone,
-  Mail,
-  Map,
-  DollarSign,
-  Shield,
-  FileCheck
-} from 'lucide-react';
+// components/shipments/AllShipments.jsx
+'use client';
 
-// Import from booking service
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-toastify';
 import {
-  getBookings,
-  getStatusColor,
-  getStatusDisplayText,
-  formatBookingDate,
-  formatCurrency,
+  // Main APIs
+  getAllShipments,
+  getShipmentById,
+  createShipment,
+  updateShipment,
+  deleteShipment,
+  updateShipmentStatus,
+  assignShipment,
+  addTrackingUpdate,
+  getShipmentTimeline,
+  updateTransportDetails,
+  addShipmentDocument,
+  addInternalNote,
+  addCustomerNote,
+  cancelShipment,
+  addShipmentCost,
+  getShipmentCosts,
+  updateShipmentCost,
+  deleteShipmentCost,
+  getPendingWarehouseShipments,
+  receiveAtWarehouse,
+  processWarehouse,
+  getShipmentStatistics,
+  trackShipmentByNumber,
+
+  // Helper functions
+  getShipmentStatusColor,
+  getShipmentStatusDisplayText,
+  getShipmentModeDisplay,
+  getShipmentProgress,
+  isShipmentActive,
+  formatShipmentDate,
+  formatShipmentCurrency,
   formatWeight,
   formatVolume,
-  updateBookingStatus
-} from '@/Api/booking';
+  calculateTotalWeight,
+  calculateTotalVolume,
+  isOnTrack,
+  getDaysInTransit,
+  getShipmentSummary,
+  groupShipmentsByStatus,
+  groupShipmentsByMode,
+  getTopRoutes,
+  exportShipmentsToCSV
+} from '@/Api/shipping';
 
-// Import from shipment service
-import { createShipment } from '@/Api/shipping';
+// Icons
+import {
+  Package, Search, Filter, ChevronDown, ChevronLeft, ChevronRight,
+  Eye, Edit, Download, Plus, Calendar, MapPin, User,
+  Truck, Ship, Plane, Clock, CheckCircle, XCircle,
+  AlertCircle, RefreshCw, Loader2, MoreVertical,
+  ArrowUpDown, Download as ExportIcon, Filter as FilterIcon,
+  X, Globe, Hash, DollarSign,
+  ChevronsLeft, ChevronsRight, Trash2, Check,
+  Phone, Mail, BarChart3, Activity, FileText,
+  Home, Briefcase, Tag, Calendar as CalendarIcon,
+  Save, Printer, Share2, Link, Copy, Star,
+  MessageSquare, Paperclip, Camera, Upload,
+  Users, Box, Map, TrendingUp, PieChart,
+  Sun, Moon, Settings, Bell, HelpCircle,
+  Maximize2, Minimize2, Grid, List,
+  AlertTriangle, Info, CheckCircle as CheckCircleSolid,
+  XCircle as XCircleSolid, Clock as ClockSolid,
+  Receipt, FileSpreadsheet, CreditCard, Weight,
+  Navigation, Anchor, Train, Wind, Sun as SunIcon,
+  Cloud, CloudRain, CloudSnow, CloudLightning,
+  Thermometer, Eye as EyeIcon, Shield, FileCheck,
+  UserCog, Building2, Briefcase as BriefcaseIcon,
+  FolderOpen, FileText as FileTextIcon, HardDrive
+} from 'lucide-react';
 
-const CreateShipment = () => {
-  const [activeStep, setActiveStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [bookings, setBookings] = useState([]);
-  const [filteredBookings, setFilteredBookings] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const [showBookingSearch, setShowBookingSearch] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [createdShipment, setCreatedShipment] = useState(null);
-  const [fetchError, setFetchError] = useState(null);
+// ==================== COLOR CONSTANTS ====================
+const COLORS = {
+  primary: '#E67E22',
+  secondary: '#3C719D',
+  primaryLight: '#fef2e6',
+  secondaryLight: '#e8edf3',
+  success: '#10b981',
+  danger: '#ef4444',
+  warning: '#f59e0b',
+  info: '#3b82f6',
+  purple: '#8b5cf6',
+  pink: '#ec4899',
+  indigo: '#6366f1',
+  orange: '#f97316',
+  teal: '#14b8a6',
+  cyan: '#06b6d4'
+};
+
+// ==================== STATUS CONFIGURATION ====================
+const STATUS_CONFIG = {
+  draft: {
+    label: 'Draft',
+    color: 'bg-gray-50 text-gray-700 border-gray-200',
+    icon: FileText,
+    progress: 5,
+    editable: true,
+    cancellable: true,
+    nextStatus: ['pending']
+  },
+  pending: {
+    label: 'Pending',
+    color: 'bg-blue-50 text-blue-700 border-blue-200',
+    icon: Clock,
+    progress: 10,
+    editable: true,
+    cancellable: true,
+    nextStatus: ['received_at_warehouse', 'cancelled']
+  },
+  received_at_warehouse: {
+    label: 'Received at Warehouse',
+    color: 'bg-orange-50 text-orange-700 border-orange-200',
+    icon: Package,
+    progress: 25,
+    editable: true,
+    cancellable: false,
+    nextStatus: ['consolidation_in_progress']
+  },
+  consolidation_in_progress: {
+    label: 'Consolidation in Progress',
+    color: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: Box,
+    progress: 35,
+    editable: true,
+    cancellable: false,
+    nextStatus: ['ready_for_shipping']
+  },
+  ready_for_shipping: {
+    label: 'Ready for Shipping',
+    color: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    icon: CheckCircle,
+    progress: 45,
+    editable: true,
+    cancellable: false,
+    nextStatus: ['in_transit']
+  },
+  in_transit: {
+    label: 'In Transit',
+    color: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    icon: Truck,
+    progress: 60,
+    editable: false,
+    cancellable: false,
+    nextStatus: ['arrived_at_destination']
+  },
+  arrived_at_destination: {
+    label: 'Arrived at Destination',
+    color: 'bg-teal-50 text-teal-700 border-teal-200',
+    icon: MapPin,
+    progress: 75,
+    editable: false,
+    cancellable: false,
+    nextStatus: ['customs_clearance']
+  },
+  customs_clearance: {
+    label: 'Customs Clearance',
+    color: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    icon: FileCheck,
+    progress: 85,
+    editable: false,
+    cancellable: false,
+    nextStatus: ['out_for_delivery']
+  },
+  out_for_delivery: {
+    label: 'Out for Delivery',
+    color: 'bg-purple-50 text-purple-700 border-purple-200',
+    icon: Navigation,
+    progress: 95,
+    editable: false,
+    cancellable: false,
+    nextStatus: ['delivered']
+  },
+  delivered: {
+    label: 'Delivered',
+    color: 'bg-green-50 text-green-700 border-green-200',
+    icon: CheckCircleSolid,
+    progress: 100,
+    editable: false,
+    cancellable: false,
+    nextStatus: []
+  },
+  cancelled: {
+    label: 'Cancelled',
+    color: 'bg-red-50 text-red-700 border-red-200',
+    icon: XCircleSolid,
+    progress: 0,
+    editable: false,
+    cancellable: false,
+    nextStatus: []
+  }
+};
+
+// ==================== SHIPMENT MODE ICONS ====================
+const SHIPMENT_MODE_ICONS = {
+  air_freight: Plane,
+  sea_freight: Ship,
+  road_freight: Truck,
+  rail_freight: Train,
+  express_courier: Package
+};
+
+const SHIPMENT_MODE_COLORS = {
+  air_freight: COLORS.info,
+  sea_freight: COLORS.secondary,
+  road_freight: COLORS.success,
+  rail_freight: COLORS.purple,
+  express_courier: COLORS.orange
+};
+
+// ==================== COMPONENTS ====================
+
+// Button Component
+const Button = ({
+  children,
+  type = 'button',
+  variant = 'primary',
+  size = 'md',
+  isLoading = false,
+  disabled = false,
+  onClick,
+  className = '',
+  icon = null,
+  iconPosition = 'left',
+  fullWidth = false
+}) => {
+  const baseClasses = 'rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center';
   
-  const [formData, setFormData] = useState({
-    bookingId: '',
-    mode: 'Sea Freight',
-    shipmentType: 'Sea Freight (FCL)',
-    packages: [],
-    specialInstructions: '',
-    insurance: {
-      required: false,
-      coverageAmount: '',
-      currency: 'USD'
-    },
-    customsInfo: {
-      brokerName: '',
-      brokerContact: '',
-      dutiesPaid: false
-    },
-    paymentTerms: '',
-    transport: {
-      carrierName: '',
-      estimatedDeparture: '',
-      estimatedArrival: '',
-      route: ''
-    }
-  });
-
-  const steps = [
-    { title: 'Select Booking', icon: FileText },
-    { title: 'Shipment Details', icon: Package },
-    { title: 'Package Information', icon: Box },
-    { title: 'Transport & Dates', icon: Truck },
-    { title: 'Additional Info', icon: FileCheck },
-    { title: 'Review & Create', icon: CheckCircle2 }
-  ];
-
-  const shipmentModes = [
-    'Sea Freight',
-    'Air Freight', 
-    'Inland Trucking',
-    'Multimodal'
-  ];
-
-  const shipmentTypes = {
-    'Sea Freight': ['Sea Freight (FCL)', 'Sea Freight (LCL)'],
-    'Air Freight': ['Air Freight', 'Express Delivery'],
-    'Inland Trucking': ['Inland Transport'],
-    'Multimodal': ['Door to Door', 'Multimodal']
+  const variants = {
+    primary: `bg-[${COLORS.primary}] text-white hover:bg-[#d35400] focus:ring-[${COLORS.primary}] shadow-sm`,
+    secondary: `bg-[${COLORS.secondary}] text-white hover:bg-[#2c5a8c] focus:ring-[${COLORS.secondary}]`,
+    outline: `border-2 border-[${COLORS.primary}] text-[${COLORS.primary}] hover:bg-[${COLORS.primaryLight}] focus:ring-[${COLORS.primary}]`,
+    light: `bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-500`,
+    success: `bg-[${COLORS.success}] text-white hover:bg-[#0d9488] focus:ring-[${COLORS.success}]`,
+    danger: `bg-[${COLORS.danger}] text-white hover:bg-[#dc2626] focus:ring-[${COLORS.danger}]`,
+    warning: `bg-[${COLORS.warning}] text-white hover:bg-[#d97706] focus:ring-[${COLORS.warning}]`,
+    ghost: 'text-gray-600 hover:bg-gray-100 focus:ring-gray-500'
   };
 
-  const packageTypes = [
-    'Pallet', 'Carton', 'Crate', 'Box', 'Container',
-    'Envelope', 'Loose', 'Drum', 'Bag', 'Bundle'
-  ];
+  const sizes = {
+    xs: 'px-2.5 py-1.5 text-xs',
+    sm: 'px-3 py-2 text-sm',
+    md: 'px-4 py-2.5 text-sm',
+    lg: 'px-5 py-3 text-base'
+  };
 
-  const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CNY', 'THB'];
-  const conditions = ['Excellent', 'Good', 'Fair', 'Damaged'];
+  return (
+    <button
+      type={type}
+      className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className} ${disabled || isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${fullWidth ? 'w-full' : ''}`}
+      disabled={disabled || isLoading}
+      onClick={onClick}
+    >
+      {isLoading ? (
+        <div className="flex items-center">
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          <span>Loading...</span>
+        </div>
+      ) : (
+        <div className="flex items-center">
+          {icon && iconPosition === 'left' && <span className="mr-2">{icon}</span>}
+          {children}
+          {icon && iconPosition === 'right' && <span className="ml-2">{icon}</span>}
+        </div>
+      )}
+    </button>
+  );
+};
 
-  // Fetch only confirmed bookings on mount
+// Input Component
+const Input = ({
+  type = 'text',
+  name,
+  value,
+  onChange,
+  placeholder,
+  label,
+  error,
+  icon: Icon,
+  required = false,
+  disabled = false,
+  className = '',
+  ...props
+}) => {
+  return (
+    <div className="space-y-1">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
+      <div className="relative">
+        {Icon && (
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Icon className="h-4 w-4 text-gray-400" />
+          </div>
+        )}
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={`
+            w-full px-3 py-2 text-sm border rounded-lg shadow-sm
+            focus:outline-none focus:ring-2 focus:ring-[${COLORS.primary}] focus:border-transparent
+            ${Icon ? 'pl-10' : ''}
+            ${error ? 'border-red-300' : 'border-gray-300'}
+            ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}
+            ${className}
+          `}
+          {...props}
+        />
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  );
+};
+
+// Select Component
+const Select = ({
+  name,
+  value,
+  onChange,
+  options,
+  placeholder = 'Select option',
+  label,
+  error,
+  icon: Icon,
+  required = false,
+  disabled = false,
+  className = ''
+}) => {
+  return (
+    <div className="space-y-1">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
+      <div className="relative">
+        {Icon && (
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Icon className="h-4 w-4 text-gray-400" />
+          </div>
+        )}
+        <select
+          name={name}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          className={`
+            w-full px-3 py-2 text-sm border rounded-lg shadow-sm appearance-none
+            focus:outline-none focus:ring-2 focus:ring-[${COLORS.primary}] focus:border-transparent
+            ${Icon ? 'pl-10' : 'pl-3'}
+            pr-10
+            ${error ? 'border-red-300' : 'border-gray-300'}
+            ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}
+            ${className}
+          `}
+        >
+          <option value="">{placeholder}</option>
+          {options.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+          <ChevronDown className="h-4 w-4 text-gray-400" />
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  );
+};
+
+// TextArea Component
+const TextArea = ({
+  name,
+  value,
+  onChange,
+  placeholder,
+  label,
+  error,
+  rows = 3,
+  required = false,
+  disabled = false,
+  className = ''
+}) => {
+  return (
+    <div className="space-y-1">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
+      <textarea
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={rows}
+        disabled={disabled}
+        className={`
+          w-full px-3 py-2 text-sm border rounded-lg shadow-sm
+          focus:outline-none focus:ring-2 focus:ring-[${COLORS.primary}] focus:border-transparent
+          ${error ? 'border-red-300' : 'border-gray-300'}
+          ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}
+          ${className}
+        `}
+      />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  );
+};
+
+// Status Badge Component
+const StatusBadge = ({ status, onClick, clickable = false, size = 'md' }) => {
+  const config = STATUS_CONFIG[status] || {
+    label: getShipmentStatusDisplayText(status),
+    color: 'bg-gray-50 text-gray-700 border-gray-200',
+    icon: Clock
+  };
+  
+  const Icon = config.icon;
+  const sizes = {
+    sm: 'px-2 py-0.5 text-xs',
+    md: 'px-2.5 py-1 text-xs',
+    lg: 'px-3 py-1.5 text-sm'
+  };
+
+  return (
+    <span 
+      onClick={onClick}
+      className={`inline-flex items-center rounded-full font-medium border ${config.color} ${sizes[size]} ${clickable ? 'cursor-pointer hover:opacity-80' : ''}`}
+    >
+      <Icon className={`${size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} mr-1`} />
+      {config.label}
+    </span>
+  );
+};
+
+// Shipment Mode Badge
+const ShipmentModeBadge = ({ mode }) => {
+  const Icon = SHIPMENT_MODE_ICONS[mode] || Package;
+  const color = SHIPMENT_MODE_COLORS[mode] || COLORS.secondary;
+  
+  return (
+    <span 
+      className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium"
+      style={{ backgroundColor: `${color}15`, color: color }}
+    >
+      <Icon className="h-3.5 w-3.5 mr-1" />
+      {getShipmentModeDisplay(mode)}
+    </span>
+  );
+};
+
+// Progress Bar Component
+const ProgressBar = ({ progress, height = 'h-2', showLabel = false }) => {
+  return (
+    <div className="w-full">
+      {showLabel && (
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-xs text-gray-500">Progress</span>
+          <span className="text-xs font-medium" style={{ color: COLORS.primary }}>{progress}%</span>
+        </div>
+      )}
+      <div className={`w-full bg-gray-200 rounded-full ${height}`}>
+        <div 
+          className="rounded-full transition-all duration-500"
+          style={{ 
+            width: `${progress}%`, 
+            backgroundColor: progress === 100 ? COLORS.success : COLORS.primary,
+            height: '100%'
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// Action Menu Component
+const ActionMenu = ({ shipment, onAction }) => {
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = React.useRef(null);
+
   useEffect(() => {
-    fetchConfirmedBookings();
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter bookings based on search
-  useEffect(() => {
-    if (bookings.length > 0) {
-      const filtered = bookings.filter(booking => 
-        booking.bookingNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.customer?.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.customer?.contactPerson?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.shipmentDetails?.origin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.shipmentDetails?.destination?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredBookings(filtered);
-    }
-  }, [searchTerm, bookings]);
+  if (!shipment) return null;
 
-  // ফিক্সড: ফেচ ফাংশন - শুধু কনফার্মড বুকিং দেখাবে
-  const fetchConfirmedBookings = async () => {
+  const isActive = isShipmentActive(shipment.status);
+  const progress = getShipmentProgress(shipment.status);
+
+  const actions = [
+    { 
+      label: 'View Details', 
+      icon: Eye, 
+      action: 'view', 
+      color: 'text-blue-600',
+      show: true
+    },
+    { 
+      label: 'View Timeline', 
+      icon: Clock, 
+      action: 'timeline', 
+      color: 'text-purple-600',
+      show: true
+    },
+    { 
+      label: 'Update Status', 
+      icon: CheckCircle, 
+      action: 'status', 
+      color: 'text-green-600',
+      show: true
+    },
+    { 
+      label: 'Add Tracking', 
+      icon: MapPin, 
+      action: 'tracking', 
+      color: 'text-orange-600',
+      show: isActive
+    },
+    { 
+      label: 'Assign Staff', 
+      icon: UserCog, 
+      action: 'assign', 
+      color: 'text-indigo-600',
+      show: isActive
+    },
+    { 
+      label: 'Add Cost', 
+      icon: DollarSign, 
+      action: 'cost', 
+      color: `text-[${COLORS.success}]`,
+      show: true
+    },
+    { 
+      label: 'Upload Document', 
+      icon: Upload, 
+      action: 'document', 
+      color: 'text-purple-600',
+      show: true
+    },
+    { 
+      label: 'Add Note', 
+      icon: MessageSquare, 
+      action: 'note', 
+      color: 'text-teal-600',
+      show: true
+    },
+    { 
+      label: 'Warehouse Actions', 
+      icon: Building2, 
+      action: 'warehouse', 
+      color: 'text-amber-600',
+      show: ['pending', 'received_at_warehouse', 'consolidation_in_progress'].includes(shipment.status)
+    },
+    { 
+      label: 'Cancel Shipment', 
+      icon: XCircle, 
+      action: 'cancel', 
+      color: 'text-red-600',
+      show: shipment.status !== 'cancelled' && shipment.status !== 'delivered'
+    },
+    { 
+      label: 'Download Documents', 
+      icon: Download, 
+      action: 'download', 
+      color: 'text-gray-600',
+      show: true
+    },
+    { 
+      label: 'Copy Tracking Link', 
+      icon: Link, 
+      action: 'share', 
+      color: 'text-green-600',
+      show: !!shipment.trackingNumber
+    }
+  ];
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setShowMenu(!showMenu)}
+        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+      >
+        <MoreVertical className="h-4 w-4 text-gray-500" />
+      </button>
+      
+      {showMenu && (
+        <div className="absolute right-0 mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-1">
+          {actions.filter(a => a.show).map((action) => (
+            <button
+              key={action.action}
+              onClick={() => {
+                onAction(action.action, shipment);
+                setShowMenu(false);
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center"
+            >
+              <action.icon className={`h-4 w-4 mr-3 ${action.color}`} />
+              <span className="text-gray-700">{action.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Stat Card Component
+const StatCard = ({ title, value, icon: Icon, color, trend, onClick, active }) => {
+  return (
+    <div 
+      onClick={onClick}
+      className={`
+        bg-white rounded-xl border shadow-sm p-4 cursor-pointer transition-all
+        hover:shadow-md hover:border-[${COLORS.primary}]/30
+        ${active ? `border-[${COLORS.primary}] ring-2 ring-[${COLORS.primary}]/20` : 'border-gray-200'}
+      `}
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-gray-500 mb-1">{title}</p>
+          <p className="text-xl font-bold text-gray-900">{value}</p>
+          {trend && (
+            <p className={`text-xs ${trend > 0 ? 'text-green-600' : 'text-red-600'} mt-1`}>
+              {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+            </p>
+          )}
+        </div>
+        <div className={`p-3 rounded-xl ${color}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal Component
+const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
+  if (!isOpen) return null;
+
+  const sizes = {
+    sm: 'max-w-md',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
+    full: 'max-w-6xl'
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div className="fixed inset-0 transition-opacity" onClick={onClose}>
+          <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+        </div>
+
+        <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+
+        <div className={`inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle ${sizes[size]} w-full`}>
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+          <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Status Update Modal
+const StatusUpdateModal = ({ isOpen, onClose, shipment, onUpdate }) => {
+  const [formData, setFormData] = useState({
+    status: '',
+    location: '',
+    description: '',
+    timestamp: new Date().toISOString().slice(0, 16)
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (shipment) {
+      setFormData({
+        status: shipment.status || '',
+        location: '',
+        description: '',
+        timestamp: new Date().toISOString().slice(0, 16)
+      });
+    }
+  }, [shipment]);
+
+  if (!isOpen || !shipment) return null;
+
+  const statusOptions = Object.entries(STATUS_CONFIG).map(([value, config]) => ({
+    value,
+    label: config.label
+  }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.status) {
+      toast.warning('Please select a status');
+      return;
+    }
+
     setLoading(true);
-    setFetchError(null);
     try {
-      console.log('Fetching confirmed bookings...');
-      
-      // শুধু কনফার্মড বুকিং ফেচ করুন
-      const response = await getBookings({ 
-        status: 'confirmed', // 'confirmed' স্টেটাস ব্যবহার করুন
-        limit: 50 
+      await onUpdate(shipment._id, {
+        status: formData.status,
+        location: formData.location,
+        description: formData.description,
+        timestamp: formData.timestamp
       });
-      
-      console.log('API Response:', response);
-      
-      let bookingsData = [];
-      if (response && response.data) {
-        bookingsData = response.data;
-      } else if (response && Array.isArray(response)) {
-        bookingsData = response;
-      }
-      
-      console.log('All bookings:', bookingsData);
-      
-      // ডাবল চেক: নিশ্চিত করুন শুধু কনফার্মড বুকিং দেখাচ্ছে
-      const confirmedBookings = bookingsData.filter(booking => {
-        const status = booking.status?.toLowerCase?.() || '';
-        return status === 'confirmed' || status === 'booking_confirmed';
-      });
-      
-      console.log('Filtered confirmed bookings:', confirmedBookings);
-      
-      setBookings(confirmedBookings);
-      setFilteredBookings(confirmedBookings);
-      
-      if (confirmedBookings.length === 0) {
-        alert('No confirmed bookings found'); // অথবা toast ব্যবহার করুন
-      }
-      
+      onClose();
     } catch (error) {
-      console.error('Error fetching confirmed bookings:', error);
-      setFetchError(error.message || 'Failed to load confirmed bookings');
+      // Error handled in parent
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    // Clear error for this field
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: null }));
-    }
-  };
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Update Shipment Status" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Select
+          label="New Status"
+          value={formData.status}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+          options={statusOptions}
+          placeholder="Select status"
+          required
+          icon={Activity}
+        />
 
-  const handlePackageChange = (index, field, value) => {
-    const updatedPackages = [...formData.packages];
-    updatedPackages[index] = {
-      ...updatedPackages[index],
-      [field]: value
-    };
+        <Input
+          label="Current Location"
+          value={formData.location}
+          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+          placeholder="e.g., Dhaka Warehouse"
+          icon={MapPin}
+        />
 
-    // Auto-calculate volume if dimensions provided
-    if (['length', 'width', 'height'].includes(field)) {
-      const pkg = updatedPackages[index];
-      if (pkg.length && pkg.width && pkg.height) {
-        // Convert cm to cubic meters
-        pkg.volume = Number(((pkg.length * pkg.width * pkg.height) / 1000000).toFixed(3));
-      }
-    }
+        <TextArea
+          label="Description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="Additional details about this status update..."
+          rows={3}
+        />
 
-    setFormData(prev => ({
-      ...prev,
-      packages: updatedPackages
-    }));
-  };
+        <Input
+          type="datetime-local"
+          label="Timestamp"
+          value={formData.timestamp}
+          onChange={(e) => setFormData({ ...formData, timestamp: e.target.value })}
+          icon={Calendar}
+        />
 
-  const addPackage = () => {
-    setFormData(prev => ({
-      ...prev,
-      packages: [...prev.packages, {
-        packageType: 'Carton',
-        quantity: 1,
-        weight: 0,
-        volume: 0,
-        description: '',
-        length: '',
-        width: '',
-        height: '',
-        marksAndNumbers: '',
-        hsCode: '',
-        declaredValue: '',
-        currency: 'USD',
-        condition: 'Good'
-      }]
-    }));
-  };
-
-  const removePackage = (index) => {
-    if (formData.packages.length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        packages: prev.packages.filter((_, i) => i !== index)
-      }));
-    }
-  };
-
-  // ফিক্সড: বুকিং সিলেক্ট ফাংশন
-  const handleSelectBooking = (booking) => {
-    console.log('Selected booking:', booking);
-    
-    // গুরুত্বপূর্ণ: MongoDB _id ব্যবহার করুন
-    const bookingId = booking._id;  // শুধু _id ব্যবহার করুন
-    
-    console.log('Booking ID (MongoDB _id):', bookingId);
-    console.log('Booking Number:', booking.bookingNumber);
-    
-    if (!bookingId) {
-      alert('Invalid booking: No ID found');
-      return;
-    }
-    
-    setSelectedBooking(booking);
-    
-    // ফর্মে bookingId সেট করুন
-    setFormData(prev => ({
-      ...prev,
-      bookingId: bookingId  // MongoDB _id সংরক্ষণ করুন
-    }));
-    
-    // বুকিং থেকে প্যাকেজ ডাটা আনুন
-    if (booking.shipmentDetails) {
-      const packages = [];
-      
-      if (booking.shipmentDetails.cargoDetails?.length > 0) {
-        booking.shipmentDetails.cargoDetails.forEach(cargo => {
-          packages.push({
-            packageType: cargo.packageType || 'Carton',
-            quantity: cargo.quantity || 1,
-            weight: cargo.weight || 0,
-            volume: cargo.volume || 0,
-            description: cargo.description || '',
-            length: cargo.length || '',
-            width: cargo.width || '',
-            height: cargo.height || '',
-            marksAndNumbers: '',
-            hsCode: '',
-            declaredValue: '',
-            currency: 'USD',
-            condition: 'Good'
-          });
-        });
-      } else {
-        packages.push({
-          packageType: 'Carton',
-          quantity: booking.shipmentDetails.totalCartons || 1,
-          weight: booking.shipmentDetails.totalWeight || 0,
-          volume: booking.shipmentDetails.totalVolume || 0,
-          description: booking.shipmentDetails.cargoDescription || '',
-          length: '',
-          width: '',
-          height: '',
-          marksAndNumbers: '',
-          hsCode: '',
-          declaredValue: '',
-          currency: 'USD',
-          condition: 'Good'
-        });
-      }
-      
-      setFormData(prev => ({
-        ...prev,
-        packages: packages
-      }));
-    }
-    
-    setShowBookingSearch(false);
-    alert(`Booking #${booking.bookingNumber} selected`);
-  };
-
-  const validateStep = (step) => {
-    const newErrors = {};
-    
-    switch(step) {
-      case 0:
-        if (!formData.bookingId) {
-          newErrors.bookingId = 'Please select a confirmed booking';
-        }
-        break;
-        
-      case 1:
-        if (!formData.mode) {
-          newErrors.mode = 'Shipment mode is required';
-        }
-        if (!formData.shipmentType) {
-          newErrors.shipmentType = 'Shipment type is required';
-        }
-        break;
-        
-      case 2:
-        if (formData.packages.length === 0) {
-          newErrors.packages = 'At least one package is required';
-        } else {
-          formData.packages.forEach((pkg, index) => {
-            if (!pkg.packageType) {
-              newErrors[`packages.${index}.packageType`] = 'Package type required';
-            }
-            if (!pkg.quantity || pkg.quantity < 1) {
-              newErrors[`packages.${index}.quantity`] = 'Valid quantity required';
-            }
-            if (!pkg.weight || pkg.weight <= 0) {
-              newErrors[`packages.${index}.weight`] = 'Valid weight required';
-            }
-          });
-        }
-        break;
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleNext = () => {
-    if (validateStep(activeStep)) {
-      setActiveStep(prev => prev + 1);
-    }
-  };
-
-  const handleBack = () => {
-    setActiveStep(prev => prev - 1);
-  };
-
-  const calculateTotals = () => {
-    const totalPackages = formData.packages.reduce((sum, pkg) => sum + (pkg.quantity || 0), 0);
-    const totalWeight = formData.packages.reduce((sum, pkg) => sum + ((pkg.weight || 0) * (pkg.quantity || 0)), 0);
-    const totalVolume = formData.packages.reduce((sum, pkg) => sum + ((pkg.volume || 0) * (pkg.quantity || 0)), 0);
-    
-    return { totalPackages, totalWeight, totalVolume };
-  };
-
-  // ফিক্সড: সাবমিট ফাংশন
-const handleSubmit = async () => {
-  if (!validateStep(activeStep)) {
-    return;
-  }
-
-  setSubmitting(true);
-  setErrors({});
-  
-  try {
-    console.log('========== FRONTEND DEBUG ==========');
-    
-    // Get the booking ID
-    const bookingId = selectedBooking?._id || formData.bookingId;
-    
-    console.log('1. Selected booking object:', selectedBooking);
-    console.log('2. Selected booking _id:', selectedBooking?._id);
-    console.log('3. Selected booking bookingNumber:', selectedBooking?.bookingNumber);
-    console.log('4. FormData bookingId:', formData.bookingId);
-    console.log('5. Final bookingId to send:', bookingId);
-    console.log('6. Type of bookingId:', typeof bookingId);
-    
-    if (!bookingId) {
-      console.log('7. ERROR: No booking ID found');
-      throw new Error('No booking selected');
-    }
-
-    // Validate that it's a valid MongoDB ObjectId format
-    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(bookingId);
-    console.log('8. Is valid MongoDB ObjectId format:', isValidObjectId);
-    
-    if (!isValidObjectId) {
-      console.log('9. WARNING: bookingId is not in MongoDB ObjectId format');
-    }
-
-    // Calculate totals
-    const totalPackages = formData.packages.reduce((sum, pkg) => sum + pkg.quantity, 0);
-    const totalWeight = formData.packages.reduce((sum, pkg) => sum + (pkg.weight * pkg.quantity), 0);
-    const totalVolume = formData.packages.reduce((sum, pkg) => sum + (pkg.volume * pkg.quantity), 0);
-
-    // Create shipment data - SIMPLE AND CLEAN
-    const shipmentData = {
-      // Put bookingId at the root level - this is what backend expects
-      bookingId: bookingId,
-      
-      // Other fields
-      mode: formData.mode,
-      shipmentType: formData.shipmentType,
-      specialInstructions: formData.specialInstructions || '',
-      paymentTerms: formData.paymentTerms || '',
-      
-      packages: formData.packages.map(pkg => ({
-        packageType: pkg.packageType,
-        quantity: Number(pkg.quantity),
-        weight: Number(pkg.weight),
-        volume: Number(pkg.volume || 0),
-        description: pkg.description || '',
-        length: pkg.length ? Number(pkg.length) : undefined,
-        width: pkg.width ? Number(pkg.width) : undefined,
-        height: pkg.height ? Number(pkg.height) : undefined,
-        marksAndNumbers: pkg.marksAndNumbers || '',
-        hsCode: pkg.hsCode || '',
-        condition: pkg.condition || 'Good'
-      })),
-      
-      insurance: {
-        required: formData.insurance.required,
-        coverageAmount: formData.insurance.coverageAmount,
-        currency: formData.insurance.currency
-      },
-      
-      customsInfo: {
-        brokerName: formData.customsInfo.brokerName,
-        brokerContact: formData.customsInfo.brokerContact,
-        dutiesPaid: formData.customsInfo.dutiesPaid
-      },
-      
-      transport: {
-        carrierName: formData.transport.carrierName || '',
-        estimatedDeparture: formData.transport.estimatedDeparture || '',
-        estimatedArrival: formData.transport.estimatedArrival || '',
-        route: formData.transport.route || ''
-      }
-    };
-
-    console.log('10. Final shipment data being sent:', JSON.stringify(shipmentData, null, 2));
-
-    // Make the API call
-    console.log('11. Sending request to create shipment...');
-    const response = await createShipment(shipmentData);
-    
-    console.log('12. API Response:', response);
-
-    if (response && response.success) {
-      console.log('13. Shipment created successfully!');
-      setCreatedShipment(response.data);
-      setShowSuccess(true);
-      
-      setTimeout(() => {
-        window.location.href = `/shipments/${response.data._id}`;
-      }, 2000);
-    } else {
-      throw new Error(response?.message || 'Failed to create shipment');
-    }
-    
-  } catch (error) {
-    console.error('ERROR in handleSubmit:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      response: error.response?.data
-    });
-    setErrors({ submit: error.message });
-    alert('Error: ' + error.message);
-  } finally {
-    setSubmitting(false);
-  }
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            Update Status
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
 };
 
-  const { totalPackages, totalWeight, totalVolume } = calculateTotals();
+// Tracking Update Modal
+const TrackingUpdateModal = ({ isOpen, onClose, shipment, onAdd }) => {
+  const [formData, setFormData] = useState({
+    status: 'in_transit',
+    location: '',
+    description: '',
+    timestamp: new Date().toISOString().slice(0, 16),
+    coordinates: ''
+  });
+  const [loading, setLoading] = useState(false);
 
-  const StepIcon = ({ icon: Icon, active, completed }) => (
-    <div className={`
-      w-10 h-10 rounded-full flex items-center justify-center
-      ${completed ? 'bg-green-500' : active ? 'bg-blue-500' : 'bg-gray-200'}
-      transition-colors duration-200
-    `}>
-      {completed ? (
-        <Check className="w-5 h-5 text-white" />
-      ) : (
-        <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-gray-500'}`} />
-      )}
-    </div>
+  useEffect(() => {
+    if (shipment) {
+      setFormData({
+        status: 'in_transit',
+        location: '',
+        description: '',
+        timestamp: new Date().toISOString().slice(0, 16),
+        coordinates: ''
+      });
+    }
+  }, [shipment]);
+
+  if (!isOpen || !shipment) return null;
+
+  const trackingStatusOptions = [
+    { value: 'picked_up', label: 'Picked Up' },
+    { value: 'in_transit', label: 'In Transit' },
+    { value: 'arrived_at_facility', label: 'Arrived at Facility' },
+    { value: 'out_for_delivery', label: 'Out for Delivery' },
+    { value: 'delivered', label: 'Delivered' },
+    { value: 'exception', label: 'Exception' }
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.location) {
+      toast.warning('Location is required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onAdd(shipment._id, formData);
+      onClose();
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Tracking Update" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Select
+          label="Tracking Status"
+          value={formData.status}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+          options={trackingStatusOptions}
+          placeholder="Select status"
+          required
+          icon={Navigation}
+        />
+
+        <Input
+          label="Location"
+          value={formData.location}
+          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+          placeholder="Current location"
+          required
+          icon={MapPin}
+        />
+
+        <TextArea
+          label="Description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="Tracking details..."
+          rows={3}
+        />
+
+        <Input
+          type="datetime-local"
+          label="Timestamp"
+          value={formData.timestamp}
+          onChange={(e) => setFormData({ ...formData, timestamp: e.target.value })}
+          icon={Calendar}
+        />
+
+        <Input
+          label="GPS Coordinates (Optional)"
+          value={formData.coordinates}
+          onChange={(e) => setFormData({ ...formData, coordinates: e.target.value })}
+          placeholder="e.g., 23.8103° N, 90.4125° E"
+          icon={Globe}
+        />
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            Add Tracking
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
+};
 
-  const BookingSearchModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-800">Select Confirmed Booking</h2>
-            <button 
-              onClick={() => setShowBookingSearch(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          <div className="mt-2">
-            <p className="text-sm text-green-600 flex items-center">
-              <CheckCircle2 className="w-4 h-4 mr-1" />
-              Only confirmed bookings are shown
+// Assign Staff Modal
+const AssignModal = ({ isOpen, onClose, shipment, onAssign }) => {
+  const [formData, setFormData] = useState({
+    staffId: '',
+    role: 'operations',
+    notes: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (shipment) {
+      setFormData({
+        staffId: '',
+        role: 'operations',
+        notes: ''
+      });
+    }
+  }, [shipment]);
+
+  if (!isOpen || !shipment) return null;
+
+  const staffOptions = [
+    { value: 'staff1', label: 'John Doe (Operations)' },
+    { value: 'staff2', label: 'Jane Smith (Warehouse)' },
+    { value: 'staff3', label: 'Mike Johnson (Driver)' },
+    { value: 'staff4', label: 'Sarah Wilson (Customer Service)' },
+    { value: 'staff5', label: 'David Brown (Customs Broker)' }
+  ];
+
+  const roleOptions = [
+    { value: 'operations', label: 'Operations' },
+    { value: 'warehouse', label: 'Warehouse' },
+    { value: 'driver', label: 'Driver' },
+    { value: 'customs', label: 'Customs Broker' },
+    { value: 'customer_service', label: 'Customer Service' }
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.staffId || !formData.role) {
+      toast.warning('Staff and role are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onAssign(shipment._id, formData);
+      onClose();
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Assign Staff to Shipment" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Select
+          label="Staff Member"
+          value={formData.staffId}
+          onChange={(e) => setFormData({ ...formData, staffId: e.target.value })}
+          options={staffOptions}
+          placeholder="Select staff"
+          required
+          icon={UserCog}
+        />
+
+        <Select
+          label="Role"
+          value={formData.role}
+          onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+          options={roleOptions}
+          placeholder="Select role"
+          required
+          icon={BriefcaseIcon}
+        />
+
+        <TextArea
+          label="Notes"
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          placeholder="Additional instructions..."
+          rows={3}
+        />
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            Assign Staff
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// Add Cost Modal
+const CostModal = ({ isOpen, onClose, shipment, onAdd }) => {
+  const [formData, setFormData] = useState({
+    type: 'transport',
+    description: '',
+    amount: '',
+    currency: 'USD',
+    paidBy: 'customer',
+    paidStatus: 'pending',
+    dueDate: '',
+    notes: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (shipment) {
+      setFormData({
+        type: 'transport',
+        description: '',
+        amount: '',
+        currency: 'USD',
+        paidBy: 'customer',
+        paidStatus: 'pending',
+        dueDate: '',
+        notes: ''
+      });
+    }
+  }, [shipment]);
+
+  if (!isOpen || !shipment) return null;
+
+  const typeOptions = [
+    { value: 'transport', label: 'Transport' },
+    { value: 'warehouse', label: 'Warehouse' },
+    { value: 'customs', label: 'Customs' },
+    { value: 'insurance', label: 'Insurance' },
+    { value: 'documentation', label: 'Documentation' },
+    { value: 'fuel_surcharge', label: 'Fuel Surcharge' },
+    { value: 'handling', label: 'Handling' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  const currencyOptions = [
+    { value: 'USD', label: 'USD' },
+    { value: 'EUR', label: 'EUR' },
+    { value: 'GBP', label: 'GBP' },
+    { value: 'BDT', label: 'BDT' },
+    { value: 'INR', label: 'INR' },
+    { value: 'CNY', label: 'CNY' }
+  ];
+
+  const paidByOptions = [
+    { value: 'customer', label: 'Customer' },
+    { value: 'company', label: 'Company' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  const paidStatusOptions = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'overdue', label: 'Overdue' },
+    { value: 'waived', label: 'Waived' }
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.type || !formData.amount) {
+      toast.warning('Type and amount are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onAdd(shipment._id, formData);
+      onClose();
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Shipment Cost" size="lg">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Select
+            label="Cost Type"
+            value={formData.type}
+            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+            options={typeOptions}
+            placeholder="Select type"
+            required
+            icon={Tag}
+          />
+
+          <Select
+            label="Currency"
+            value={formData.currency}
+            onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+            options={currencyOptions}
+            placeholder="Select currency"
+            required
+            icon={DollarSign}
+          />
+        </div>
+
+        <Input
+          label="Amount"
+          type="number"
+          step="0.01"
+          value={formData.amount}
+          onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+          placeholder="0.00"
+          required
+          icon={DollarSign}
+        />
+
+        <Input
+          label="Description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="e.g., Ocean freight charges"
+          icon={FileText}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <Select
+            label="Paid By"
+            value={formData.paidBy}
+            onChange={(e) => setFormData({ ...formData, paidBy: e.target.value })}
+            options={paidByOptions}
+            placeholder="Select payer"
+            icon={User}
+          />
+
+          <Select
+            label="Payment Status"
+            value={formData.paidStatus}
+            onChange={(e) => setFormData({ ...formData, paidStatus: e.target.value })}
+            options={paidStatusOptions}
+            placeholder="Select status"
+            icon={CheckCircle}
+          />
+        </div>
+
+        <Input
+          type="date"
+          label="Due Date"
+          value={formData.dueDate}
+          onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+          icon={Calendar}
+        />
+
+        <TextArea
+          label="Notes"
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          placeholder="Additional notes..."
+          rows={3}
+        />
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            Add Cost
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// Document Upload Modal
+const DocumentModal = ({ isOpen, onClose, shipment, onUpload }) => {
+  const [formData, setFormData] = useState({
+    type: 'commercial_invoice',
+    title: '',
+    file: null,
+    notes: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  useEffect(() => {
+    if (shipment) {
+      setFormData({
+        type: 'commercial_invoice',
+        title: '',
+        file: null,
+        notes: ''
+      });
+    }
+  }, [shipment]);
+
+  if (!isOpen || !shipment) return null;
+
+  const documentTypeOptions = [
+    { value: 'commercial_invoice', label: 'Commercial Invoice' },
+    { value: 'packing_list', label: 'Packing List' },
+    { value: 'bill_of_lading', label: 'Bill of Lading' },
+    { value: 'air_waybill', label: 'Air Waybill' },
+    { value: 'certificate_of_origin', label: 'Certificate of Origin' },
+    { value: 'insurance_certificate', label: 'Insurance Certificate' },
+    { value: 'customs_declaration', label: 'Customs Declaration' },
+    { value: 'delivery_receipt', label: 'Delivery Receipt' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormData({ ...formData, file, title: formData.title || file.name });
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.type || !formData.title || !formData.file) {
+      toast.warning('Type, title and file are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Create FormData for file upload
+      const uploadData = new FormData();
+      uploadData.append('type', formData.type);
+      uploadData.append('title', formData.title);
+      uploadData.append('file', formData.file);
+      uploadData.append('notes', formData.notes);
+      
+      await onUpload(shipment._id, uploadData);
+      onClose();
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Upload Document" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Select
+          label="Document Type"
+          value={formData.type}
+          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+          options={documentTypeOptions}
+          placeholder="Select type"
+          required
+          icon={FileText}
+        />
+
+        <Input
+          label="Document Title"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          placeholder="e.g., Commercial Invoice - Shipment #123"
+          required
+          icon={Tag}
+        />
+
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">
+            File <span className="text-red-500">*</span>
+          </label>
+          <div 
+            className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-[#E67E22] transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+            <p className="text-sm text-gray-600">
+              {formData.file ? formData.file.name : 'Click to upload or drag and drop'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              PDF, Images, Excel, Word (Max 10MB)
             </p>
           </div>
-          <div className="mt-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search by booking number, customer, origin, destination..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </div>
         </div>
-        
-        <div className="overflow-y-auto max-h-[calc(80vh-180px)] p-6">
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-            </div>
-          ) : fetchError ? (
-            <div className="text-center py-12">
-              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-              <p className="text-red-600">{fetchError}</p>
-              <button 
-                onClick={fetchConfirmedBookings}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Retry
-              </button>
-            </div>
-          ) : filteredBookings.length === 0 ? (
-            <div className="text-center py-12">
-              <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">No confirmed bookings found</p>
-              <p className="text-sm text-gray-400 mt-1">
-                {searchTerm ? 'Try a different search term' : 'Bookings must be confirmed first'}
+
+        <TextArea
+          label="Notes"
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          placeholder="Additional notes about this document..."
+          rows={3}
+        />
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            Upload Document
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// Add Note Modal
+const NoteModal = ({ isOpen, onClose, shipment, onAdd }) => {
+  const [formData, setFormData] = useState({
+    type: 'internal',
+    note: '',
+    priority: 'normal'
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (shipment) {
+      setFormData({
+        type: 'internal',
+        note: '',
+        priority: 'normal'
+      });
+    }
+  }, [shipment]);
+
+  if (!isOpen || !shipment) return null;
+
+  const typeOptions = [
+    { value: 'internal', label: 'Internal Note' },
+    { value: 'customer', label: 'Customer Note' }
+  ];
+
+  const priorityOptions = [
+    { value: 'low', label: 'Low' },
+    { value: 'normal', label: 'Normal' },
+    { value: 'high', label: 'High' },
+    { value: 'urgent', label: 'Urgent' }
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.note) {
+      toast.warning('Note is required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (formData.type === 'internal') {
+        await onAdd.internalNote(shipment._id, formData);
+      } else {
+        await onAdd.customerNote(shipment._id, formData);
+      }
+      onClose();
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Note" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Select
+            label="Note Type"
+            value={formData.type}
+            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+            options={typeOptions}
+            placeholder="Select type"
+            required
+            icon={MessageSquare}
+          />
+
+          <Select
+            label="Priority"
+            value={formData.priority}
+            onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+            options={priorityOptions}
+            placeholder="Select priority"
+            required
+            icon={AlertCircle}
+          />
+        </div>
+
+        <TextArea
+          label="Note"
+          value={formData.note}
+          onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+          placeholder="Write your note here..."
+          rows={4}
+          required
+        />
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            Add Note
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// Warehouse Actions Modal
+const WarehouseModal = ({ isOpen, onClose, shipment, onAction }) => {
+  const [formData, setFormData] = useState({
+    action: 'receive',
+    location: '',
+    receivedBy: '',
+    verifiedBy: '',
+    condition: 'good',
+    notes: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (shipment) {
+      setFormData({
+        action: 'receive',
+        location: '',
+        receivedBy: '',
+        verifiedBy: '',
+        condition: 'good',
+        notes: ''
+      });
+    }
+  }, [shipment]);
+
+  if (!isOpen || !shipment) return null;
+
+  const actionOptions = [
+    { value: 'receive', label: 'Receive at Warehouse' },
+    { value: 'process', label: 'Process/Consolidate' },
+    { value: 'load', label: 'Load for Shipping' }
+  ];
+
+  const conditionOptions = [
+    { value: 'excellent', label: 'Excellent' },
+    { value: 'good', label: 'Good' },
+    { value: 'fair', label: 'Fair' },
+    { value: 'damaged', label: 'Damaged' },
+    { value: 'with_exception', label: 'With Exception' }
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (formData.action === 'receive' && (!formData.location || !formData.receivedBy)) {
+      toast.warning('Location and receiver are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (formData.action === 'receive') {
+        await onAction.receive(shipment._id, formData);
+      } else if (formData.action === 'process') {
+        await onAction.process(shipment._id, formData);
+      }
+      onClose();
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Warehouse Operations" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Select
+          label="Action"
+          value={formData.action}
+          onChange={(e) => setFormData({ ...formData, action: e.target.value })}
+          options={actionOptions}
+          placeholder="Select action"
+          required
+          icon={Building2}
+        />
+
+        {formData.action === 'receive' && (
+          <>
+            <Input
+              label="Warehouse Location"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              placeholder="e.g., Dhaka Main Warehouse"
+              required
+              icon={MapPin}
+            />
+
+            <Input
+              label="Received By"
+              value={formData.receivedBy}
+              onChange={(e) => setFormData({ ...formData, receivedBy: e.target.value })}
+              placeholder="Name of warehouse staff"
+              required
+              icon={User}
+            />
+
+            <Input
+              label="Verified By"
+              value={formData.verifiedBy}
+              onChange={(e) => setFormData({ ...formData, verifiedBy: e.target.value })}
+              placeholder="Name of verifying officer"
+              icon={UserCog}
+            />
+          </>
+        )}
+
+        <Select
+          label="Condition"
+          value={formData.condition}
+          onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+          options={conditionOptions}
+          placeholder="Select condition"
+          icon={Shield}
+        />
+
+        <TextArea
+          label="Notes"
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          placeholder="Additional notes..."
+          rows={3}
+        />
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            Process
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// Cancel Shipment Modal
+const CancelModal = ({ isOpen, onClose, shipment, onCancel }) => {
+  const [formData, setFormData] = useState({
+    reason: '',
+    notes: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (shipment) {
+      setFormData({
+        reason: '',
+        notes: ''
+      });
+    }
+  }, [shipment]);
+
+  if (!isOpen || !shipment) return null;
+
+  const reasonOptions = [
+    { value: 'customer_request', label: 'Customer Request' },
+    { value: 'operational_issues', label: 'Operational Issues' },
+    { value: 'payment_issues', label: 'Payment Issues' },
+    { value: 'duplicate', label: 'Duplicate Shipment' },
+    { value: 'incorrect_details', label: 'Incorrect Details' },
+    { value: 'delay_unacceptable', label: 'Delay Unacceptable' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.reason) {
+      toast.warning('Please select a cancellation reason');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onCancel(shipment._id, formData);
+      onClose();
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Cancel Shipment" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-yellow-50 p-4 rounded-lg">
+          <div className="flex items-start">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 mr-3 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-yellow-800">
+                Are you sure you want to cancel this shipment?
+              </p>
+              <p className="text-xs text-yellow-700 mt-1">
+                This action cannot be undone. The shipment status will be changed to cancelled.
               </p>
             </div>
+          </div>
+        </div>
+
+        <Select
+          label="Cancellation Reason"
+          value={formData.reason}
+          onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+          options={reasonOptions}
+          placeholder="Select reason"
+          required
+          icon={XCircle}
+        />
+
+        <TextArea
+          label="Additional Notes"
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          placeholder="Provide additional details..."
+          rows={3}
+        />
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            No, Keep Shipment
+          </Button>
+          <Button
+            type="submit"
+            variant="danger"
+            isLoading={loading}
+          >
+            Yes, Cancel Shipment
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// Shipment Details Modal
+const ShipmentDetailsModal = ({ isOpen, onClose, shipment }) => {
+  const [activeTab, setActiveTab] = useState('details');
+  const [costs, setCosts] = useState([]);
+  const [timeline, setTimeline] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && shipment) {
+      fetchShipmentData();
+    }
+  }, [isOpen, shipment]);
+
+  const fetchShipmentData = async () => {
+    setLoading(true);
+    try {
+      const [costsRes, timelineRes] = await Promise.all([
+        getShipmentCosts(shipment._id),
+        getShipmentTimeline(shipment._id)
+      ]);
+      
+      if (costsRes.success) setCosts(costsRes.data || []);
+      if (timelineRes.success) setTimeline(timelineRes.data || []);
+    } catch (error) {
+      toast.error('Failed to fetch shipment details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !shipment) return null;
+
+  const totalWeight = calculateTotalWeight(shipment.packages);
+  const totalVolume = calculateTotalVolume(shipment.packages);
+  const daysInTransit = getDaysInTransit(shipment.transport?.actualDeparture || shipment.transport?.estimatedDeparture);
+  const onTrack = isOnTrack(shipment.transport?.estimatedArrival, shipment.actualDeliveryDate, shipment.status);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Shipment Details" size="xl">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-lg font-semibold text-gray-900">
+              #{shipment.shipmentNumber || shipment._id?.slice(-8).toUpperCase()}
+            </h4>
+            <p className="text-sm text-gray-500">
+              Tracking: {shipment.trackingNumber || 'Not assigned'}
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <StatusBadge status={shipment.status} size="lg" />
+            <ShipmentModeBadge mode={shipment.shipmentDetails?.shipmentType} />
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <ProgressBar progress={getShipmentProgress(shipment.status)} showLabel height="h-3" />
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-4">
+            {[
+              { id: 'details', label: 'Details', icon: Package },
+              { id: 'packages', label: 'Packages', icon: Box },
+              { id: 'transport', label: 'Transport', icon: Truck },
+              { id: 'costs', label: 'Costs', icon: DollarSign },
+              { id: 'timeline', label: 'Timeline', icon: Activity }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors flex items-center ${
+                  activeTab === tab.id
+                    ? `border-[${COLORS.primary}] text-[${COLORS.primary}]`
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <tab.icon className="h-4 w-4 mr-2" />
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        <div className="min-h-[300px]">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: COLORS.primary }} />
+              <span className="ml-2 text-sm text-gray-500">Loading details...</span>
+            </div>
           ) : (
-            <div className="space-y-4">
-              {filteredBookings.map(booking => {
-                const statusColor = getStatusColor(booking.status);
-                const statusText = getStatusDisplayText(booking.status);
-                
-                return (
-                  <div
-                    key={booking._id || booking.id}
-                    onClick={() => handleSelectBooking(booking)}
-                    className="border border-green-200 rounded-lg p-4 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all bg-green-50/30"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-lg font-semibold text-gray-800">
-                            {booking.bookingNumber}
-                          </span>
-                          <span className={`px-2 py-1 ${statusColor.bg} ${statusColor.text} text-xs rounded-full`}>
-                            {statusText}
-                          </span>
-                          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                            Confirmed ✓
-                          </span>
-                        </div>
-                        
-                        <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-4">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Building2 className="w-4 h-4 mr-2 text-gray-400" />
-                            <div>
-                              <div className="font-medium">{booking.customer?.companyName}</div>
-                              <div className="text-xs text-gray-500">{booking.customer?.contactPerson}</div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center text-sm text-gray-600">
-                            <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                            <span>{booking.shipmentDetails?.origin} → {booking.shipmentDetails?.destination}</span>
-                          </div>
-                          
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                            <span>{formatBookingDate(booking.createdAt)}</span>
-                          </div>
-                          
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Package className="w-4 h-4 mr-2 text-gray-400" />
-                            <span>{booking.shipmentDetails?.totalCartons || 0} pcs</span>
-                          </div>
-                          
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Weight className="w-4 h-4 mr-2 text-gray-400" />
-                            <span>{formatWeight(booking.shipmentDetails?.totalWeight)}</span>
-                          </div>
-                          
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Box className="w-4 h-4 mr-2 text-gray-400" />
-                            <span>{formatVolume(booking.shipmentDetails?.totalVolume)}</span>
-                          </div>
-                        </div>
-                        
-                        {booking.shipmentDetails?.cargoDetails?.[0] && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            Cargo: {booking.shipmentDetails.cargoDetails[0].description}
-                            {booking.shipmentDetails.cargoDetails.length > 1 && 
-                              ` +${booking.shipmentDetails.cargoDetails.length - 1} more`
-                            }
-                          </div>
-                        )}
+            <>
+              {activeTab === 'details' && (
+                <div className="space-y-4">
+                  {/* Customer Info */}
+                  <div className="border rounded-lg p-4">
+                    <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                      <User className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
+                      Customer Information
+                    </h5>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500">Company Name</p>
+                        <p className="text-sm font-medium">
+                          {shipment.customerId?.companyName || 'N/A'}
+                        </p>
                       </div>
-                      
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Contact Person</p>
+                        <p className="text-sm font-medium">
+                          {shipment.customerId?.firstName} {shipment.customerId?.lastName}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Email</p>
+                        <p className="text-sm font-medium">{shipment.customerId?.email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Phone</p>
+                        <p className="text-sm font-medium">{shipment.customerId?.phone || 'N/A'}</p>
+                      </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex justify-between items-center text-sm text-gray-600">
-            <span>Total Confirmed: {filteredBookings.length} bookings</span>
-            <button
-              onClick={fetchConfirmedBookings}
-              className="text-blue-600 hover:text-blue-800"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
-  const PreviewModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white p-6 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">Preview Shipment</h2>
-          <button 
-            onClick={() => setShowPreview(false)}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-        
-        <div className="p-6 space-y-6">
-          {/* Selected Booking Info */}
-          {selectedBooking && (
-            <div className="bg-green-50 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-green-800 mb-3 flex items-center">
-                <CheckCircle2 className="w-4 h-4 mr-1" />
-                Based on Confirmed Booking #{selectedBooking.bookingNumber}
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-xs text-green-600">Customer</p>
-                  <p className="font-medium text-green-900">{selectedBooking.customer?.companyName}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-green-600">Origin</p>
-                  <p className="font-medium text-green-900">{selectedBooking.shipmentDetails?.origin}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-green-600">Destination</p>
-                  <p className="font-medium text-green-900">{selectedBooking.shipmentDetails?.destination}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-green-600">Status</p>
-                  <p className="font-medium text-green-900">{getStatusDisplayText(selectedBooking.status)}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Shipment Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Package className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Total Packages</p>
-                  <p className="text-2xl font-semibold text-gray-800">{totalPackages}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Weight className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Total Weight</p>
-                  <p className="text-2xl font-semibold text-gray-800">{formatWeight(totalWeight)}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Box className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Total Volume</p>
-                  <p className="text-2xl font-semibold text-gray-800">{formatVolume(totalVolume)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Packages Table */}
-          <div>
-            <h3 className="text-lg font-medium text-gray-800 mb-4">Packages</h3>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Weight</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Volume</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {formData.packages.map((pkg, index) => (
-                    <tr key={index}>
-                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.packageType}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.quantity}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{formatWeight(pkg.weight)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{formatVolume(pkg.volume)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {pkg.description || '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Shipment Details */}
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Shipment Information</h3>
-              <dl className="space-y-2">
-                <div className="flex justify-between">
-                  <dt className="text-sm text-gray-500">Mode:</dt>
-                  <dd className="text-sm font-medium text-gray-900">{formData.mode}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-sm text-gray-500">Type:</dt>
-                  <dd className="text-sm font-medium text-gray-900">{formData.shipmentType}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-sm text-gray-500">Carrier:</dt>
-                  <dd className="text-sm font-medium text-gray-900">{formData.transport.carrierName || 'Not specified'}</dd>
-                </div>
-                {formData.insurance.required && (
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Insurance:</dt>
-                    <dd className="text-sm font-medium text-gray-900">
-                      {formatCurrency(formData.insurance.coverageAmount, formData.insurance.currency)}
-                    </dd>
+                  {/* Shipment Details */}
+                  <div className="border rounded-lg p-4">
+                    <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                      <Package className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
+                      Shipment Details
+                    </h5>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500">Origin</p>
+                        <p className="text-sm font-medium">{shipment.shipmentDetails?.origin || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Destination</p>
+                        <p className="text-sm font-medium">{shipment.shipmentDetails?.destination || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Mode</p>
+                        <ShipmentModeBadge mode={shipment.shipmentDetails?.shipmentType} />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Payment Terms</p>
+                        <p className="text-sm font-medium">{shipment.paymentTerms || 'N/A'}</p>
+                      </div>
+                    </div>
+                    {shipment.specialInstructions && (
+                      <div className="mt-3">
+                        <p className="text-xs text-gray-500 mb-1">Special Instructions</p>
+                        <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
+                          {shipment.specialInstructions}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </dl>
-            </div>
-            
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Dates</h3>
-              <dl className="space-y-2">
-                <div className="flex justify-between">
-                  <dt className="text-sm text-gray-500">Est. Departure:</dt>
-                  <dd className="text-sm font-medium text-gray-900">
-                    {formData.transport.estimatedDeparture 
-                      ? new Date(formData.transport.estimatedDeparture).toLocaleDateString() 
-                      : 'Not set'}
-                  </dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-sm text-gray-500">Est. Arrival:</dt>
-                  <dd className="text-sm font-medium text-gray-900">
-                    {formData.transport.estimatedArrival 
-                      ? new Date(formData.transport.estimatedArrival).toLocaleDateString() 
-                      : 'Not set'}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </div>
 
-          {/* Actions */}
-          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-            <button
-              onClick={() => setShowPreview(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-            >
-              Edit
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Create Shipment
-                </>
+                  {/* Customs Info */}
+                  {shipment.customsInfo && (
+                    <div className="border rounded-lg p-4">
+                      <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                        <Shield className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
+                        Customs Information
+                      </h5>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500">Broker Name</p>
+                          <p className="text-sm font-medium">{shipment.customsInfo.brokerName || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Broker Contact</p>
+                          <p className="text-sm font-medium">{shipment.customsInfo.brokerContact || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Duties</p>
+                          <p className="text-sm font-medium">
+                            {shipment.customsInfo.dutiesPaid ? 'Prepaid' : 'To be paid'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
-  const SuccessModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-sm mx-auto">
-        <div className="text-center">
-          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-            <Check className="h-6 w-6 text-green-600" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Shipment Created!</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            Shipment #{createdShipment?.shipmentNumber} has been created successfully from confirmed booking.
-          </p>
-          <p className="text-xs text-gray-400">Redirecting to shipment details...</p>
+              {activeTab === 'packages' && (
+                <div className="space-y-4">
+                  {/* Package Summary */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-gray-50 p-4 rounded-lg text-center">
+                      <p className="text-xs text-gray-500">Total Packages</p>
+                      <p className="text-2xl font-semibold" style={{ color: COLORS.primary }}>
+                        {shipment.packages?.length || 0}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg text-center">
+                      <p className="text-xs text-gray-500">Total Weight</p>
+                      <p className="text-2xl font-semibold" style={{ color: COLORS.secondary }}>
+                        {formatWeight(totalWeight)}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg text-center">
+                      <p className="text-xs text-gray-500">Total Volume</p>
+                      <p className="text-2xl font-semibold" style={{ color: COLORS.success }}>
+                        {formatVolume(totalVolume)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Packages Table */}
+                  {shipment.packages && shipment.packages.length > 0 ? (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Type</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Qty</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Weight</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Volume</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Dimensions</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Description</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {shipment.packages.map((pkg, index) => (
+                            <tr key={index}>
+                              <td className="px-4 py-2 text-sm">{pkg.packageType}</td>
+                              <td className="px-4 py-2 text-sm">{pkg.quantity}</td>
+                              <td className="px-4 py-2 text-sm">{formatWeight(pkg.weight)}</td>
+                              <td className="px-4 py-2 text-sm">{formatVolume(pkg.volume)}</td>
+                              <td className="px-4 py-2 text-sm">
+                                {pkg.length && pkg.width && pkg.height 
+                                  ? `${pkg.length}×${pkg.width}×${pkg.height} cm`
+                                  : 'N/A'}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-500">
+                                {pkg.description || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">No package details available</p>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'transport' && (
+                <div className="space-y-4">
+                  {/* Transport Info */}
+                  <div className="border rounded-lg p-4">
+                    <h5 className="text-sm font-medium text-gray-700 mb-3">Transport Details</h5>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500">Carrier Name</p>
+                        <p className="text-sm font-medium">{shipment.transport?.carrierName || 'Not assigned'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Route</p>
+                        <p className="text-sm font-medium">{shipment.transport?.route || 'Direct'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Vessel/Flight No.</p>
+                        <p className="text-sm font-medium">{shipment.transport?.vesselName || shipment.transport?.flightNumber || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Container/Seal No.</p>
+                        <p className="text-sm font-medium">
+                          {shipment.transport?.containerNumber || 'N/A'} / {shipment.transport?.sealNumber || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dates */}
+                  <div className="border rounded-lg p-4">
+                    <h5 className="text-sm font-medium text-gray-700 mb-3">Schedule</h5>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500">Estimated Departure</p>
+                        <p className="text-sm font-medium">
+                          {shipment.transport?.estimatedDeparture 
+                            ? formatShipmentDate(shipment.transport.estimatedDeparture, 'short')
+                            : 'Not set'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Estimated Arrival</p>
+                        <p className="text-sm font-medium">
+                          {shipment.transport?.estimatedArrival 
+                            ? formatShipmentDate(shipment.transport.estimatedArrival, 'short')
+                            : 'Not set'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Actual Departure</p>
+                        <p className="text-sm font-medium">
+                          {shipment.transport?.actualDeparture 
+                            ? formatShipmentDate(shipment.transport.actualDeparture, 'short')
+                            : 'Not departed'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Actual Arrival</p>
+                        <p className="text-sm font-medium">
+                          {shipment.actualDeliveryDate 
+                            ? formatShipmentDate(shipment.actualDeliveryDate, 'short')
+                            : 'Not arrived'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {shipment.transport?.estimatedArrival && !shipment.actualDeliveryDate && (
+                      <div className="mt-4 bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">Days in Transit:</span>
+                          <span className="text-sm font-medium">{daysInTransit} days</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-600">On Track:</span>
+                          <span className={`text-sm font-medium ${onTrack ? 'text-green-600' : 'text-red-600'}`}>
+                            {onTrack ? 'Yes' : 'Delayed'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'costs' && (
+                <div className="space-y-4">
+                  {/* Total Cost */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-green-600 mb-1">Total Shipment Cost</p>
+                        <p className="text-2xl font-bold" style={{ color: COLORS.success }}>
+                          {formatShipmentCurrency(shipment.totalCost)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Costs Table */}
+                  {costs.length > 0 ? (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Type</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Description</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Amount</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Paid By</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {costs.map((cost, index) => (
+                            <tr key={index}>
+                              <td className="px-4 py-2 text-sm capitalize">{cost.type}</td>
+                              <td className="px-4 py-2 text-sm">{cost.description || '-'}</td>
+                              <td className="px-4 py-2 text-sm font-medium">
+                                {formatShipmentCurrency(cost.amount, cost.currency)}
+                              </td>
+                              <td className="px-4 py-2 text-sm capitalize">{cost.paidBy}</td>
+                              <td className="px-4 py-2">
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  cost.paidStatus === 'paid' ? 'bg-green-100 text-green-700' :
+                                  cost.paidStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-red-100 text-red-700'
+                                }`}>
+                                  {cost.paidStatus}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">No costs added yet</p>
+                  )}
+
+                  {/* Insurance Info */}
+                  {shipment.insurance?.required && (
+                    <div className="border rounded-lg p-4">
+                      <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                        <Shield className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
+                        Insurance
+                      </h5>
+                      <p className="text-sm">
+                        Coverage: {formatShipmentCurrency(shipment.insurance.coverageAmount, shipment.insurance.currency)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'timeline' && (
+                <div className="space-y-4">
+                  {timeline.length > 0 ? (
+                    <div className="relative">
+                      {timeline.map((event, index) => (
+                        <div key={index} className="flex items-start space-x-3 mb-4">
+                          <div className="flex-shrink-0">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              event.type === 'status' ? 'bg-blue-100' :
+                              event.type === 'tracking' ? 'bg-green-100' :
+                              event.type === 'note' ? 'bg-purple-100' :
+                              event.type === 'cost' ? 'bg-yellow-100' :
+                              'bg-gray-100'
+                            }`}>
+                              {event.type === 'status' && <Activity className="h-4 w-4 text-blue-600" />}
+                              {event.type === 'tracking' && <MapPin className="h-4 w-4 text-green-600" />}
+                              {event.type === 'note' && <MessageSquare className="h-4 w-4 text-purple-600" />}
+                              {event.type === 'cost' && <DollarSign className="h-4 w-4 text-yellow-600" />}
+                              {event.type === 'document' && <FileText className="h-4 w-4 text-gray-600" />}
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="bg-gray-50 rounded-lg p-3">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {event.title || getShipmentStatusDisplayText(event.status)}
+                                  </p>
+                                  {event.description && (
+                                    <p className="text-xs text-gray-600 mt-1">{event.description}</p>
+                                  )}
+                                  {event.location && (
+                                    <p className="text-xs text-gray-500 mt-1 flex items-center">
+                                      <MapPin className="h-3 w-3 mr-1" />
+                                      {event.location}
+                                    </p>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-400">
+                                  {formatShipmentDate(event.timestamp || event.createdAt, 'long')}
+                                </p>
+                              </div>
+                              {event.updatedBy && (
+                                <p className="text-xs text-gray-400 mt-2">
+                                  By: {event.updatedBy}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">No timeline events yet</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end pt-4">
+          <Button
+            type="button"
+            variant="primary"
+            onClick={onClose}
+          >
+            Close
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
+};
+
+// Timeline Modal
+const TimelineModal = ({ isOpen, onClose, shipmentId }) => {
+  const [timeline, setTimeline] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && shipmentId) {
+      fetchTimeline();
+    }
+  }, [isOpen, shipmentId]);
+
+  const fetchTimeline = async () => {
+    setLoading(true);
+    try {
+      const result = await getShipmentTimeline(shipmentId);
+      if (result.success) {
+        setTimeline(result.data || []);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to fetch timeline');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Shipment Timeline" size="lg">
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin" style={{ color: COLORS.primary }} />
+          <span className="ml-2 text-sm text-gray-500">Loading timeline...</span>
+        </div>
+      ) : timeline.length > 0 ? (
+        <div className="space-y-4">
+          {timeline.map((event, index) => (
+            <div key={index} className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  event.type === 'status' ? 'bg-blue-100' :
+                  event.type === 'tracking' ? 'bg-green-100' :
+                  event.type === 'note' ? 'bg-purple-100' :
+                  'bg-gray-100'
+                }`}>
+                  {event.type === 'status' && <Activity className="h-4 w-4 text-blue-600" />}
+                  {event.type === 'tracking' && <MapPin className="h-4 w-4 text-green-600" />}
+                  {event.type === 'note' && <MessageSquare className="h-4 w-4 text-purple-600" />}
+                </div>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                <p className="text-xs text-gray-500">{event.description}</p>
+                <p className="text-xs text-gray-400 mt-1">{formatShipmentDate(event.createdAt, 'long')}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500 text-center py-4">No timeline events found</p>
+      )}
+    </Modal>
+  );
+};
+
+// ==================== MAIN COMPONENT ====================
+export default function ShipmentsPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [shipments, setShipments] = useState([]);
+  const [filteredShipments, setFilteredShipments] = useState([]);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 20,
+    pages: 1
+  });
+
+  // Filter State
+  const [filters, setFilters] = useState({
+    page: 1,
+    limit: 20,
+    status: '',
+    mode: '',
+    search: '',
+    startDate: '',
+    endDate: '',
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  });
+
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedShipments, setSelectedShipments] = useState([]);
+  const [activeStat, setActiveStat] = useState('all');
+
+  // Modal States
+  const [selectedShipment, setSelectedShipment] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showTrackingModal, setShowTrackingModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showCostModal, setShowCostModal] = useState(false);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Stats
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    delivered: 0,
+    cancelled: 0,
+    pending: 0,
+    inTransit: 0
+  });
+
+  const [topRoutes, setTopRoutes] = useState([]);
+
+  // Options
+  const statusOptions = Object.entries(STATUS_CONFIG).map(([value, config]) => ({
+    value,
+    label: config.label
+  }));
+
+  const modeOptions = [
+    { value: 'air_freight', label: 'Air Freight' },
+    { value: 'sea_freight', label: 'Sea Freight' },
+    { value: 'road_freight', label: 'Road Freight' },
+    { value: 'rail_freight', label: 'Rail Freight' },
+    { value: 'express_courier', label: 'Express Courier' }
+  ];
+
+  // Fetch Shipments
+  const fetchShipments = async () => {
+    setLoading(true);
+    try {
+      const response = await getAllShipments(filters);
+      if (response.success) {
+        setShipments(response.data || []);
+        setFilteredShipments(response.data || []);
+        setPagination(response.pagination || {
+          total: 0,
+          page: 1,
+          limit: 20,
+          pages: 1
+        });
+        
+        // Calculate stats
+        const summary = getShipmentSummary(response.data || []);
+        setStats(summary);
+        
+        // Calculate top routes
+        const routes = getTopRoutes(response.data || [], 5);
+        setTopRoutes(routes);
+      } else {
+        toast.error(response.message);
+      }
+    } catch (error) {
+      toast.error(error.message || 'Failed to fetch shipments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchShipments();
+  }, [filters.page, filters.limit, filters.sortBy, filters.sortOrder]);
+
+  // Handle Filter Change
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value, page: 1 }));
+    if (name === 'status' && value) {
+      setActiveStat('all');
+    }
+  };
+
+  // Handle Search
+  const handleSearch = (e) => {
+    setFilters(prev => ({ ...prev, search: e.target.value, page: 1 }));
+  };
+
+  // Handle Sort
+  const handleSort = (field) => {
+    const sortOrder = filters.sortBy === field && filters.sortOrder === 'asc' ? 'desc' : 'asc';
+    setFilters(prev => ({ ...prev, sortBy: field, sortOrder }));
+  };
+
+  // Clear Filters
+  const clearFilters = () => {
+    setFilters({
+      page: 1,
+      limit: 20,
+      status: '',
+      mode: '',
+      search: '',
+      startDate: '',
+      endDate: '',
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+    setSelectedShipments([]);
+    setActiveStat('all');
+    toast.info('Filters cleared');
+  };
+
+  // Handle Actions
+  const handleAction = async (action, shipment) => {
+    setSelectedShipment(shipment);
+    
+    switch (action) {
+      case 'view':
+        setShowDetailsModal(true);
+        break;
+      case 'timeline':
+        setShowTimelineModal(true);
+        break;
+      case 'status':
+        setShowStatusModal(true);
+        break;
+      case 'tracking':
+        setShowTrackingModal(true);
+        break;
+      case 'assign':
+        setShowAssignModal(true);
+        break;
+      case 'cost':
+        setShowCostModal(true);
+        break;
+      case 'document':
+        setShowDocumentModal(true);
+        break;
+      case 'note':
+        setShowNoteModal(true);
+        break;
+      case 'warehouse':
+        setShowWarehouseModal(true);
+        break;
+      case 'cancel':
+        setShowCancelModal(true);
+        break;
+      case 'download':
+        try {
+          // Download all documents
+          if (shipment.documents && shipment.documents.length > 0) {
+            toast.info('Download feature coming soon');
+          } else {
+            toast.info('No documents to download');
+          }
+        } catch (error) {
+          toast.error('Failed to download documents');
+        }
+        break;
+      case 'share':
+        if (shipment.trackingNumber) {
+          const trackingLink = `${window.location.origin}/track/${shipment.trackingNumber}`;
+          navigator.clipboard.writeText(trackingLink);
+          toast.success('Tracking link copied to clipboard!');
+        } else {
+          toast.warning('No tracking number available');
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Handle Update Status
+  const handleUpdateStatus = async (shipmentId, statusData) => {
+    try {
+      const result = await updateShipmentStatus(shipmentId, statusData);
+      if (result.success) {
+        toast.success('Status updated successfully!');
+        fetchShipments();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to update status');
+    }
+  };
+
+  // Handle Add Tracking
+  const handleAddTracking = async (shipmentId, trackingData) => {
+    try {
+      const result = await addTrackingUpdate(shipmentId, trackingData);
+      if (result.success) {
+        toast.success('Tracking update added!');
+        fetchShipments();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to add tracking');
+    }
+  };
+
+  // Handle Assign Staff
+  const handleAssignStaff = async (shipmentId, assignData) => {
+    try {
+      const result = await assignShipment(shipmentId, assignData);
+      if (result.success) {
+        toast.success('Staff assigned successfully!');
+        fetchShipments();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to assign staff');
+    }
+  };
+
+  // Handle Add Cost
+  const handleAddCost = async (shipmentId, costData) => {
+    try {
+      const result = await addShipmentCost(shipmentId, costData);
+      if (result.success) {
+        toast.success('Cost added successfully!');
+        fetchShipments();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to add cost');
+    }
+  };
+
+  // Handle Upload Document
+  const handleUploadDocument = async (shipmentId, formData) => {
+    try {
+      const result = await addShipmentDocument(shipmentId, formData);
+      if (result.success) {
+        toast.success('Document uploaded successfully!');
+        fetchShipments();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to upload document');
+    }
+  };
+
+  // Handle Add Note
+  const handleAddNote = {
+    internalNote: async (shipmentId, noteData) => {
+      try {
+        const result = await addInternalNote(shipmentId, noteData);
+        if (result.success) {
+          toast.success('Internal note added!');
+          fetchShipments();
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        toast.error('Failed to add note');
+      }
+    },
+    customerNote: async (shipmentId, noteData) => {
+      try {
+        const result = await addCustomerNote(shipmentId, noteData);
+        if (result.success) {
+          toast.success('Customer note added!');
+          fetchShipments();
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        toast.error('Failed to add note');
+      }
+    }
+  };
+
+  // Handle Warehouse Actions
+  const handleWarehouseAction = {
+    receive: async (shipmentId, data) => {
+      try {
+        const result = await receiveAtWarehouse(shipmentId, data);
+        if (result.success) {
+          toast.success('Shipment received at warehouse!');
+          fetchShipments();
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        toast.error('Failed to receive at warehouse');
+      }
+    },
+    process: async (shipmentId, data) => {
+      try {
+        const result = await processWarehouse(shipmentId, data);
+        if (result.success) {
+          toast.success('Warehouse processing completed!');
+          fetchShipments();
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        toast.error('Failed to process warehouse');
+      }
+    }
+  };
+
+  // Handle Cancel Shipment
+  const handleCancelShipment = async (shipmentId, cancelData) => {
+    try {
+      const result = await cancelShipment(shipmentId, cancelData);
+      if (result.success) {
+        toast.success('Shipment cancelled!');
+        fetchShipments();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to cancel shipment');
+    }
+  };
+
+  // Handle Export
+  const handleExport = () => {
+    if (shipments.length === 0) {
+      toast.warning('No shipments to export');
+      return;
+    }
+    exportShipmentsToCSV(shipments);
+    toast.success(`${shipments.length} shipments exported successfully!`);
+  };
+
+  // Handle Select All
+  const handleSelectAll = () => {
+    if (selectedShipments.length === filteredShipments.length) {
+      setSelectedShipments([]);
+    } else {
+      setSelectedShipments(filteredShipments.map(s => s._id));
+    }
+  };
+
+  // Filter by status
+  const filterByStatus = (status) => {
+    setActiveStat(status);
+    setFilters(prev => ({ ...prev, page: 1, status: status === 'all' ? '' : status }));
+  };
+
+  // Get visible stats
+  const visibleStats = [
+    { key: 'all', label: 'All', value: stats.total, icon: Package, color: 'bg-gray-100 text-gray-600' },
+    { key: 'active', label: 'Active', value: stats.active, icon: Activity, color: 'bg-blue-100 text-blue-600' },
+    { key: 'pending', label: 'Pending', value: stats.pending, icon: Clock, color: 'bg-yellow-100 text-yellow-600' },
+    { key: 'inTransit', label: 'In Transit', value: stats.inTransit, icon: Truck, color: 'bg-cyan-100 text-cyan-600' },
+    { key: 'delivered', label: 'Delivered', value: stats.delivered, icon: CheckCircleSolid, color: 'bg-green-100 text-green-600' },
+    { key: 'cancelled', label: 'Cancelled', value: stats.cancelled, icon: XCircleSolid, color: 'bg-red-100 text-red-600' }
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+      <div className="bg-white border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-semibold text-gray-900">Create Shipment from Confirmed Booking</h1>
-              {selectedBooking && (
-                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full flex items-center">
-                  <CheckCircle2 className="w-4 h-4 mr-1" />
-                  Confirmed Booking: {selectedBooking.bookingNumber}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setShowPreview(true)}
-                disabled={!selectedBooking}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Package className="w-4 h-4 mr-2" />
-                Preview
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || activeStep !== steps.length - 1 || !selectedBooking}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Create Shipment
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <div key={index} className="flex items-center flex-1">
-                <div className="flex items-center">
-                  <StepIcon 
-                    icon={step.icon} 
-                    active={activeStep === index}
-                    completed={index < activeStep}
-                  />
-                  <span className={`ml-2 text-sm font-medium hidden sm:block
-                    ${index === activeStep ? 'text-blue-600' : 
-                      index < activeStep ? 'text-green-600' : 'text-gray-500'}
-                  `}>
-                    {step.title}
-                  </span>
+              <div className="flex items-center">
+                <div 
+                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: COLORS.primaryLight }}
+                >
+                  <Package className="h-4 w-4" style={{ color: COLORS.primary }} />
                 </div>
-                {index < steps.length - 1 && (
-                  <div className="flex-1 mx-4">
-                    <div className="h-1 bg-gray-200 rounded">
-                      <div 
-                        className="h-1 bg-blue-500 rounded transition-all duration-300"
-                        style={{ width: activeStep > index ? '100%' : '0%' }}
-                      />
-                    </div>
-                  </div>
-                )}
+                <h1 className="ml-2 text-lg font-semibold text-gray-900">Shipments Management</h1>
               </div>
-            ))}
+              <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+                {stats.total} Total
+              </span>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="light"
+                size="sm"
+                onClick={handleExport}
+                icon={<ExportIcon className="h-4 w-4" />}
+              >
+                Export
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => router.push('/shipments/create')}
+                icon={<Plus className="h-4 w-4" />}
+              >
+                New Shipment
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          {/* Step 0: Select Booking */}
-          {activeStep === 0 && (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Confirmed Booking <span className="text-red-500">*</span>
-                </label>
-                {!formData.bookingId ? (
-                  <button
-                    onClick={() => setShowBookingSearch(true)}
-                    className="w-full p-8 border-2 border-dashed border-green-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors group"
-                  >
-                    <FileText className="w-12 h-12 mx-auto text-gray-400 group-hover:text-blue-500 mb-3" />
-                    <p className="text-gray-600 group-hover:text-blue-600 font-medium">
-                      Click to select a confirmed booking
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Only confirmed bookings can be converted to shipments
-                    </p>
-                  </button>
-                ) : (
-                  <div className="border border-green-200 bg-green-50 rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3">
-                        <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-green-800">
-                            Confirmed Booking #{selectedBooking?.bookingNumber} selected
-                          </p>
-                          <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2">
-                            <p className="text-sm text-green-700">
-                              <span className="font-medium">Customer:</span> {selectedBooking?.customer?.companyName}
-                            </p>
-                            <p className="text-sm text-green-700">
-                              <span className="font-medium">Contact:</span> {selectedBooking?.customer?.contactPerson}
-                            </p>
-                            <p className="text-sm text-green-700">
-                              <span className="font-medium">Origin:</span> {selectedBooking?.shipmentDetails?.origin}
-                            </p>
-                            <p className="text-sm text-green-700">
-                              <span className="font-medium">Destination:</span> {selectedBooking?.shipmentDetails?.destination}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          handleInputChange('bookingId', '');
-                          setSelectedBooking(null);
-                          setFormData(prev => ({ ...prev, packages: [] }));
-                        }}
-                        className="text-green-700 hover:text-green-900"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          {visibleStats.map((stat) => (
+            <StatCard
+              key={stat.key}
+              title={stat.label}
+              value={stat.value}
+              icon={stat.icon}
+              color={stat.color}
+              active={activeStat === stat.key}
+              onClick={() => filterByStatus(stat.key)}
+            />
+          ))}
+        </div>
+
+        {/* Top Routes */}
+        {topRoutes.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+            {topRoutes.map((route, index) => (
+              <div key={index} className="bg-white rounded-xl border border-gray-200 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="h-4 w-4 text-gray-400" />
+                    <span className="text-xs text-gray-500">Route {index + 1}</span>
                   </div>
-                )}
-                {errors.bookingId && (
-                  <p className="mt-2 text-sm text-red-600 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.bookingId}
-                  </p>
-                )}
+                  <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded-full">
+                    {route.count} shipments
+                  </span>
+                </div>
+                <p className="text-sm font-medium mt-2">{route.route}</p>
               </div>
+            ))}
+          </div>
+        )}
 
-              {/* Booking Details Preview */}
-              {selectedBooking && (
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Confirmed Booking Details</h3>
-                  <dl className="grid grid-cols-2 gap-4">
-                    <div>
-                      <dt className="text-xs text-gray-500">Shipper Information</dt>
-                      <dd className="text-sm font-medium text-gray-900 mt-1">
-                        {selectedBooking.customer?.companyName}
-                      </dd>
-                      <dd className="text-xs text-gray-600">
-                        {selectedBooking.customer?.contactPerson}
-                      </dd>
-                      <dd className="text-xs text-gray-600">
-                        {selectedBooking.customer?.email}
-                      </dd>
-                      <dd className="text-xs text-gray-600">
-                        {selectedBooking.customer?.phone}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-gray-500">Cargo Summary</dt>
-                      <dd className="text-sm text-gray-900 mt-1">
-                        {selectedBooking.shipmentDetails?.totalCartons || 0} packages
-                      </dd>
-                      <dd className="text-xs text-gray-600">
-                        Weight: {formatWeight(selectedBooking.shipmentDetails?.totalWeight)}
-                      </dd>
-                      <dd className="text-xs text-gray-600">
-                        Volume: {formatVolume(selectedBooking.shipmentDetails?.totalVolume)}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 1: Shipment Details */}
-          {activeStep === 1 && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Shipment Mode <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.mode}
-                    onChange={(e) => {
-                      handleInputChange('mode', e.target.value);
-                      handleInputChange('shipmentType', shipmentTypes[e.target.value][0]);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {shipmentModes.map(mode => (
-                      <option key={mode} value={mode}>{mode}</option>
-                    ))}
-                  </select>
-                  {errors.mode && (
-                    <p className="mt-1 text-sm text-red-600">{errors.mode}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Shipment Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.shipmentType}
-                    onChange={(e) => handleInputChange('shipmentType', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {shipmentTypes[formData.mode]?.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                  {errors.shipmentType && (
-                    <p className="mt-1 text-sm text-red-600">{errors.shipmentType}</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Special Instructions
-                </label>
-                <textarea
-                  value={formData.specialInstructions}
-                  onChange={(e) => handleInputChange('specialInstructions', e.target.value)}
-                  rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Any special handling instructions..."
-                />
-              </div>
-
-              <div className="bg-blue-50 rounded-lg p-4">
-                <div className="flex items-start">
-                  <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-blue-800 font-medium">Shipment Information</p>
-                    <p className="text-sm text-blue-600 mt-1">
-                      Shipper and consignee details are populated from the confirmed booking.
-                      Package details can be modified in the next step.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Package Information */}
-          {activeStep === 2 && (
-            <div className="space-y-6">
-              {formData.packages.length === 0 ? (
-                <div className="text-center py-8">
-                  <Package className="w-16 h-16 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">No packages added yet</p>
-                  <button
-                    onClick={addPackage}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Add First Package
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {formData.packages.map((pkg, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-sm font-medium text-gray-700">
-                          Package {index + 1}
-                        </h3>
-                        {formData.packages.length > 1 && (
-                          <button
-                            onClick={() => removePackage(index)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Package Type *
-                          </label>
-                          <select
-                            value={pkg.packageType}
-                            onChange={(e) => handlePackageChange(index, 'packageType', e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          >
-                            {packageTypes.map(type => (
-                              <option key={type} value={type}>{type}</option>
-                            ))}
-                          </select>
-                          {errors[`packages.${index}.packageType`] && (
-                            <p className="mt-1 text-xs text-red-600">{errors[`packages.${index}.packageType`]}</p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Quantity *
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={pkg.quantity}
-                            onChange={(e) => handlePackageChange(index, 'quantity', parseInt(e.target.value) || 1)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                          {errors[`packages.${index}.quantity`] && (
-                            <p className="mt-1 text-xs text-red-600">{errors[`packages.${index}.quantity`]}</p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Weight (kg) *
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={pkg.weight}
-                            onChange={(e) => handlePackageChange(index, 'weight', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                          {errors[`packages.${index}.weight`] && (
-                            <p className="mt-1 text-xs text-red-600">{errors[`packages.${index}.weight`]}</p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Volume (m³)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.001"
-                            min="0"
-                            value={pkg.volume}
-                            onChange={(e) => handlePackageChange(index, 'volume', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Length (cm)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={pkg.length}
-                            onChange={(e) => handlePackageChange(index, 'length', parseFloat(e.target.value) || '')}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Width (cm)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={pkg.width}
-                            onChange={(e) => handlePackageChange(index, 'width', parseFloat(e.target.value) || '')}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Height (cm)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={pkg.height}
-                            onChange={(e) => handlePackageChange(index, 'height', parseFloat(e.target.value) || '')}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Condition
-                          </label>
-                          <select
-                            value={pkg.condition}
-                            onChange={(e) => handlePackageChange(index, 'condition', e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          >
-                            {conditions.map(condition => (
-                              <option key={condition} value={condition}>{condition}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="col-span-3">
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Description
-                          </label>
-                          <input
-                            type="text"
-                            value={pkg.description}
-                            onChange={(e) => handlePackageChange(index, 'description', e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                            placeholder="Cargo description..."
-                          />
-                        </div>
-
-                        <div className="col-span-2">
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Marks & Numbers
-                          </label>
-                          <input
-                            type="text"
-                            value={pkg.marksAndNumbers}
-                            onChange={(e) => handlePackageChange(index, 'marksAndNumbers', e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                            placeholder="Shipping marks..."
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">
-                            HS Code
-                          </label>
-                          <input
-                            type="text"
-                            value={pkg.hsCode}
-                            onChange={(e) => handlePackageChange(index, 'hsCode', e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  <button
-                    onClick={addPackage}
-                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Another Package
-                  </button>
-                </>
-              )}
-
-              {/* Package Summary */}
-              {formData.packages.length > 0 && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Package Summary</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-500">Total Packages</p>
-                      <p className="text-lg font-semibold text-gray-900">{totalPackages}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Total Weight</p>
-                      <p className="text-lg font-semibold text-gray-900">{formatWeight(totalWeight)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Total Volume</p>
-                      <p className="text-lg font-semibold text-gray-900">{formatVolume(totalVolume)}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {errors.packages && (
-                <p className="text-sm text-red-600 flex items-center">
-                  <AlertCircle className="w-4 h-4 mr-1" />
-                  {errors.packages}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Step 3: Transport & Dates */}
-          {activeStep === 3 && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Carrier Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.transport.carrierName}
-                    onChange={(e) => handleInputChange('transport', {
-                      ...formData.transport,
-                      carrierName: e.target.value
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter carrier name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Route
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.transport.route}
-                    onChange={(e) => handleInputChange('transport', {
-                      ...formData.transport,
-                      route: e.target.value
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., Direct, Transshipment"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Estimated Departure
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.transport.estimatedDeparture}
-                    onChange={(e) => handleInputChange('transport', {
-                      ...formData.transport,
-                      estimatedDeparture: e.target.value
-                    })}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Estimated Arrival
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.transport.estimatedArrival}
-                    onChange={(e) => handleInputChange('transport', {
-                      ...formData.transport,
-                      estimatedArrival: e.target.value
-                    })}
-                    min={formData.transport.estimatedDeparture || new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              {formData.transport.estimatedDeparture && formData.transport.estimatedArrival && (
-                <div className="bg-yellow-50 rounded-lg p-4">
-                  <div className="flex items-start">
-                    <Clock className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm text-yellow-800 font-medium">Transit Time</p>
-                      <p className="text-sm text-yellow-600 mt-1">
-                        {Math.ceil(
-                          (new Date(formData.transport.estimatedArrival) - new Date(formData.transport.estimatedDeparture)) 
-                          / (1000 * 60 * 60 * 24)
-                        )} days
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 4: Additional Info */}
-          {activeStep === 4 && (
-            <div className="space-y-6">
-              {/* Insurance Section */}
-              <div className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-700">Insurance</h3>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.insurance.required}
-                      onChange={(e) => handleInputChange('insurance', {
-                        ...formData.insurance,
-                        required: e.target.checked
-                      })}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-600">Add insurance</span>
-                  </label>
-                </div>
-
-                {formData.insurance.required && (
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">
-                        Coverage Amount
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={formData.insurance.coverageAmount}
-                        onChange={(e) => handleInputChange('insurance', {
-                          ...formData.insurance,
-                          coverageAmount: e.target.value
-                        })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">
-                        Currency
-                      </label>
-                      <select
-                        value={formData.insurance.currency}
-                        onChange={(e) => handleInputChange('insurance', {
-                          ...formData.insurance,
-                          currency: e.target.value
-                        })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                      >
-                        {currencies.map(currency => (
-                          <option key={currency} value={currency}>{currency}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Customs Info */}
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Customs Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      Broker Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.customsInfo.brokerName}
-                      onChange={(e) => handleInputChange('customsInfo', {
-                        ...formData.customsInfo,
-                        brokerName: e.target.value
-                      })}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      Broker Contact
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.customsInfo.brokerContact}
-                      onChange={(e) => handleInputChange('customsInfo', {
-                        ...formData.customsInfo,
-                        brokerContact: e.target.value
-                      })}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.customsInfo.dutiesPaid}
-                      onChange={(e) => handleInputChange('customsInfo', {
-                        ...formData.customsInfo,
-                        dutiesPaid: e.target.checked
-                      })}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-600">Duties prepaid</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Payment Terms */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Payment Terms
-                </label>
-                <input
+        {/* Search and Filters */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
+          <div className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className="flex-1">
+                <Input
                   type="text"
-                  value={formData.paymentTerms}
-                  onChange={(e) => handleInputChange('paymentTerms', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="e.g., Prepaid, Collect, 30 days"
+                  placeholder="Search by shipment number, tracking number, customer..."
+                  value={filters.search}
+                  onChange={handleSearch}
+                  icon={Search}
                 />
               </div>
-            </div>
-          )}
-
-          {/* Step 5: Review & Create */}
-          {activeStep === 5 && (
-            <div className="space-y-6">
-              <div className="bg-green-50 rounded-lg p-4">
-                <div className="flex items-center">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-green-800">
-                      All information completed. Review before creating shipment from confirmed booking.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Shipment Summary Card */}
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-700">Shipment Summary</h3>
-                </div>
-                <div className="p-4 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-500">Confirmed Booking</p>
-                      <p className="text-sm font-medium">{selectedBooking?.bookingNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Customer</p>
-                      <p className="text-sm font-medium">{selectedBooking?.customer?.companyName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Mode</p>
-                      <p className="text-sm font-medium">{formData.mode}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Type</p>
-                      <p className="text-sm font-medium">{formData.shipmentType}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-2">Packages ({formData.packages.length})</p>
-                    <div className="bg-gray-50 rounded p-3">
-                      <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-500 mb-2">
-                        <span>Type</span>
-                        <span>Qty</span>
-                        <span>Weight</span>
-                        <span>Volume</span>
-                      </div>
-                      {formData.packages.map((pkg, idx) => (
-                        <div key={idx} className="grid grid-cols-4 gap-2 text-sm mt-2">
-                          <span>{pkg.packageType}</span>
-                          <span>{pkg.quantity}</span>
-                          <span>{formatWeight(pkg.weight)}</span>
-                          <span>{formatVolume(pkg.volume)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {formData.transport.carrierName && (
-                      <div>
-                        <p className="text-xs text-gray-500">Carrier</p>
-                        <p className="text-sm">{formData.transport.carrierName}</p>
-                      </div>
-                    )}
-                    {formData.transport.estimatedDeparture && (
-                      <div>
-                        <p className="text-xs text-gray-500">Est. Departure</p>
-                        <p className="text-sm">{new Date(formData.transport.estimatedDeparture).toLocaleDateString()}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {formData.insurance.required && (
-                    <div>
-                      <p className="text-xs text-gray-500">Insurance Coverage</p>
-                      <p className="text-sm">
-                        {formatCurrency(formData.insurance.coverageAmount, formData.insurance.currency)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-yellow-50 rounded-lg p-4">
-                <div className="flex items-start">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-yellow-800 font-medium">Please confirm</p>
-                    <p className="text-sm text-yellow-600 mt-1">
-                      By creating this shipment, you confirm that all information provided is accurate.
-                      The shipment will be created from the confirmed booking #{selectedBooking?.bookingNumber}.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
-            <button
-              onClick={handleBack}
-              disabled={activeStep === 0}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-            >
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Back
-            </button>
-            <div className="flex space-x-3">
-              {activeStep < steps.length - 1 && (
-                <button
-                  onClick={handleNext}
-                  disabled={!selectedBooking && activeStep === 0}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              <Button
+                variant={showFilters ? 'primary' : 'light'}
+                size="md"
+                onClick={() => setShowFilters(!showFilters)}
+                icon={<FilterIcon className="h-4 w-4" />}
+              >
+                Filters
+                {(filters.status || filters.mode || filters.startDate || filters.endDate) && (
+                  <span className="ml-2 bg-white text-[${COLORS.primary}] rounded-full px-2 py-0.5 text-xs">
+                    {Object.values(filters).filter(v => v && v !== '' && v !== 20 && v !== 1).length}
+                  </span>
+                )}
+              </Button>
+              {(filters.search || filters.status || filters.mode || filters.startDate || filters.endDate || activeStat !== 'all') && (
+                <Button
+                  variant="light"
+                  size="md"
+                  onClick={clearFilters}
+                  icon={<X className="h-4 w-4" />}
                 >
-                  Next
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </button>
+                  Clear
+                </Button>
               )}
+              <Button
+                variant="light"
+                size="md"
+                onClick={fetchShipments}
+                icon={<RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />}
+              />
+            </div>
+
+            {/* Advanced Filters */}
+            {showFilters && (
+              <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Select
+                  name="status"
+                  value={filters.status}
+                  onChange={handleFilterChange}
+                  options={statusOptions}
+                  placeholder="All Statuses"
+                  label="Status"
+                  icon={Activity}
+                />
+
+                <Select
+                  name="mode"
+                  value={filters.mode}
+                  onChange={handleFilterChange}
+                  options={modeOptions}
+                  placeholder="All Modes"
+                  label="Shipment Mode"
+                  icon={Truck}
+                />
+
+                <Input
+                  type="date"
+                  name="startDate"
+                  value={filters.startDate}
+                  onChange={handleFilterChange}
+                  label="From Date"
+                  icon={Calendar}
+                />
+
+                <Input
+                  type="date"
+                  name="endDate"
+                  value={filters.endDate}
+                  onChange={handleFilterChange}
+                  label="To Date"
+                  icon={Calendar}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bulk Actions */}
+        {selectedShipments.length > 0 && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl mb-4 p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="text-sm font-medium text-indigo-700">
+                  {selectedShipments.length} shipment(s) selected
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={() => setSelectedShipments([])}
+                  icon={<X className="h-4 w-4" />}
+                />
+              </div>
             </div>
           </div>
+        )}
+
+        {/* Shipments Table */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedShipments.length === filteredShipments.length && filteredShipments.length > 0}
+                      onChange={handleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300 focus:ring-[${COLORS.primary}]"
+                      style={{ accentColor: COLORS.primary }}
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div 
+                      className="flex items-center cursor-pointer hover:text-gray-700"
+                      onClick={() => handleSort('shipmentNumber')}
+                    >
+                      Shipment Info
+                      <ArrowUpDown className="h-4 w-4 ml-1" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div 
+                      className="flex items-center cursor-pointer hover:text-gray-700"
+                      onClick={() => handleSort('customer')}
+                    >
+                      Customer
+                      <ArrowUpDown className="h-4 w-4 ml-1" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Route
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Mode
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div 
+                      className="flex items-center cursor-pointer hover:text-gray-700"
+                      onClick={() => handleSort('createdAt')}
+                    >
+                      Created
+                      <ArrowUpDown className="h-4 w-4 ml-1" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Packages
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Progress
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loading ? (
+                  <tr>
+                    <td colSpan="10" className="px-4 py-8 text-center">
+                      <div className="flex items-center justify-center">
+                        <Loader2 className="h-6 w-6 animate-spin" style={{ color: COLORS.primary }} />
+                        <span className="ml-2 text-sm text-gray-500">Loading shipments...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredShipments.length === 0 ? (
+                  <tr>
+                    <td colSpan="10" className="px-4 py-8 text-center">
+                      <div className="flex flex-col items-center">
+                        <Package className="h-12 w-12 text-gray-400 mb-3" />
+                        <p className="text-sm text-gray-500">No shipments found</p>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => router.push('/shipments/create')}
+                          className="mt-3"
+                          icon={<Plus className="h-4 w-4" />}
+                        >
+                          Create New Shipment
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredShipments.map((shipment) => {
+                    const totalWeight = calculateTotalWeight(shipment.packages);
+                    const progress = getShipmentProgress(shipment.status);
+                    
+                    return (
+                      <tr 
+                        key={shipment._id} 
+                        className="hover:bg-gray-50 transition-colors group"
+                      >
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedShipments.includes(shipment._id)}
+                            onChange={() => {
+                              if (selectedShipments.includes(shipment._id)) {
+                                setSelectedShipments(selectedShipments.filter(id => id !== shipment._id));
+                              } else {
+                                setSelectedShipments([...selectedShipments, shipment._id]);
+                              }
+                            }}
+                            className="h-4 w-4 rounded border-gray-300 focus:ring-[${COLORS.primary}]"
+                            style={{ accentColor: COLORS.primary }}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div>
+                            <div 
+                              className="text-sm font-medium cursor-pointer hover:underline"
+                              style={{ color: COLORS.primary }}
+                              onClick={() => {
+                                setSelectedShipment(shipment);
+                                setShowDetailsModal(true);
+                              }}
+                            >
+                              #{shipment.shipmentNumber || shipment._id?.slice(-8).toUpperCase()}
+                            </div>
+                            {shipment.trackingNumber && (
+                              <div className="text-xs text-gray-500 flex items-center mt-1">
+                                <Hash className="h-3 w-3 mr-1" />
+                                {shipment.trackingNumber}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-medium text-gray-900">
+                            {shipment.customerId?.companyName || 
+                             `${shipment.customerId?.firstName || ''} ${shipment.customerId?.lastName || ''}`.trim() || 'N/A'}
+                          </div>
+                          {shipment.customerId?.email && (
+                            <div className="text-xs text-gray-500">
+                              {shipment.customerId.email}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center text-xs">
+                            <span className="font-medium text-gray-900">{shipment.shipmentDetails?.origin || 'N/A'}</span>
+                            <ChevronRight className="h-3 w-3 mx-1 text-gray-400" />
+                            <span className="font-medium text-gray-900">{shipment.shipmentDetails?.destination || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <ShipmentModeBadge mode={shipment.shipmentDetails?.shipmentType} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-xs text-gray-500">
+                            {formatShipmentDate(shipment.createdAt, 'short')}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-xs">
+                            <div className="text-gray-900">
+                              {shipment.packages?.length || 0} pkgs
+                            </div>
+                            <div className="text-gray-500">
+                              {formatWeight(totalWeight)}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={shipment.status} size="sm" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="w-24">
+                            <ProgressBar progress={progress} />
+                            <p className="text-xs text-gray-500 mt-1">{progress}%</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <ActionMenu shipment={shipment} onAction={handleAction} />
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {pagination.pages > 1 && (
+            <div className="border-t px-4 py-3 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <span className="text-xs text-gray-600">
+                    Showing {(pagination.page - 1) * filters.limit + 1} to{' '}
+                    {Math.min(pagination.page * filters.limit, pagination.total)} of{' '}
+                    {pagination.total} results
+                  </span>
+                  <Select
+                    name="limit"
+                    value={filters.limit}
+                    onChange={handleFilterChange}
+                    options={[
+                      { value: 10, label: '10 / page' },
+                      { value: 20, label: '20 / page' },
+                      { value: 50, label: '50 / page' },
+                      { value: 100, label: '100 / page' }
+                    ]}
+                    className="w-24"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-1">
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setFilters(prev => ({ ...prev, page: 1 }))}
+                    disabled={filters.page === 1}
+                    icon={<ChevronsLeft className="h-4 w-4" />}
+                  />
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setFilters(prev => ({ ...prev, page: prev.page - 1 }))}
+                    disabled={filters.page === 1}
+                    icon={<ChevronLeft className="h-4 w-4" />}
+                  />
+                  
+                  <span className="text-sm text-gray-600 px-3">
+                    Page {filters.page} of {pagination.pages}
+                  </span>
+
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
+                    disabled={filters.page === pagination.pages}
+                    icon={<ChevronRight className="h-4 w-4" />}
+                  />
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setFilters(prev => ({ ...prev, page: pagination.pages }))}
+                    disabled={filters.page === pagination.pages}
+                    icon={<ChevronsRight className="h-4 w-4" />}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Modals */}
-      {showBookingSearch && <BookingSearchModal />}
-      {showPreview && <PreviewModal />}
-      {showSuccess && <SuccessModal />}
+      <ShipmentDetailsModal
+        isOpen={showDetailsModal}
+        onClose={() => setShowDetailsModal(false)}
+        shipment={selectedShipment}
+      />
 
-      {/* Error Snackbar */}
-      {errors.submit && (
-        <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 rounded-lg p-4 max-w-sm shadow-lg z-50">
-          <div className="flex items-start">
-            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-red-800">Error</p>
-              <p className="text-sm text-red-600 mt-1">{errors.submit}</p>
-            </div>
-            <button 
-              onClick={() => setErrors(prev => ({ ...prev, submit: null }))}
-              className="ml-4 text-red-600 hover:text-red-800"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      <TimelineModal
+        isOpen={showTimelineModal}
+        onClose={() => setShowTimelineModal(false)}
+        shipmentId={selectedShipment?._id}
+      />
+
+      <StatusUpdateModal
+        isOpen={showStatusModal}
+        onClose={() => setShowStatusModal(false)}
+        shipment={selectedShipment}
+        onUpdate={handleUpdateStatus}
+      />
+
+      <TrackingUpdateModal
+        isOpen={showTrackingModal}
+        onClose={() => setShowTrackingModal(false)}
+        shipment={selectedShipment}
+        onAdd={handleAddTracking}
+      />
+
+      <AssignModal
+        isOpen={showAssignModal}
+        onClose={() => setShowAssignModal(false)}
+        shipment={selectedShipment}
+        onAssign={handleAssignStaff}
+      />
+
+      <CostModal
+        isOpen={showCostModal}
+        onClose={() => setShowCostModal(false)}
+        shipment={selectedShipment}
+        onAdd={handleAddCost}
+      />
+
+      <DocumentModal
+        isOpen={showDocumentModal}
+        onClose={() => setShowDocumentModal(false)}
+        shipment={selectedShipment}
+        onUpload={handleUploadDocument}
+      />
+
+      <NoteModal
+        isOpen={showNoteModal}
+        onClose={() => setShowNoteModal(false)}
+        shipment={selectedShipment}
+        onAdd={handleAddNote}
+      />
+
+      <WarehouseModal
+        isOpen={showWarehouseModal}
+        onClose={() => setShowWarehouseModal(false)}
+        shipment={selectedShipment}
+        onAction={handleWarehouseAction}
+      />
+
+      <CancelModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        shipment={selectedShipment}
+        onCancel={handleCancelShipment}
+      />
     </div>
   );
-};
-
-export default CreateShipment;
+}
