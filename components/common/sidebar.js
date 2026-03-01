@@ -94,7 +94,7 @@ const menuItems = [
   },
   {
     title: 'Warehouse',
-    path: '/admin/warehouse',
+    path: '/warehouse',
     icon: <HiOutlineCube className="w-5 h-5" />,
     activeIcon: <HiCube className="w-5 h-5" />,
     children: [
@@ -105,7 +105,7 @@ const menuItems = [
       },
       {
         title: 'Receive Cargo',
-        path: '/admin/warehouse/receive',
+        path: '/warehouse',
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
       {
