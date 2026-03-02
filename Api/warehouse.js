@@ -6,6 +6,32 @@ import axiosInstance from '@/lib/axiosInstance';
 // 1. GET EXPECTED SHIPMENTS (Warehouse Dashboard)
 // services/warehouseService.js
 // services/warehouseService.js - আপনার existing ফাইল
+// Api/warehouse.js - এটা যোগ করুন
+
+// Get single shipment by ID (for receive page)
+export const getShipmentById = async (shipmentId) => {
+  try {
+    const response = await axiosInstance.get(`/shipments/${shipmentId}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to fetch shipment');
+    
+  } catch (error) {
+    console.error('Get shipment error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message
+    };
+  }
+};
+ 
 
 export const getExpectedShipments = async (params = {}) => {
   try {

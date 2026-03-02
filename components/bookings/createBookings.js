@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
 import { createBooking } from '@/Api/booking';
+import { getAllUsers } from '@/Api/Authentication';
+import LocationSelector from '@/components/locationSelector';
 
 // Icons
 import {
@@ -14,23 +16,89 @@ import {
   ChevronLeft, Truck, Ship, Plane, Phone, Mail, 
   DollarSign, Edit3, Building, Home, Clock,
   Globe, Hash, Tag, Briefcase, Loader2, X, 
-  User, Save,
-  Info
+  User, Save, Info, Ruler, Users, UserPlus, Search,
+  CreditCard, Wallet, Repeat, Anchor, Train, DoorOpen
 } from 'lucide-react';
 
-// Compact Button Component
-const Button = ({
-  children,
-  type = 'button',
-  variant = 'primary',
-  size = 'md',
-  isLoading = false,
-  disabled = false,
-  onClick,
-  className = '',
-  icon: Icon,
-  iconPosition = 'left'
-}) => {
+// ==================== CONSTANTS ====================
+const SHIPMENT_MAIN_TYPES = [
+  { value: 'sea_freight', label: 'Sea Freight', icon: Ship },
+  { value: 'air_freight', label: 'Air Freight', icon: Plane },
+  { value: 'inland_trucking', label: 'Inland Trucking', icon: Truck },
+  { value: 'multimodal', label: 'Multimodal', icon: Repeat }
+];
+
+const SHIPMENT_SUB_TYPES = {
+  sea_freight: [
+    { value: 'sea_freight_fcl', label: 'FCL - Full Container Load' },
+    { value: 'sea_freight_lcl', label: 'LCL - Less than Container Load' }
+  ],
+  air_freight: [
+    { value: 'air_freight', label: 'Air Freight' }
+  ],
+  inland_trucking: [
+    { value: 'inland_transport', label: 'Inland Transport' }
+  ],
+  multimodal: [
+    { value: 'door_to_door', label: 'Door to Door' }
+  ]
+};
+
+const SHIPPING_MODES = [
+  { value: 'DDP', label: 'DDP (Delivered Duty Paid)' },
+  { value: 'DDU', label: 'DDU (Delivered Duty Unpaid)' },
+  { value: 'FOB', label: 'FOB (Free on Board)' },
+  { value: 'CIF', label: 'CIF (Cost, Insurance & Freight)' }
+];
+
+const PAYMENT_MODES = [
+  { value: 'bank_transfer', label: 'Bank Transfer', icon: CreditCard },
+  { value: 'credit_card', label: 'Credit Card', icon: CreditCard },
+  { value: 'cash', label: 'Cash', icon: Wallet },
+  { value: 'wire_transfer', label: 'Wire Transfer', icon: CreditCard }
+];
+
+const SERVICE_TYPES = [
+  { value: 'standard', label: 'Standard Delivery (3-5 Days)' },
+  { value: 'express', label: 'Express Delivery (1-2 Days)' },
+  { value: 'overnight', label: 'Overnight Delivery' },
+  { value: 'economy', label: 'Economy Delivery (5-7 Days)' }
+];
+
+const ORIGINS = [
+  { value: 'China Warehouse', label: 'China - Main Warehouse' },
+  { value: 'Thailand Warehouse', label: 'Thailand - Regional Hub' }
+];
+
+const DESTINATIONS = [
+  { value: 'USA', label: 'United States' },
+  { value: 'UK', label: 'United Kingdom' },
+  { value: 'Canada', label: 'Canada' }
+];
+
+const PRODUCT_CATEGORIES = [
+  'Electronics', 'Furniture', 'Clothing', 'Machinery', 
+  'Automotive', 'Pharmaceuticals', 'Food', 'Documents', 'Tires', 'Chemicals', 'Others'
+];
+
+const CURRENCIES = ['USD', 'GBP', 'CAD', 'THB', 'CNY', 'EUR', 'BDT'];
+
+const PACKAGING_TYPES = [
+  { value: 'pallet', label: 'Pallet' },
+  { value: 'carton', label: 'Carton' },
+  { value: 'crate', label: 'Crate' },
+  { value: 'wooden_box', label: 'Wooden Box' },
+  { value: 'container', label: 'Container' },
+  { value: 'envelope', label: 'Envelope' },
+  { value: 'loose_cargo', label: 'Loose Cargo' },
+  { value: 'loose_tires', label: 'Loose Tires' },
+  { value: '20ft_container', label: '20FT Container' },
+  { value: '40ft_container', label: '40FT Container' }
+];
+
+// ==================== COMPONENTS ====================
+
+const Button = ({ children, type = 'button', variant = 'primary', size = 'md', isLoading = false, disabled = false, onClick, className = '', icon: Icon, iconPosition = 'left' }) => {
   const baseClasses = 'rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center';
   
   const variants = {
@@ -70,22 +138,7 @@ const Button = ({
   );
 };
 
-// Compact Input Component
-const Input = ({
-  label,
-  type = 'text',
-  name,
-  value,
-  onChange,
-  onBlur,
-  placeholder,
-  error,
-  required = false,
-  disabled = false,
-  icon: Icon,
-  className = '',
-  ...props
-}) => {
+const Input = ({ label, type = 'text', name, value, onChange, onBlur, placeholder, error, required = false, disabled = false, icon: Icon, className = '', ...props }) => {
   return (
     <div className="mb-3">
       {label && (
@@ -104,7 +157,7 @@ const Input = ({
           type={type}
           id={name}
           name={name}
-          value={value}
+          value={value || ''}
           onChange={onChange}
           onBlur={onBlur}
           placeholder={placeholder}
@@ -125,19 +178,7 @@ const Input = ({
   );
 };
 
-// Compact Select Component
-const Select = ({
-  label,
-  name,
-  value,
-  onChange,
-  onBlur,
-  options,
-  error,
-  required = false,
-  icon: Icon,
-  placeholder = 'Select...'
-}) => {
+const Select = ({ label, name, value, onChange, options, error, required = false, icon: Icon, placeholder = 'Select...', disabled = false }) => {
   return (
     <div className="mb-3">
       {label && (
@@ -155,14 +196,15 @@ const Select = ({
         <select
           id={name}
           name={name}
-          value={value}
+          value={value || ''}
           onChange={onChange}
-          onBlur={onBlur}
+          disabled={disabled}
           className={`
             w-full px-3 py-2 text-sm border rounded-md shadow-sm appearance-none
             focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb]
             ${error ? 'border-red-300 bg-red-50' : 'border-gray-300'}
             ${Icon ? 'pl-8' : ''}
+            ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}
           `}
         >
           <option value="">{placeholder}</option>
@@ -181,7 +223,33 @@ const Select = ({
   );
 };
 
-// Step Indicator Component
+const TextArea = ({ label, name, value, onChange, placeholder, error, required = false, rows = 3 }) => {
+  return (
+    <div className="mb-3">
+      {label && (
+        <label htmlFor={name} className="block text-xs font-medium text-gray-600 mb-1">
+          {label}
+          {required && <span className="text-red-500 ml-0.5">*</span>}
+        </label>
+      )}
+      <textarea
+        id={name}
+        name={name}
+        value={value || ''}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={rows}
+        className={`
+          w-full px-3 py-2 text-sm border rounded-md shadow-sm
+          focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb]
+          ${error ? 'border-red-300 bg-red-50' : 'border-gray-300'}
+        `}
+      />
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+};
+
 const StepIndicator = ({ step, currentStep, title }) => {
   const isActive = step <= currentStep;
   const isCurrent = step === currentStep;
@@ -202,120 +270,300 @@ const StepIndicator = ({ step, currentStep, title }) => {
   );
 };
 
-// Main Component
+const CustomerSearchModal = ({ isOpen, onClose, onSelect, customers, loading }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  if (!isOpen) return null;
+  
+  const filteredCustomers = customers.filter(customer => 
+    customer.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.phone?.includes(searchTerm)
+  );
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-sm font-medium text-gray-900">Select Customer</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="relative mb-3">
+          <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name, email, company, phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-8 pr-3 py-2 text-sm border rounded-md"
+          />
+        </div>
+        
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {loading ? (
+            <div className="text-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+            </div>
+          ) : filteredCustomers.length > 0 ? (
+            filteredCustomers.map(customer => (
+              <div
+                key={customer._id}
+                onClick={() => {
+                  onSelect(customer);
+                  onClose();
+                }}
+                className="p-3 border rounded-md hover:bg-gray-50 cursor-pointer transition-colors"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {customer.firstName} {customer.lastName}
+                      {customer.companyName && (
+                        <span className="ml-2 text-xs text-gray-500">({customer.companyName})</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      <span className="inline-flex items-center mr-3">
+                        <Mail className="h-3 w-3 mr-1" /> {customer.email}
+                      </span>
+                      <span className="inline-flex items-center">
+                        <Phone className="h-3 w-3 mr-1" /> {customer.phone || 'N/A'}
+                      </span>
+                    </p>
+                  </div>
+                  <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                    {customer.customerStatus || 'Active'}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-center text-sm text-gray-500 py-4">No customers found</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== MAIN COMPONENT ====================
 export default function CreateBooking() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [serverErrors, setServerErrors] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [adminUser, setAdminUser] = useState(null);
+  const [availableSubTypes, setAvailableSubTypes] = useState([]);
 
-  // Form Data State
-  const [formData, setFormData] = useState({ 
-    customerReference: '',
+  // ===== Form Data State with Default Values =====
+  const [formData, setFormData] = useState({
+    customer: '',
+    
+    shipmentClassification: {
+      mainType: '',
+      subType: ''
+    },
+    
     shipmentDetails: {
-      shipmentType: '',
-      origin: '',
-      destination: '',
+      origin: 'China Warehouse',
+      destination: 'USA',
       shippingMode: 'DDU',
-      pickupRequired: false,
-      cargoDetails: [{
+      packageDetails: [{
         description: '',
-        cartons: 1,
+        packagingType: 'carton',
+        quantity: 1,
         weight: 0,
         volume: 0,
+        dimensions: {
+          length: 0,
+          width: 0,
+          height: 0,
+          unit: 'cm'
+        },
         productCategory: '',
         hsCode: '',
-        value: { amount: 0, currency: 'USD' }
+        value: { 
+          amount: 0, 
+          currency: 'USD' 
+        },
+        hazardous: false,
+        temperatureControlled: {
+          required: false,
+          minTemp: null,
+          maxTemp: null
+        }
       }],
-      totalCartons: 0,
+      totalPackages: 0,
       totalWeight: 0,
       totalVolume: 0,
       specialInstructions: '',
-      referenceNumber: '',
-      incoterms: ''
+      referenceNumber: ''
     },
-    pickupAddress: {
-      companyName: '',
-      contactPerson: '',
-      phone: '',
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      state: '',
-      country: '',
-      postalCode: '',
-      pickupDate: '',
-      pickupTime: '',
-      specialInstructions: ''
+    
+    dates: {
+      estimatedDeparture: '',
+      estimatedArrival: ''
     },
-    deliveryAddress: {
-      consigneeName: '',
+    
+    payment: {
+      mode: 'bank_transfer',
+      currency: 'USD',
+      amount: 0
+    },
+    
+    serviceType: 'standard',
+    
+    sender: {
+      name: '',
       companyName: '',
-      phone: '',
       email: '',
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      state: '',
-      country: '',
-      postalCode: '',
+      phone: '',
+      address: {
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        country: '',
+        postalCode: ''
+      },
+      pickupDate: '',
+      pickupInstructions: ''
+    },
+    
+    receiver: {
+      name: '',
+      companyName: '',
+      email: '',
+      phone: '',
+      address: {
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        country: '',
+        postalCode: ''
+      },
+      deliveryInstructions: '',
       isResidential: false
     },
-    estimatedDepartureDate: '',
-    estimatedArrivalDate: '',
-    quotedAmount: 0,
-    quotedCurrency: 'USD',
-    tags: [],
-    notes: []
+    
+    courier: {
+      company: 'Cargo Logistics Group',
+      serviceType: 'standard'
+    },
+    
+    customerReference: '',
+    
+    status: 'booking_requested',
+    pricingStatus: 'pending'
   });
 
-  // Errors State
   const [errors, setErrors] = useState({});
-  const [touched, setTouched] = useState({});
 
-  // Options
-  const shipmentTypes = [
-    { value: 'air_freight', label: 'Air Freight', icon: Plane },
-    { value: 'sea_freight', label: 'Sea Freight', icon: Ship },
-    { value: 'express_courier', label: 'Express Courier', icon: Package }
-  ];
+  // ===== Location Selector Handler =====
+  const handleLocationSelect = (location) => {
+    console.log('📍 Selected location:', location);
+    
+    if (location) {
+      setFormData(prev => ({
+        ...prev,
+        receiver: {
+          ...prev.receiver,
+          address: {
+            ...prev.receiver.address,
+            city: location.cityName || '',
+            state: location.stateName || '',
+            country: location.countryName || ''
+          }
+        }
+      }));
+      
+      toast.success(`Location selected: ${location.cityName}, ${location.countryName}`);
+    }
+  };
 
-  const origins = [
-    { value: 'China Warehouse', label: 'China' },
-    { value: 'Thailand Warehouse', label: 'Thailand' }, 
-  ];
-
-  const destinations = [
-    { value: 'USA', label: 'USA' },
-    { value: 'UK', label: 'UK' },
-    { value: 'Canada', label: 'Canada' }, 
-  ];
-
-  const shippingModes = [
-    { value: 'DDP', label: 'DDP' },
-    { value: 'DDU', label: 'DDU' },
-    { value: 'FOB', label: 'FOB' },
-    { value: 'CIF', label: 'CIF' }
-  ];
-
-  const productCategories = [
-    'Electronics', 'Furniture', 'Clothing', 'Machinery', 
-    'Automotive', 'Pharmaceuticals', 'Food', 'Others'
-  ];
-
-  const currencies = ['USD', 'GBP', 'CAD', 'THB', 'CNY'];
-
-  // Calculate totals
+  // Update sub types when main type changes
   useEffect(() => {
-    if (formData.shipmentDetails.cargoDetails.length > 0) {
-      const totals = formData.shipmentDetails.cargoDetails.reduce(
+    if (formData.shipmentClassification.mainType) {
+      setAvailableSubTypes(SHIPMENT_SUB_TYPES[formData.shipmentClassification.mainType] || []);
+    }
+  }, [formData.shipmentClassification.mainType]);
+
+  // Load admin user and customers on mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      setAdminUser(user);
+      await loadCustomers();
+      
+      // Load saved draft if exists
+      const savedDraft = localStorage.getItem('bookingDraft');
+      if (savedDraft) {
+        try {
+          const draft = JSON.parse(savedDraft);
+          setFormData(prev => ({
+            ...prev,
+            ...draft,
+            shipmentDetails: {
+              ...prev.shipmentDetails,
+              ...draft.shipmentDetails
+            }
+          }));
+          if (draft.selectedCustomer) {
+            setSelectedCustomer(draft.selectedCustomer);
+          }
+          toast.info('Draft loaded automatically');
+        } catch (e) {
+          console.error('Error loading draft:', e);
+        }
+      }
+    };
+    loadInitialData();
+  }, []);
+
+  // Load customers from API
+  const loadCustomers = async () => {
+    setLoadingCustomers(true);
+    try {
+      const response = await getAllUsers({ 
+        role: 'customer',
+        status: 'active',
+        limit: 100 
+      });
+      
+      if (response.success) {
+        setCustomers(response.data);
+      } else {
+        setCustomers([]);
+      }
+    } catch (error) {
+      console.error('Error loading customers:', error);
+      setCustomers([]);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  // Calculate totals from package details
+  useEffect(() => {
+    if (formData.shipmentDetails.packageDetails.length > 0) {
+      const totals = formData.shipmentDetails.packageDetails.reduce(
         (acc, item) => ({
-          totalCartons: acc.totalCartons + (Number(item.cartons) || 0),
-          totalWeight: acc.totalWeight + (Number(item.weight) || 0),
-          totalVolume: acc.totalVolume + (Number(item.volume) || 0)
+          totalPackages: acc.totalPackages + (Number(item.quantity) || 0),
+          totalWeight: acc.totalWeight + ((Number(item.weight) || 0) * (Number(item.quantity) || 0)),
+          totalVolume: acc.totalVolume + ((Number(item.volume) || 0) * (Number(item.quantity) || 0))
         }),
-        { totalCartons: 0, totalWeight: 0, totalVolume: 0 }
+        { totalPackages: 0, totalWeight: 0, totalVolume: 0 }
       );
 
       setFormData(prev => ({
@@ -323,146 +571,230 @@ export default function CreateBooking() {
         shipmentDetails: { ...prev.shipmentDetails, ...totals }
       }));
     }
-  }, [formData.shipmentDetails.cargoDetails]);
+  }, [formData.shipmentDetails.packageDetails]);
 
   // Handle Input Change
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     
+    console.log('🔄 Input Changed:', { name, value, type });
+    
     setFormData(prev => {
       const keys = name.split('.');
-      let current = { ...prev };
-      let temp = current;
+      const newFormData = JSON.parse(JSON.stringify(prev));
       
+      let current = newFormData;
       for (let i = 0; i < keys.length - 1; i++) {
-        temp = temp[keys[i]];
+        if (!current[keys[i]]) current[keys[i]] = {};
+        current = current[keys[i]];
       }
       
-      temp[keys[keys.length - 1]] = type === 'checkbox' ? checked : value;
-      return current;
+      current[keys[keys.length - 1]] = type === 'checkbox' ? checked : value;
+      
+      localStorage.setItem('bookingDraft', JSON.stringify(newFormData));
+      
+      return newFormData;
     });
 
-    // Clear error
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-  // Handle Cargo Change
-  const handleCargoChange = (index, field, value) => {
+  // Handle Package Change
+  const handlePackageChange = (index, field, value) => {
     setFormData(prev => {
-      const newData = { ...prev };
+      const newData = JSON.parse(JSON.stringify(prev));
       
       if (field.includes('.')) {
         const [parent, child] = field.split('.');
-        newData.shipmentDetails.cargoDetails[index][parent][child] = value;
+        if (!newData.shipmentDetails.packageDetails[index][parent]) {
+          newData.shipmentDetails.packageDetails[index][parent] = {};
+        }
+        newData.shipmentDetails.packageDetails[index][parent][child] = value;
       } else {
-        newData.shipmentDetails.cargoDetails[index][field] = value;
+        newData.shipmentDetails.packageDetails[index][field] = value;
       }
+      
+      const item = newData.shipmentDetails.packageDetails[index];
+      if (item.dimensions.length && item.dimensions.width && item.dimensions.height) {
+        const volume = (item.dimensions.length * item.dimensions.width * item.dimensions.height) / 1000000;
+        newData.shipmentDetails.packageDetails[index].volume = parseFloat(volume.toFixed(3));
+      }
+      
+      localStorage.setItem('bookingDraft', JSON.stringify(newData));
       
       return newData;
     });
   };
 
-  // Add Cargo Item
-  const addCargoItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      shipmentDetails: {
-        ...prev.shipmentDetails,
-        cargoDetails: [
-          ...prev.shipmentDetails.cargoDetails,
-          {
-            description: '',
-            cartons: 1,
-            weight: 0,
-            volume: 0,
-            productCategory: '',
-            hsCode: '',
-            value: { amount: 0, currency: 'USD' }
-          }
-        ]
-      }
-    }));
-  };
-
-  // Remove Cargo Item
-  const removeCargoItem = (index) => {
-    if (formData.shipmentDetails.cargoDetails.length > 1) {
-      setFormData(prev => ({
+  // Add Package Item
+  const addPackageItem = () => {
+    setFormData(prev => {
+      const newData = {
         ...prev,
         shipmentDetails: {
           ...prev.shipmentDetails,
-          cargoDetails: prev.shipmentDetails.cargoDetails.filter((_, i) => i !== index)
+          packageDetails: [
+            ...prev.shipmentDetails.packageDetails,
+            {
+              description: '',
+              packagingType: 'carton',
+              quantity: 1,
+              weight: 0,
+              volume: 0,
+              dimensions: {
+                length: 0,
+                width: 0,
+                height: 0,
+                unit: 'cm'
+              },
+              productCategory: '',
+              hsCode: '',
+              value: { amount: 0, currency: 'USD' },
+              hazardous: false,
+              temperatureControlled: {
+                required: false,
+                minTemp: null,
+                maxTemp: null
+              }
+            }
+          ]
         }
-      }));
+      };
+      localStorage.setItem('bookingDraft', JSON.stringify(newData));
+      return newData;
+    });
+  };
+
+  // Remove Package Item
+  const removePackageItem = (index) => {
+    if (formData.shipmentDetails.packageDetails.length > 1) {
+      setFormData(prev => {
+        const newData = {
+          ...prev,
+          shipmentDetails: {
+            ...prev.shipmentDetails,
+            packageDetails: prev.shipmentDetails.packageDetails.filter((_, i) => i !== index)
+          }
+        };
+        localStorage.setItem('bookingDraft', JSON.stringify(newData));
+        return newData;
+      });
     }
+  };
+
+  // Select Customer
+  const selectCustomer = (customer) => {
+    setSelectedCustomer(customer);
+    
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        customer: customer._id,
+        sender: {
+          ...prev.sender,
+          name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
+          companyName: customer.companyName || '',
+          email: customer.email || '',
+          phone: customer.phone || '',
+          address: {
+            ...prev.sender.address,
+            addressLine1: customer.companyAddress || '',
+            country: customer.destinationMarkets?.[0] || ''
+          }
+        }
+      };
+      localStorage.setItem('bookingDraft', JSON.stringify(newData));
+      localStorage.setItem('selectedCustomer', JSON.stringify(customer));
+      return newData;
+    });
+    
+    toast.success(`Customer ${customer.firstName} ${customer.lastName} selected`);
   };
 
   // Validate Form
   const validateForm = () => {
     const newErrors = {};
 
-    // Step 1 validation
-    if (!formData.shipmentDetails.shipmentType) {
-      newErrors['shipmentDetails.shipmentType'] = 'Shipment type is required';
+    if (!formData.customer) {
+      newErrors.customer = 'Please select a customer';
     }
+
+    if (!formData.shipmentClassification.mainType) {
+      newErrors['shipmentClassification.mainType'] = 'Shipment type is required';
+    }
+    if (!formData.shipmentClassification.subType) {
+      newErrors['shipmentClassification.subType'] = 'Shipment sub-type is required';
+    }
+
     if (!formData.shipmentDetails.origin) {
       newErrors['shipmentDetails.origin'] = 'Origin is required';
     }
     if (!formData.shipmentDetails.destination) {
       newErrors['shipmentDetails.destination'] = 'Destination is required';
     }
-    if (!formData.estimatedDepartureDate) {
-      newErrors.estimatedDepartureDate = 'Departure date is required';
+
+    if (!formData.dates.estimatedDeparture) {
+      newErrors['dates.estimatedDeparture'] = 'Departure date is required';
     }
-    if (!formData.estimatedArrivalDate) {
-      newErrors.estimatedArrivalDate = 'Arrival date is required';
+    if (!formData.dates.estimatedArrival) {
+      newErrors['dates.estimatedArrival'] = 'Arrival date is required';
     }
 
-    // Check if arrival date is after departure date
-    if (formData.estimatedDepartureDate && formData.estimatedArrivalDate) {
-      if (new Date(formData.estimatedArrivalDate) < new Date(formData.estimatedDepartureDate)) {
-        newErrors.estimatedArrivalDate = 'Arrival date must be after departure date';
+    if (formData.dates.estimatedDeparture && formData.dates.estimatedArrival) {
+      if (new Date(formData.dates.estimatedArrival) < new Date(formData.dates.estimatedDeparture)) {
+        newErrors['dates.estimatedArrival'] = 'Arrival date must be after departure date';
       }
     }
 
-    // Step 2 validation (cargo)
-    formData.shipmentDetails.cargoDetails.forEach((item, index) => {
+    if (!formData.payment.mode) {
+      newErrors['payment.mode'] = 'Payment mode is required';
+    }
+
+    formData.shipmentDetails.packageDetails.forEach((item, index) => {
       if (!item.description) {
-        newErrors[`cargo_desc_${index}`] = 'Description is required';
+        newErrors[`package_desc_${index}`] = 'Description is required';
       }
-      if (!item.cartons || item.cartons < 1) {
-        newErrors[`cargo_cartons_${index}`] = 'Minimum 1 carton required';
+      if (!item.quantity || item.quantity < 1) {
+        newErrors[`package_qty_${index}`] = 'Minimum 1 item required';
       }
       if (!item.weight || item.weight <= 0) {
-        newErrors[`cargo_weight_${index}`] = 'Weight is required';
-      }
-      if (!item.volume || item.volume <= 0) {
-        newErrors[`cargo_volume_${index}`] = 'Volume is required';
+        newErrors[`package_weight_${index}`] = 'Weight is required';
       }
     });
 
-    // Step 3 validation
-    if (!formData.deliveryAddress.consigneeName) {
-      newErrors['deliveryAddress.consigneeName'] = 'Consignee name is required';
+    if (!formData.sender.name) {
+      newErrors['sender.name'] = 'Sender name is required';
     }
-    if (!formData.deliveryAddress.email) {
-      newErrors['deliveryAddress.email'] = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.deliveryAddress.email)) {
-      newErrors['deliveryAddress.email'] = 'Invalid email format';
+    if (!formData.sender.email) {
+      newErrors['sender.email'] = 'Sender email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.sender.email)) {
+      newErrors['sender.email'] = 'Invalid email format';
     }
-    if (!formData.deliveryAddress.phone) {
-      newErrors['deliveryAddress.phone'] = 'Phone number is required';
+    if (!formData.sender.phone) {
+      newErrors['sender.phone'] = 'Sender phone is required';
     }
-    if (!formData.deliveryAddress.addressLine1) {
-      newErrors['deliveryAddress.addressLine1'] = 'Address is required';
+
+    if (!formData.receiver.name) {
+      newErrors['receiver.name'] = 'Receiver name is required';
     }
-    if (!formData.deliveryAddress.city) {
-      newErrors['deliveryAddress.city'] = 'City is required';
+    if (!formData.receiver.email) {
+      newErrors['receiver.email'] = 'Receiver email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.receiver.email)) {
+      newErrors['receiver.email'] = 'Invalid email format';
     }
-    if (!formData.deliveryAddress.country) {
-      newErrors['deliveryAddress.country'] = 'Country is required';
+    if (!formData.receiver.phone) {
+      newErrors['receiver.phone'] = 'Receiver phone is required';
+    }
+    if (!formData.receiver.address.addressLine1) {
+      newErrors['receiver.address.addressLine1'] = 'Receiver address is required';
+    }
+    if (!formData.receiver.address.city) {
+      newErrors['receiver.address.city'] = 'City is required';
+    }
+    if (!formData.receiver.address.country) {
+      newErrors['receiver.address.country'] = 'Country is required';
     }
 
     setErrors(newErrors);
@@ -474,26 +806,72 @@ export default function CreateBooking() {
     e.preventDefault();
     
     if (currentStep !== 4) {
-    return;
-  }
+      console.log('Not on step 4, current step:', currentStep);
+      return;
+    }
 
-  if (!validateForm()) {
-    toast.error('Please fill all required fields');
-    return;
-  }
+    const origin = formData.shipmentDetails?.origin;
+    const destination = formData.shipmentDetails?.destination;
+
+    console.log('🔍 Final Check - Origin:', origin, 'Destination:', destination);
+
+    if (!origin || !destination) {
+      toast.error('Origin and Destination are required! Please go back to Step 1.');
+      setCurrentStep(1);
+      return;
+    }
+
+    if (!validateForm()) {
+      toast.error('Please fill all required fields');
+      return;
+    }
 
     setIsSubmitting(true);
     setServerErrors([]);
 
     try {
-      // Format data for API
       const bookingData = {
-        ...formData,
-        bookingNumber: generateBookingNumber(),
-        status: 'draft',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        customer: formData.customer,
+        createdBy: adminUser?._id,
+        
+        shipmentClassification: formData.shipmentClassification,
+        serviceType: formData.serviceType,
+        
+        shipmentDetails: {
+          origin: origin,
+          destination: destination,
+          shippingMode: formData.shipmentDetails.shippingMode,
+          packageDetails: formData.shipmentDetails.packageDetails,
+          specialInstructions: formData.shipmentDetails.specialInstructions || '',
+          referenceNumber: formData.customerReference || ''
+        },
+        
+        dates: {
+          estimatedDeparture: formData.dates.estimatedDeparture,
+          estimatedArrival: formData.dates.estimatedArrival
+        },
+        
+        payment: {
+          mode: formData.payment.mode,
+          currency: formData.payment.currency || 'USD'
+        },
+        
+        sender: formData.sender,
+        receiver: formData.receiver,
+        courier: formData.courier,
+        
+        status: 'booking_requested',
+        pricingStatus: 'pending',
+        
+        timeline: [{
+          status: 'booking_requested',
+          description: 'Booking created by admin',
+          updatedBy: adminUser?._id,
+          timestamp: new Date()
+        }]
       };
+
+      console.log('📦 Sending booking data:', JSON.stringify(bookingData, null, 2));
 
       const response = await createBooking(bookingData);
       
@@ -501,32 +879,23 @@ export default function CreateBooking() {
         setShowSuccess(true);
         toast.success('Booking created successfully!');
         
-        // Store in localStorage as backup
-        const existingBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-        localStorage.setItem('bookings', JSON.stringify([...existingBookings, bookingData]));
+        localStorage.removeItem('bookingDraft');
+        localStorage.removeItem('selectedCustomer');
         
         setTimeout(() => {
-          router.push('/Bookings/all_bookings');
+          router.push('/bookings/all-bookings');
         }, 2000);
       } else {
         setServerErrors([{ msg: response.message || 'Failed to create booking' }]);
         toast.error(response.message || 'Failed to create booking');
+        setIsSubmitting(false);
       }
     } catch (error) {
       console.error('Error:', error);
       setServerErrors([{ msg: error.message || 'Network error' }]);
       toast.error(error.message || 'Network error');
-    } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // Generate Booking Number
-  const generateBookingNumber = () => {
-    const prefix = 'BKG';
-    const timestamp = Date.now().toString().slice(-8);
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `${prefix}${timestamp}${random}`;
   };
 
   // Next Step
@@ -534,35 +903,48 @@ export default function CreateBooking() {
     let isValid = true;
     
     if (currentStep === 1) {
-      if (!formData.shipmentDetails.shipmentType || 
-          !formData.shipmentDetails.origin || 
-          !formData.shipmentDetails.destination ||
-          !formData.estimatedDepartureDate ||
-          !formData.estimatedArrivalDate) {
+      console.log('📋 Step 1 Values:', {
+        origin: formData.shipmentDetails.origin,
+        destination: formData.shipmentDetails.destination
+      });
+
+      if (!formData.customer) {
         isValid = false;
-        toast.error('Please complete all required fields in step 1');
+        toast.error('Please select a customer first');
+      } else if (!formData.shipmentClassification.mainType || 
+          !formData.shipmentClassification.subType) {
+        isValid = false;
+        toast.error('Please select shipment type and sub-type');
+      } else if (!formData.shipmentDetails.origin || !formData.shipmentDetails.destination) {
+        isValid = false;
+        toast.error('Please select origin and destination');
+      } else if (!formData.dates.estimatedDeparture || !formData.dates.estimatedArrival) {
+        isValid = false;
+        toast.error('Please select departure and arrival dates');
+      } else if (!formData.payment.mode) {
+        isValid = false;
+        toast.error('Please select payment mode');
       }
     } else if (currentStep === 2) {
-      const hasInvalidCargo = formData.shipmentDetails.cargoDetails.some(
-        item => !item.description || !item.cartons || !item.weight || !item.volume
+      const hasInvalidPackage = formData.shipmentDetails.packageDetails.some(
+        item => !item.description || !item.quantity || !item.weight
       );
-      if (hasInvalidCargo) {
+      if (hasInvalidPackage) {
         isValid = false;
-        toast.error('Please complete all cargo details');
+        toast.error('Please complete all package details');
       }
     } else if (currentStep === 3) {
-      if (!formData.deliveryAddress.consigneeName ||
-          !formData.deliveryAddress.email ||
-          !formData.deliveryAddress.phone ||
-          !formData.deliveryAddress.addressLine1 ||
-          !formData.deliveryAddress.city ||
-          !formData.deliveryAddress.country) {
+      if (!formData.sender.name || !formData.sender.email || !formData.sender.phone ||
+          !formData.receiver.name || !formData.receiver.email || !formData.receiver.phone ||
+          !formData.receiver.address.addressLine1 || !formData.receiver.address.city ||
+          !formData.receiver.address.country) {
         isValid = false;
-        toast.error('Please complete all required delivery address fields');
+        toast.error('Please complete all required fields');
       }
     }
 
     if (isValid) {
+      localStorage.setItem('bookingDraft', JSON.stringify(formData));
       setCurrentStep(prev => Math.min(prev + 1, 4));
     }
   };
@@ -575,30 +957,19 @@ export default function CreateBooking() {
   const saveAsDraft = () => {
     const draftData = {
       ...formData,
-      bookingNumber: generateBookingNumber(),
-      status: 'draft',
+      selectedCustomer,
       savedAt: new Date().toISOString()
     };
-    
     localStorage.setItem('bookingDraft', JSON.stringify(draftData));
+    if (selectedCustomer) {
+      localStorage.setItem('selectedCustomer', JSON.stringify(selectedCustomer));
+    }
     toast.info('Draft saved successfully!');
   };
 
-  // Load Draft
-  useEffect(() => {
-    const savedDraft = localStorage.getItem('bookingDraft');
-    if (savedDraft) {
-      const shouldLoad = window.confirm('Found a saved draft. Would you like to load it?');
-      if (shouldLoad) {
-        setFormData(JSON.parse(savedDraft));
-        toast.success('Draft loaded successfully');
-      }
-    }
-  }, []);
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header - Compact */}
+      {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
@@ -612,9 +983,9 @@ export default function CreateBooking() {
               <div>
                 <h1 className="text-base font-semibold text-gray-900 flex items-center">
                   <Package className="h-4 w-4 mr-1.5 text-[#2563eb]" />
-                  Create New Booking
+                  Create New Booking - Admin
                 </h1>
-                <p className="text-xs text-gray-500">Fill in the shipment details</p>
+                <p className="text-xs text-gray-500">Cargo Logistics Group</p>
               </div>
             </div>
             
@@ -665,6 +1036,15 @@ export default function CreateBooking() {
         </div>
       )}
 
+      {/* Customer Search Modal */}
+      <CustomerSearchModal
+        isOpen={showCustomerSearch}
+        onClose={() => setShowCustomerSearch(false)}
+        onSelect={selectCustomer}
+        customers={customers}
+        loading={loadingCustomers}
+      />
+
       {/* Success Modal */}
       {showSuccess && (
         <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
@@ -675,7 +1055,7 @@ export default function CreateBooking() {
               </div>
               <h3 className="text-base font-semibold text-gray-900 mb-1">Success!</h3>
               <p className="text-sm text-gray-500 mb-4">Booking created successfully</p>
-              <div className="text-xs text-gray-400">Redirecting to bookings...</div>
+              <p className="text-xs text-gray-400">Redirecting to bookings...</p>
             </div>
           </div>
         </div>
@@ -687,11 +1067,11 @@ export default function CreateBooking() {
           {/* Step Indicators */}
           <div className="border-b px-4 py-2 bg-gray-50 rounded-t-lg">
             <div className="flex items-center justify-between max-w-2xl mx-auto">
-              <StepIndicator step={1} currentStep={currentStep} title="Shipment" />
+              <StepIndicator step={1} currentStep={currentStep} title="Customer & Shipment" />
               <ChevronRight className="h-3 w-3 text-gray-400" />
-              <StepIndicator step={2} currentStep={currentStep} title="Cargo" />
+              <StepIndicator step={2} currentStep={currentStep} title="Package" />
               <ChevronRight className="h-3 w-3 text-gray-400" />
-              <StepIndicator step={3} currentStep={currentStep} title="Address" />
+              <StepIndicator step={3} currentStep={currentStep} title="Sender/Receiver" />
               <ChevronRight className="h-3 w-3 text-gray-400" />
               <StepIndicator step={4} currentStep={currentStep} title="Review" />
             </div>
@@ -699,28 +1079,109 @@ export default function CreateBooking() {
 
           {/* Form Content */}
           <div className="p-4">
-            {/* Step 1: Shipment Info */}
+            {/* Step 1: Customer & Shipment Info */}
             {currentStep === 1 && (
               <div className="space-y-3 animate-fadeIn">
+                {/* Customer Selection */}
+                <div className="border rounded-md p-3 bg-gray-50">
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Select Customer <span className="text-red-500">*</span>
+                  </label>
+                  
+                  {selectedCustomer ? (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {selectedCustomer.firstName} {selectedCustomer.lastName}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {selectedCustomer.email} | {selectedCustomer.phone}
+                          {selectedCustomer.companyName && ` | ${selectedCustomer.companyName}`}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCustomer(null);
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            customer: '',
+                            sender: {
+                              ...prev.sender,
+                              name: '',
+                              companyName: '',
+                              email: '',
+                              phone: ''
+                            }
+                          }));
+                        }}
+                        icon={X}
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCustomerSearch(true)}
+                      icon={Users}
+                      className="w-full"
+                    >
+                      Search & Select Customer
+                    </Button>
+                  )}
+                  {errors.customer && <p className="mt-1 text-xs text-red-500">{errors.customer}</p>}
+                </div>
+
+                {/* Shipment Classification */}
                 <div className="grid grid-cols-2 gap-3">
                   <Select
                     label="Shipment Type"
-                    name="shipmentDetails.shipmentType"
-                    value={formData.shipmentDetails.shipmentType}
+                    name="shipmentClassification.mainType"
+                    value={formData.shipmentClassification.mainType}
                     onChange={handleInputChange}
-                    options={shipmentTypes}
+                    options={SHIPMENT_MAIN_TYPES}
                     required
                     icon={Package}
-                    error={errors['shipmentDetails.shipmentType']}
+                    error={errors['shipmentClassification.mainType']}
                   />
                   
+                  <Select
+                    label="Shipment Sub-Type"
+                    name="shipmentClassification.subType"
+                    value={formData.shipmentClassification.subType}
+                    onChange={handleInputChange}
+                    options={availableSubTypes}
+                    required
+                    icon={Tag}
+                    error={errors['shipmentClassification.subType']}
+                    disabled={!formData.shipmentClassification.mainType}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                   <Select
                     label="Shipping Mode"
                     name="shipmentDetails.shippingMode"
                     value={formData.shipmentDetails.shippingMode}
                     onChange={handleInputChange}
-                    options={shippingModes}
+                    options={SHIPPING_MODES}
                     icon={Briefcase}
+                  />
+                  
+                  <Select
+                    label="Payment Mode"
+                    name="payment.mode"
+                    value={formData.payment.mode}
+                    onChange={handleInputChange}
+                    options={PAYMENT_MODES}
+                    required
+                    icon={CreditCard}
+                    error={errors['payment.mode']}
                   />
                 </div>
 
@@ -730,7 +1191,7 @@ export default function CreateBooking() {
                     name="shipmentDetails.origin"
                     value={formData.shipmentDetails.origin}
                     onChange={handleInputChange}
-                    options={origins}
+                    options={ORIGINS}
                     required
                     icon={MapPin}
                     error={errors['shipmentDetails.origin']}
@@ -741,36 +1202,37 @@ export default function CreateBooking() {
                     name="shipmentDetails.destination"
                     value={formData.shipmentDetails.destination}
                     onChange={handleInputChange}
-                    options={destinations}
+                    options={DESTINATIONS}
                     required
                     icon={Globe}
                     error={errors['shipmentDetails.destination']}
                   />
                 </div>
 
+                {/* Dates */}
                 <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="Departure Date"
                     type="date"
-                    name="estimatedDepartureDate"
-                    value={formData.estimatedDepartureDate}
+                    name="dates.estimatedDeparture"
+                    value={formData.dates.estimatedDeparture}
                     onChange={handleInputChange}
                     required
                     icon={Calendar}
-                    error={errors.estimatedDepartureDate}
+                    error={errors['dates.estimatedDeparture']}
                     min={new Date().toISOString().split('T')[0]}
                   />
                   
                   <Input
                     label="Arrival Date"
                     type="date"
-                    name="estimatedArrivalDate"
-                    value={formData.estimatedArrivalDate}
+                    name="dates.estimatedArrival"
+                    value={formData.dates.estimatedArrival}
                     onChange={handleInputChange}
                     required
                     icon={Calendar}
-                    error={errors.estimatedArrivalDate}
-                    min={formData.estimatedDepartureDate || new Date().toISOString().split('T')[0]}
+                    error={errors['dates.estimatedArrival']}
+                    min={formData.dates.estimatedDeparture || new Date().toISOString().split('T')[0]}
                   />
                 </div>
 
@@ -784,57 +1246,45 @@ export default function CreateBooking() {
                     icon={Hash}
                   />
                   
-                  <Input
-                    label="Incoterms"
-                    name="shipmentDetails.incoterms"
-                    value={formData.shipmentDetails.incoterms}
+                  <Select
+                    label="Service Type"
+                    name="serviceType"
+                    value={formData.serviceType}
                     onChange={handleInputChange}
-                    placeholder="e.g., EXW, FOB"
-                    icon={Tag}
+                    options={SERVICE_TYPES}
+                    icon={Truck}
                   />
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="pickupRequired"
-                    name="shipmentDetails.pickupRequired"
-                    checked={formData.shipmentDetails.pickupRequired}
-                    onChange={handleInputChange}
-                    className="h-3.5 w-3.5 text-[#2563eb] focus:ring-[#2563eb] border-gray-300 rounded"
-                  />
-                  <label htmlFor="pickupRequired" className="ml-2 text-xs text-gray-600">
-                    Pickup required from origin
-                  </label>
                 </div>
 
                 <div className="bg-blue-50 rounded-md p-2 mt-2">
                   <div className="flex items-start">
                     <Info className="h-3.5 w-3.5 text-blue-500 mt-0.5 mr-1.5 flex-shrink-0" />
                     <p className="text-xs text-blue-700">
-                      Fill in the basic shipment information to get started. You can add more details later.
+                      Creating booking for: {selectedCustomer ? 
+                        `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : 
+                        'No customer selected'}
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Step 2: Cargo Details */}
+            {/* Step 2: Package Details */}
             {currentStep === 2 && (
               <div className="space-y-3 animate-fadeIn">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-medium text-gray-700">Cargo Items</h3>
+                  <h3 className="text-xs font-medium text-gray-700">Package Details</h3>
                   <span className="text-xs text-gray-500">
-                    {formData.shipmentDetails.cargoDetails.length} item(s)
+                    {formData.shipmentDetails.packageDetails.length} package(s)
                   </span>
                 </div>
 
-                {formData.shipmentDetails.cargoDetails.map((item, index) => (
+                {formData.shipmentDetails.packageDetails.map((item, index) => (
                   <div key={index} className="border rounded-md p-3 bg-gray-50 relative">
                     {index > 0 && (
                       <button
                         type="button"
-                        onClick={() => removeCargoItem(index)}
+                        onClick={() => removePackageItem(index)}
                         className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-0.5 hover:bg-red-200 transition-colors"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -846,63 +1296,107 @@ export default function CreateBooking() {
                         <Input
                           label="Description"
                           value={item.description}
-                          onChange={(e) => handleCargoChange(index, 'description', e.target.value)}
+                          onChange={(e) => handlePackageChange(index, 'description', e.target.value)}
                           placeholder="Product description"
                           required
                           icon={Package}
-                          error={errors[`cargo_desc_${index}`]}
+                          error={errors[`package_desc_${index}`]}
                         />
                       </div>
 
                       <Select
+                        label="Packaging Type"
+                        value={item.packagingType}
+                        onChange={(e) => handlePackageChange(index, 'packagingType', e.target.value)}
+                        options={PACKAGING_TYPES}
+                        icon={Box}
+                      />
+
+                      <Select
                         label="Category"
                         value={item.productCategory}
-                        onChange={(e) => handleCargoChange(index, 'productCategory', e.target.value)}
-                        options={productCategories.map(cat => ({ value: cat, label: cat }))}
+                        onChange={(e) => handlePackageChange(index, 'productCategory', e.target.value)}
+                        options={PRODUCT_CATEGORIES.map(cat => ({ value: cat, label: cat }))}
                         icon={Tag}
                       />
 
                       <Input
                         label="HS Code"
                         value={item.hsCode}
-                        onChange={(e) => handleCargoChange(index, 'hsCode', e.target.value)}
+                        onChange={(e) => handlePackageChange(index, 'hsCode', e.target.value)}
                         placeholder="Optional"
                         icon={Hash}
                       />
 
                       <Input
-                        label="Cartons"
+                        label="Quantity"
                         type="number"
-                        value={item.cartons}
-                        onChange={(e) => handleCargoChange(index, 'cartons', parseInt(e.target.value) || 0)}
+                        value={item.quantity}
+                        onChange={(e) => handlePackageChange(index, 'quantity', parseInt(e.target.value) || 0)}
                         min="1"
                         required
                         icon={Box}
-                        error={errors[`cargo_cartons_${index}`]}
+                        error={errors[`package_qty_${index}`]}
                       />
 
                       <Input
                         label="Weight (kg)"
                         type="number"
                         value={item.weight}
-                        onChange={(e) => handleCargoChange(index, 'weight', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handlePackageChange(index, 'weight', parseFloat(e.target.value) || 0)}
                         min="0.1"
                         step="0.1"
                         required
                         icon={Weight}
-                        error={errors[`cargo_weight_${index}`]}
+                        error={errors[`package_weight_${index}`]}
                       />
+
+                      {/* Dimensions */}
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Dimensions (cm)
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <Input
+                            placeholder="Length"
+                            type="number"
+                            value={item.dimensions.length}
+                            onChange={(e) => handlePackageChange(index, 'dimensions.length', parseFloat(e.target.value) || 0)}
+                            min="0"
+                            step="0.1"
+                            icon={Ruler}
+                          />
+                          <Input
+                            placeholder="Width"
+                            type="number"
+                            value={item.dimensions.width}
+                            onChange={(e) => handlePackageChange(index, 'dimensions.width', parseFloat(e.target.value) || 0)}
+                            min="0"
+                            step="0.1"
+                            icon={Ruler}
+                          />
+                          <Input
+                            placeholder="Height"
+                            type="number"
+                            value={item.dimensions.height}
+                            onChange={(e) => handlePackageChange(index, 'dimensions.height', parseFloat(e.target.value) || 0)}
+                            min="0"
+                            step="0.1"
+                            icon={Ruler}
+                          />
+                        </div>
+                      </div>
 
                       <Input
                         label="Volume (CBM)"
                         type="number"
                         value={item.volume}
-                        onChange={(e) => handleCargoChange(index, 'volume', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handlePackageChange(index, 'volume', parseFloat(e.target.value) || 0)}
                         min="0.001"
                         step="0.001"
                         required
                         icon={Box}
-                        error={errors[`cargo_volume_${index}`]}
+                        error={errors[`package_volume_${index}`]}
                       />
 
                       <div className="col-span-2 grid grid-cols-2 gap-2">
@@ -910,7 +1404,7 @@ export default function CreateBooking() {
                           label="Value"
                           type="number"
                           value={item.value.amount}
-                          onChange={(e) => handleCargoChange(index, 'value.amount', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handlePackageChange(index, 'value.amount', parseFloat(e.target.value) || 0)}
                           icon={DollarSign}
                           min="0"
                           step="0.01"
@@ -919,9 +1413,32 @@ export default function CreateBooking() {
                         <Select
                           label="Currency"
                           value={item.value.currency}
-                          onChange={(e) => handleCargoChange(index, 'value.currency', e.target.value)}
-                          options={currencies.map(curr => ({ value: curr, label: curr }))}
+                          onChange={(e) => handlePackageChange(index, 'value.currency', e.target.value)}
+                          options={CURRENCIES.map(curr => ({ value: curr, label: curr }))}
                         />
+                      </div>
+
+                      {/* Hazardous & Temperature Control */}
+                      <div className="col-span-2 flex items-center space-x-4">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={item.hazardous}
+                            onChange={(e) => handlePackageChange(index, 'hazardous', e.target.checked)}
+                            className="h-3.5 w-3.5 text-[#2563eb] focus:ring-[#2563eb] border-gray-300 rounded"
+                          />
+                          <span className="ml-2 text-xs text-gray-600">Hazardous Material</span>
+                        </label>
+
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={item.temperatureControlled?.required}
+                            onChange={(e) => handlePackageChange(index, 'temperatureControlled.required', e.target.checked)}
+                            className="h-3.5 w-3.5 text-[#2563eb] focus:ring-[#2563eb] border-gray-300 rounded"
+                          />
+                          <span className="ml-2 text-xs text-gray-600">Temperature Controlled</span>
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -931,20 +1448,20 @@ export default function CreateBooking() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={addCargoItem}
+                  onClick={addPackageItem}
                   icon={Plus}
                   className="w-full"
                 >
-                  Add Another Item
+                  Add Another Package
                 </Button>
 
-                {formData.shipmentDetails.cargoDetails.length > 0 && (
+                {formData.shipmentDetails.packageDetails.length > 0 && (
                   <div className="bg-blue-50 rounded-md p-3 mt-2">
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div>
-                        <div className="text-xs text-gray-500">Total Cartons</div>
+                        <div className="text-xs text-gray-500">Total Packages</div>
                         <div className="text-sm font-semibold text-[#2563eb]">
-                          {formData.shipmentDetails.totalCartons}
+                          {formData.shipmentDetails.totalPackages}
                         </div>
                       </div>
                       <div>
@@ -965,73 +1482,74 @@ export default function CreateBooking() {
               </div>
             )}
 
-            {/* Step 3: Addresses */}
+            {/* Step 3: Sender & Receiver */}
             {currentStep === 3 && (
               <div className="space-y-4 animate-fadeIn">
-                {/* Delivery Address */}
+                {/* Sender Information */}
                 <div className="border rounded-md p-3">
                   <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
-                    <Home className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
-                    Delivery Address
+                    <User className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
+                    Sender Information
+                    {selectedCustomer && (
+                      <span className="ml-2 text-xs text-green-600">(Auto-filled from customer)</span>
+                    )}
                   </h3>
                   
                   <div className="grid grid-cols-2 gap-2">
                     <Input
-                      label="Consignee Name"
-                      name="deliveryAddress.consigneeName"
-                      value={formData.deliveryAddress.consigneeName}
+                      label="Full Name"
+                      name="sender.name"
+                      value={formData.sender.name}
                       onChange={handleInputChange}
                       required
                       icon={User}
-                      error={errors['deliveryAddress.consigneeName']}
+                      error={errors['sender.name']}
                     />
 
                     <Input
                       label="Company Name"
-                      name="deliveryAddress.companyName"
-                      value={formData.deliveryAddress.companyName}
+                      name="sender.companyName"
+                      value={formData.sender.companyName}
                       onChange={handleInputChange}
                       icon={Building}
                     />
 
                     <Input
-                      label="Phone"
-                      name="deliveryAddress.phone"
-                      value={formData.deliveryAddress.phone}
-                      onChange={handleInputChange}
-                      required
-                      icon={Phone}
-                      error={errors['deliveryAddress.phone']}
-                    />
-
-                    <Input
                       label="Email"
                       type="email"
-                      name="deliveryAddress.email"
-                      value={formData.deliveryAddress.email}
+                      name="sender.email"
+                      value={formData.sender.email}
                       onChange={handleInputChange}
                       required
                       icon={Mail}
-                      error={errors['deliveryAddress.email']}
+                      error={errors['sender.email']}
+                    />
+
+                    <Input
+                      label="Phone"
+                      name="sender.phone"
+                      value={formData.sender.phone}
+                      onChange={handleInputChange}
+                      required
+                      icon={Phone}
+                      error={errors['sender.phone']}
                     />
 
                     <div className="col-span-2">
                       <Input
                         label="Address Line 1"
-                        name="deliveryAddress.addressLine1"
-                        value={formData.deliveryAddress.addressLine1}
+                        name="sender.address.addressLine1"
+                        value={formData.sender.address.addressLine1}
                         onChange={handleInputChange}
-                        required
                         icon={MapPin}
-                        error={errors['deliveryAddress.addressLine1']}
                       />
                     </div>
 
                     <div className="col-span-2">
                       <Input
                         label="Address Line 2"
-                        name="deliveryAddress.addressLine2"
-                        value={formData.deliveryAddress.addressLine2}
+                        name="sender.address.addressLine2"
+                        value={formData.sender.address.addressLine2}
                         onChange={handleInputChange}
                         icon={MapPin}
                       />
@@ -1039,153 +1557,198 @@ export default function CreateBooking() {
 
                     <Input
                       label="City"
-                      name="deliveryAddress.city"
-                      value={formData.deliveryAddress.city}
+                      name="sender.address.city"
+                      value={formData.sender.address.city}
                       onChange={handleInputChange}
-                      required
-                      error={errors['deliveryAddress.city']}
                     />
 
                     <Input
-                      label="State/Province"
-                      name="deliveryAddress.state"
-                      value={formData.deliveryAddress.state}
+                      label="State"
+                      name="sender.address.state"
+                      value={formData.sender.address.state}
                       onChange={handleInputChange}
                     />
 
                     <Input
                       label="Country"
-                      name="deliveryAddress.country"
-                      value={formData.deliveryAddress.country}
+                      name="sender.address.country"
+                      value={formData.sender.address.country}
                       onChange={handleInputChange}
-                      required
-                      error={errors['deliveryAddress.country']}
                     />
 
                     <Input
                       label="Postal Code"
-                      name="deliveryAddress.postalCode"
-                      value={formData.deliveryAddress.postalCode}
+                      name="sender.address.postalCode"
+                      value={formData.sender.address.postalCode}
                       onChange={handleInputChange}
                     />
-                  </div>
 
-                  <div className="mt-2">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        name="deliveryAddress.isResidential"
-                        checked={formData.deliveryAddress.isResidential}
-                        onChange={handleInputChange}
-                        className="h-3.5 w-3.5 text-[#2563eb] focus:ring-[#2563eb] border-gray-300 rounded"
-                      />
-                      <span className="ml-2 text-xs text-gray-600">This is a residential address</span>
-                    </label>
+                    <Input
+                      label="Pickup Date"
+                      type="date"
+                      name="sender.pickupDate"
+                      value={formData.sender.pickupDate}
+                      onChange={handleInputChange}
+                      icon={Calendar}
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+
+                    <TextArea
+                      label="Pickup Instructions"
+                      name="sender.pickupInstructions"
+                      value={formData.sender.pickupInstructions}
+                      onChange={handleInputChange}
+                      placeholder="Special instructions for pickup"
+                      rows={2}
+                    />
                   </div>
                 </div>
 
-                {/* Pickup Address (if required) */}
-                {formData.shipmentDetails.pickupRequired && (
-                  <div className="border rounded-md p-3">
-                    <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
-                      <Building className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
-                      Pickup Address
-                    </h3>
-                    
-                    <div className="grid grid-cols-2 gap-2">
+                {/* Receiver Information */}
+                <div className="border rounded-md p-3">
+                  <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
+                    <UserPlus className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
+                    Receiver Information
+                    <span className="ml-2 text-xs text-blue-600">(Will receive email notification)</span>
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Full Name"
+                      name="receiver.name"
+                      value={formData.receiver.name}
+                      onChange={handleInputChange}
+                      required
+                      icon={User}
+                      error={errors['receiver.name']}
+                    />
+
+                    <Input
+                      label="Company Name"
+                      name="receiver.companyName"
+                      value={formData.receiver.companyName}
+                      onChange={handleInputChange}
+                      icon={Building}
+                    />
+
+                    <Input
+                      label="Email"
+                      type="email"
+                      name="receiver.email"
+                      value={formData.receiver.email}
+                      onChange={handleInputChange}
+                      required
+                      icon={Mail}
+                      error={errors['receiver.email']}
+                    />
+
+                    <Input
+                      label="Phone"
+                      name="receiver.phone"
+                      value={formData.receiver.phone}
+                      onChange={handleInputChange}
+                      required
+                      icon={Phone}
+                      error={errors['receiver.phone']}
+                    />
+
+                    <div className="col-span-2">
                       <Input
-                        label="Company Name"
-                        name="pickupAddress.companyName"
-                        value={formData.pickupAddress.companyName}
+                        label="Address Line 1"
+                        name="receiver.address.addressLine1"
+                        value={formData.receiver.address.addressLine1}
                         onChange={handleInputChange}
-                        icon={Building}
-                      />
-
-                      <Input
-                        label="Contact Person"
-                        name="pickupAddress.contactPerson"
-                        value={formData.pickupAddress.contactPerson}
-                        onChange={handleInputChange}
-                        icon={User}
-                      />
-
-                      <Input
-                        label="Phone"
-                        name="pickupAddress.phone"
-                        value={formData.pickupAddress.phone}
-                        onChange={handleInputChange}
-                        icon={Phone}
-                      />
-
-                      <div className="col-span-2">
-                        <Input
-                          label="Address Line 1"
-                          name="pickupAddress.addressLine1"
-                          value={formData.pickupAddress.addressLine1}
-                          onChange={handleInputChange}
-                          icon={MapPin}
-                        />
-                      </div>
-
-                      <div className="col-span-2">
-                        <Input
-                          label="Address Line 2"
-                          name="pickupAddress.addressLine2"
-                          value={formData.pickupAddress.addressLine2}
-                          onChange={handleInputChange}
-                          icon={MapPin}
-                        />
-                      </div>
-
-                      <Input
-                        label="City"
-                        name="pickupAddress.city"
-                        value={formData.pickupAddress.city}
-                        onChange={handleInputChange}
-                      />
-
-                      <Input
-                        label="State/Province"
-                        name="pickupAddress.state"
-                        value={formData.pickupAddress.state}
-                        onChange={handleInputChange}
-                      />
-
-                      <Input
-                        label="Country"
-                        name="pickupAddress.country"
-                        value={formData.pickupAddress.country}
-                        onChange={handleInputChange}
-                      />
-
-                      <Input
-                        label="Postal Code"
-                        name="pickupAddress.postalCode"
-                        value={formData.pickupAddress.postalCode}
-                        onChange={handleInputChange}
-                      />
-
-                      <Input
-                        label="Pickup Date"
-                        type="date"
-                        name="pickupAddress.pickupDate"
-                        value={formData.pickupAddress.pickupDate}
-                        onChange={handleInputChange}
-                        icon={Calendar}
-                        min={new Date().toISOString().split('T')[0]}
-                      />
-
-                      <Input
-                        label="Pickup Time"
-                        type="time"
-                        name="pickupAddress.pickupTime"
-                        value={formData.pickupAddress.pickupTime}
-                        onChange={handleInputChange}
-                        icon={Clock}
+                        required
+                        icon={MapPin}
+                        error={errors['receiver.address.addressLine1']}
                       />
                     </div>
+
+                    <div className="col-span-2">
+                      <Input
+                        label="Address Line 2"
+                        name="receiver.address.addressLine2"
+                        value={formData.receiver.address.addressLine2}
+                        onChange={handleInputChange}
+                        icon={MapPin}
+                      />
+                    </div>
+
+                    <Input
+                      label="City"
+                      name="receiver.address.city"
+                      value={formData.receiver.address.city}
+                      onChange={handleInputChange}
+                      required
+                      error={errors['receiver.address.city']}
+                    />
+
+                    <Input
+                      label="State"
+                      name="receiver.address.state"
+                      value={formData.receiver.address.state}
+                      onChange={handleInputChange}
+                    />
+
+                    <Input
+                      label="Country"
+                      name="receiver.address.country"
+                      value={formData.receiver.address.country}
+                      onChange={handleInputChange}
+                      required
+                      error={errors['receiver.address.country']}
+                    />
+
+                    <Input
+                      label="Postal Code"
+                      name="receiver.address.postalCode"
+                      value={formData.receiver.address.postalCode}
+                      onChange={handleInputChange}
+                    />
+
+                    <div className="col-span-2">
+                      <TextArea
+                        label="Delivery Instructions"
+                        name="receiver.deliveryInstructions"
+                        value={formData.receiver.deliveryInstructions}
+                        onChange={handleInputChange}
+                        placeholder="Special instructions for delivery"
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="receiver.isResidential"
+                          checked={formData.receiver.isResidential}
+                          onChange={handleInputChange}
+                          className="h-3.5 w-3.5 text-[#2563eb] focus:ring-[#2563eb] border-gray-300 rounded"
+                        />
+                        <span className="ml-2 text-xs text-gray-600">This is a residential address</span>
+                      </label>
+                    </div>
                   </div>
-                )}
+
+                  {/* ===== Location Selector - এখানে সঠিক জায়গায় ===== */}
+                  <div className="mt-6 pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                      <MapPin className="h-4 w-4 mr-2 text-[#2563eb]" />
+                      Search & Select Location
+                    </h4>
+                    <LocationSelector onLocationSelect={handleLocationSelect} />
+                    
+                    {/* Show selected location preview */}
+                    {formData.receiver.address.country && (
+                      <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                        <p className="text-xs text-blue-700">
+                          ✅ Selected: {formData.receiver.address.city || 'N/A'}, {formData.receiver.address.state || 'N/A'}, {formData.receiver.address.country || 'N/A'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1199,14 +1762,24 @@ export default function CreateBooking() {
                   </h3>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
+                      <span className="text-gray-500">Customer:</span>{' '}
+                      <span className="font-medium">
+                        {selectedCustomer?.firstName} {selectedCustomer?.lastName}
+                      </span>
+                    </div>
+                    <div>
                       <span className="text-gray-500">Type:</span>{' '}
                       <span className="font-medium">
-                        {shipmentTypes.find(t => t.value === formData.shipmentDetails.shipmentType)?.label || 'N/A'}
+                        {formData.shipmentClassification.mainType} - {formData.shipmentClassification.subType}
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-500">Mode:</span>{' '}
                       <span className="font-medium">{formData.shipmentDetails.shippingMode}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Payment:</span>{' '}
+                      <span className="font-medium">{formData.payment.mode}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Origin:</span>{' '}
@@ -1217,33 +1790,34 @@ export default function CreateBooking() {
                       <span className="font-medium">{formData.shipmentDetails.destination}</span>
                     </div>
                     <div>
+                      <span className="text-gray-500">Service:</span>{' '}
+                      <span className="font-medium">{formData.serviceType}</span>
+                    </div>
+                    <div>
                       <span className="text-gray-500">Departure:</span>{' '}
-                      <span className="font-medium">{new Date(formData.estimatedDepartureDate).toLocaleDateString()}</span>
+                      <span className="font-medium">{new Date(formData.dates.estimatedDeparture).toLocaleDateString()}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Arrival:</span>{' '}
-                      <span className="font-medium">{new Date(formData.estimatedArrivalDate).toLocaleDateString()}</span>
+                      <span className="font-medium">{new Date(formData.dates.estimatedArrival).toLocaleDateString()}</span>
                     </div>
-                    {formData.customerReference && (
-                      <div className="col-span-2">
-                        <span className="text-gray-500">Reference:</span>{' '}
-                        <span className="font-medium">{formData.customerReference}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
 
                 <div className="bg-gray-50 rounded-md p-3">
                   <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
                     <Box className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
-                    Cargo Summary
+                    Package Summary
                   </h3>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {formData.shipmentDetails.cargoDetails.map((item, index) => (
+                    {formData.shipmentDetails.packageDetails.map((item, index) => (
                       <div key={index} className="text-xs border-b last:border-0 pb-1 last:pb-0">
                         <div className="font-medium">{item.description}</div>
                         <div className="text-gray-500 flex justify-between">
-                          <span>{item.cartons} ctns | {item.weight} kg | {item.volume} CBM</span>
+                          <span>
+                            {item.quantity} pcs | {item.weight} kg | {item.volume} CBM
+                            {item.hazardous && ' ⚠️ Hazardous'}
+                          </span>
                           {item.value.amount > 0 && (
                             <span className="font-medium">{item.value.currency} {item.value.amount.toLocaleString()}</span>
                           )}
@@ -1253,8 +1827,8 @@ export default function CreateBooking() {
                   </div>
                   <div className="mt-2 pt-2 border-t grid grid-cols-3 gap-2 text-xs">
                     <div>
-                      <span className="text-gray-500">Total Cartons:</span>{' '}
-                      <span className="font-medium">{formData.shipmentDetails.totalCartons}</span>
+                      <span className="text-gray-500">Total Packages:</span>{' '}
+                      <span className="font-medium">{formData.shipmentDetails.totalPackages}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Total Weight:</span>{' '}
@@ -1267,74 +1841,42 @@ export default function CreateBooking() {
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-md p-3">
-                  <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
-                    <Home className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
-                    Delivery Address
-                  </h3>
-                  <div className="text-xs">
-                    <p className="font-medium">{formData.deliveryAddress.consigneeName}</p>
-                    {formData.deliveryAddress.companyName && (
-                      <p className="text-gray-600">{formData.deliveryAddress.companyName}</p>
-                    )}
-                    <p className="text-gray-600">{formData.deliveryAddress.addressLine1}</p>
-                    {formData.deliveryAddress.addressLine2 && (
-                      <p className="text-gray-600">{formData.deliveryAddress.addressLine2}</p>
-                    )}
-                    <p className="text-gray-600">
-                      {formData.deliveryAddress.city}
-                      {formData.deliveryAddress.state && `, ${formData.deliveryAddress.state}`}
-                      {formData.deliveryAddress.postalCode && ` - ${formData.deliveryAddress.postalCode}`}
-                    </p>
-                    <p className="text-gray-600">{formData.deliveryAddress.country}</p>
-                    <p className="text-gray-600 mt-1">
-                      <span className="text-gray-500">Phone:</span> {formData.deliveryAddress.phone}<br />
-                      <span className="text-gray-500">Email:</span> {formData.deliveryAddress.email}
-                    </p>
-                    {formData.deliveryAddress.isResidential && (
-                      <p className="text-xs text-blue-600 mt-1">🏠 Residential Address</p>
-                    )}
-                  </div>
-                </div>
-
-                {formData.shipmentDetails.pickupRequired && (
+                <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gray-50 rounded-md p-3">
                     <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
-                      <Building className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
-                      Pickup Address
+                      <User className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
+                      Sender
                     </h3>
                     <div className="text-xs">
-                      <p className="font-medium">{formData.pickupAddress.companyName || formData.pickupAddress.contactPerson}</p>
-                      {formData.pickupAddress.contactPerson && (
-                        <p className="text-gray-600">Contact: {formData.pickupAddress.contactPerson}</p>
-                      )}
-                      <p className="text-gray-600">{formData.pickupAddress.addressLine1}</p>
-                      {formData.pickupAddress.addressLine2 && (
-                        <p className="text-gray-600">{formData.pickupAddress.addressLine2}</p>
-                      )}
-                      <p className="text-gray-600">
-                        {formData.pickupAddress.city}
-                        {formData.pickupAddress.state && `, ${formData.pickupAddress.state}`}
-                      </p>
-                      <p className="text-gray-600">{formData.pickupAddress.country}</p>
-                      {formData.pickupAddress.phone && (
-                        <p className="text-gray-600 mt-1">📞 {formData.pickupAddress.phone}</p>
-                      )}
-                      {formData.pickupAddress.pickupDate && (
-                        <p className="text-gray-600 mt-1">
-                          📅 Pickup: {new Date(formData.pickupAddress.pickupDate).toLocaleDateString()}
-                          {formData.pickupAddress.pickupTime && ` at ${formData.pickupAddress.pickupTime}`}
-                        </p>
-                      )}
+                      <p className="font-medium">{formData.sender.name}</p>
+                      {formData.sender.companyName && <p>{formData.sender.companyName}</p>}
+                      <p className="text-gray-600 mt-1">📞 {formData.sender.phone}</p>
+                      <p className="text-gray-600">✉️ {formData.sender.email}</p>
                     </div>
                   </div>
-                )}
+
+                  <div className="bg-gray-50 rounded-md p-3">
+                    <h3 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
+                      <UserPlus className="h-3.5 w-3.5 mr-1 text-[#2563eb]" />
+                      Receiver
+                    </h3>
+                    <div className="text-xs">
+                      <p className="font-medium">{formData.receiver.name}</p>
+                      {formData.receiver.companyName && <p>{formData.receiver.companyName}</p>}
+                      <p className="text-gray-600">{formData.receiver.address.addressLine1}</p>
+                      <p className="text-gray-600">{formData.receiver.address.city}</p>
+                      <p className="text-gray-600 mt-1">📞 {formData.receiver.phone}</p>
+                      <p className="text-gray-600">✉️ {formData.receiver.email}</p>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="bg-green-50 rounded-md p-2">
                   <div className="flex items-center">
                     <CheckCircle className="h-3.5 w-3.5 text-green-500 mr-1.5" />
                     <p className="text-xs text-green-700">
-                      Please review all information before submitting. You can save as draft or create booking.
+                      Booking will be created for {selectedCustomer?.firstName} {selectedCustomer?.lastName}. 
+                      Confirmation email will be sent to receiver.
                     </p>
                   </div>
                 </div>
@@ -1386,15 +1928,14 @@ export default function CreateBooking() {
         {/* Progress Summary */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            {currentStep === 1 && "📦 Step 1: Enter basic shipment information"}
-            {currentStep === 2 && "📦 Step 2: Add cargo details"}
-            {currentStep === 3 && "📦 Step 3: Enter delivery and pickup addresses"}
-            {currentStep === 4 && "📦 Step 4: Review and confirm your booking"}
+            {currentStep === 1 && "📦 Select customer, shipment type and payment"}
+            {currentStep === 2 && "📦 Add package details with packaging type"}
+            {currentStep === 3 && "📦 Enter sender and receiver information"}
+            {currentStep === 4 && "📦 Review and confirm booking"}
           </p>
         </div>
       </div>
 
-      {/* Animation Styles */}
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(5px); }

@@ -1,8 +1,12 @@
+// services/booking.js
 import axiosInstance from '@/lib/axiosInstance';
 
 // ==================== BOOKING API FUNCTIONS ====================
+// Controller: bookingController.js অনুযায়ী
 
 // 1. CREATE BOOKING (Customer)
+// Controller: exports.createBooking
+// Endpoint: POST /bookings
 export const createBooking = async (bookingData) => {
   try {
     const response = await axiosInstance.post('/createBooking', bookingData);
@@ -21,18 +25,16 @@ export const createBooking = async (bookingData) => {
   }
 };
 
-// 2. GET ALL BOOKINGS (Admin/Staff)
+// 2. GET ALL BOOKINGS (Admin)
+// Controller: exports.getAllBookings
+// Endpoint: GET /bookings
 export const getAllBookings = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams({
       page: params.page || 1,
       limit: params.limit || 20,
       ...(params.status && { status: params.status }),
-      ...(params.search && { search: params.search }),
-      ...(params.startDate && { startDate: params.startDate }),
-      ...(params.endDate && { endDate: params.endDate }),
-      ...(params.sortBy && { sortBy: params.sortBy }),
-      ...(params.sortOrder && { sortOrder: params.sortOrder })
+      ...(params.sort && { sort: params.sort })
     });
 
     const response = await axiosInstance.get(`/getAllBooking?${queryParams}`);
@@ -59,6 +61,8 @@ export const getAllBookings = async (params = {}) => {
 };
 
 // 3. GET SINGLE BOOKING BY ID
+// Controller: exports.getBookingById
+// Endpoint: GET /bookings/:id
 export const getBookingById = async (bookingId) => {
   try {
     const response = await axiosInstance.get(`/bookings/${bookingId}`);
@@ -84,6 +88,8 @@ export const getBookingById = async (bookingId) => {
 };
 
 // 4. UPDATE PRICE QUOTE (Admin)
+// Controller: exports.updatePriceQuote
+// Endpoint: PUT /bookings/:id/price-quote
 export const updatePriceQuote = async (bookingId, quoteData) => {
   try {
     const response = await axiosInstance.put(`/booking/${bookingId}/price-quote`, quoteData);
@@ -109,9 +115,11 @@ export const updatePriceQuote = async (bookingId, quoteData) => {
 };
 
 // 5. CUSTOMER ACCEPT QUOTE
+// Controller: exports.acceptQuote
+// Endpoint: PUT /bookings/:id/accept
 export const acceptQuote = async (bookingId, notes = '') => {
   try {
-    const response = await axiosInstance.put(`/booking/${bookingId}/accept`, { notes });
+    const response = await axiosInstance.put(`/bookings/${bookingId}/accept`, { notes });
     
     if (response.data.success) {
       return {
@@ -134,6 +142,8 @@ export const acceptQuote = async (bookingId, notes = '') => {
 };
 
 // 6. CUSTOMER REJECT QUOTE
+// Controller: exports.rejectQuote
+// Endpoint: POST /bookings/:id/reject-quote
 export const rejectQuote = async (bookingId, reason = '') => {
   try {
     const response = await axiosInstance.post(`/bookings/${bookingId}/reject-quote`, { reason });
@@ -159,6 +169,8 @@ export const rejectQuote = async (bookingId, reason = '') => {
 };
 
 // 7. CANCEL BOOKING
+// Controller: exports.cancelBooking
+// Endpoint: POST /bookings/:id/cancel
 export const cancelBooking = async (bookingId, reason = '') => {
   try {
     const response = await axiosInstance.post(`/bookings/${bookingId}/cancel`, { reason });
@@ -184,6 +196,8 @@ export const cancelBooking = async (bookingId, reason = '') => {
 };
 
 // 8. GET MY BOOKINGS (Customer)
+// Controller: exports.getMyBookings
+// Endpoint: GET /bookings/my-bookings
 export const getMyBookings = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams({
@@ -218,6 +232,8 @@ export const getMyBookings = async (params = {}) => {
 };
 
 // 9. GET MY BOOKING BY ID (Customer)
+// Controller: exports.getMyBookingById
+// Endpoint: GET /bookings/my-bookings/:id
 export const getMyBookingById = async (bookingId) => {
   try {
     const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}`);
@@ -243,6 +259,8 @@ export const getMyBookingById = async (bookingId) => {
 };
 
 // 10. GET MY BOOKING TIMELINE (Customer)
+// Controller: exports.getMyBookingTimeline
+// Endpoint: GET /bookings/my-bookings/:id/timeline
 export const getMyBookingTimeline = async (bookingId) => {
   try {
     const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}/timeline`);
@@ -267,10 +285,12 @@ export const getMyBookingTimeline = async (bookingId) => {
   }
 };
 
-// 11. GET MY BOOKING INVOICES (Customer)
-export const getMyBookingInvoices = async (bookingId) => {
+// 11. GET MY BOOKING INVOICE (Customer)
+// Controller: exports.getMyBookingInvoice
+// Endpoint: GET /bookings/my-bookings/:id/invoice
+export const getMyBookingInvoice = async (bookingId) => {
   try {
-    const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}/invoices`);
+    const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}/invoice`);
     
     if (response.data.success) {
       return {
@@ -280,19 +300,21 @@ export const getMyBookingInvoices = async (bookingId) => {
       };
     }
     
-    throw new Error(response.data.message || 'Failed to fetch invoices');
+    throw new Error(response.data.message || 'Failed to fetch invoice');
     
   } catch (error) {
-    console.error('Get booking invoices error:', error);
+    console.error('Get booking invoice error:', error);
     return {
       success: false,
-      message: error.response?.data?.error || error.message || 'Failed to fetch invoices',
+      message: error.response?.data?.error || error.message || 'Failed to fetch invoice',
       error: error.response?.data
     };
   }
 };
 
 // 12. GET MY BOOKING QUOTE DETAILS (Customer)
+// Controller: exports.getMyBookingQuote
+// Endpoint: GET /bookings/my-bookings/:id/quote
 export const getMyBookingQuote = async (bookingId) => {
   try {
     const response = await axiosInstance.get(`/bookings/my-bookings/${bookingId}/quote`);
@@ -318,9 +340,11 @@ export const getMyBookingQuote = async (bookingId) => {
 };
 
 // 13. GET MY BOOKINGS SUMMARY (Customer Dashboard)
+// Controller: exports.getMyBookingsSummary
+// Endpoint: GET /bookings/my-bookings/summary
 export const getMyBookingsSummary = async () => {
   try {
-    const response = await axiosInstance.get('/my-bookings/summary');
+    const response = await axiosInstance.get('/bookings/my-bookings/summary');
     
     if (response.data.success) {
       return {
@@ -342,7 +366,63 @@ export const getMyBookingsSummary = async () => {
   }
 };
 
-// 14. DOWNLOAD BOOKING DOCUMENT
+// 14. TRACK BY NUMBER (Public)
+// Controller: exports.trackByNumber
+// Endpoint: GET /bookings/track/:trackingNumber
+export const trackByNumber = async (trackingNumber) => {
+  try {
+    const response = await axiosInstance.get(`/bookings/track/${trackingNumber}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Tracking number not found');
+    
+  } catch (error) {
+    console.error('Track by number error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to track shipment',
+      error: error.response?.data
+    };
+  }
+};
+
+// 15. UPDATE DELIVERY STATUS (Admin/Warehouse)
+// Controller: exports.updateDeliveryStatus
+// Endpoint: PUT /bookings/:id/delivery-status
+export const updateDeliveryStatus = async (bookingId, statusData) => {
+  try {
+    const response = await axiosInstance.put(`/bookings/${bookingId}/delivery-status`, statusData);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    }
+    
+    throw new Error(response.data.message || 'Failed to update delivery status');
+    
+  } catch (error) {
+    console.error('Update delivery status error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.error || error.message || 'Failed to update delivery status',
+      error: error.response?.data
+    };
+  }
+};
+
+// 16. DOWNLOAD BOOKING DOCUMENT
+// Controller: exports.downloadBookingDocument
+// Endpoint: GET /bookings/:id/documents/:documentId/download
 export const downloadBookingDocument = async (bookingId, documentId) => {
   try {
     const response = await axiosInstance.get(`/bookings/${bookingId}/documents/${documentId}/download`, {
@@ -384,10 +464,12 @@ export const downloadBookingDocument = async (bookingId, documentId) => {
   }
 };
 
-// 15. TRACK BY NUMBER (Public)
-export const trackByNumber = async (trackingNumber) => {
+// 17. ADD DOCUMENT TO BOOKING
+// Controller: exports.addDocument
+// Endpoint: POST /bookings/:id/documents
+export const addDocument = async (bookingId, documentData) => {
   try {
-    const response = await axiosInstance.get(`/bookings/track/${trackingNumber}`);
+    const response = await axiosInstance.post(`/bookings/${bookingId}/documents`, documentData);
     
     if (response.data.success) {
       return {
@@ -397,13 +479,13 @@ export const trackByNumber = async (trackingNumber) => {
       };
     }
     
-    throw new Error(response.data.message || 'Tracking number not found');
+    throw new Error(response.data.message || 'Failed to add document');
     
   } catch (error) {
-    console.error('Track by number error:', error);
+    console.error('Add document error:', error);
     return {
       success: false,
-      message: error.response?.data?.error || error.message || 'Failed to track shipment',
+      message: error.response?.data?.error || error.message || 'Failed to add document',
       error: error.response?.data
     };
   }
@@ -476,37 +558,45 @@ export const getShipmentTypeDisplay = (type) => {
   return types[type] || type;
 };
 
-// Get origin display
-export const getOriginDisplay = (origin) => {
-  const origins = {
-    'China Warehouse': 'China Warehouse',
-    'Thailand Warehouse': 'Thailand Warehouse'
+// Get courier company display
+export const getCourierCompanyDisplay = (company) => {
+  const companies = {
+    'DHL': 'DHL Express',
+    'FedEx': 'FedEx',
+    'UPS': 'UPS',
+    'USPS': 'USPS',
+    'Other': 'Other Courier'
   };
   
-  return origins[origin] || origin;
+  return companies[company] || company;
 };
 
-// Get destination display
-export const getDestinationDisplay = (destination) => {
-  const destinations = {
-    'USA': 'United States',
-    'UK': 'United Kingdom',
-    'Canada': 'Canada'
-  };
-  
-  return destinations[destination] || destination;
+// Get sender full name
+export const getSenderName = (sender) => {
+  if (!sender) return 'N/A';
+  return sender.name || sender.companyName || 'N/A';
 };
 
-// Get shipping mode display
-export const getShippingModeDisplay = (mode) => {
-  const modes = {
-    'DDP': 'Delivered Duty Paid',
-    'DDU': 'Delivered Duty Unpaid',
-    'FOB': 'Free on Board',
-    'CIF': 'Cost, Insurance & Freight'
-  };
+// Get receiver full name
+export const getReceiverName = (receiver) => {
+  if (!receiver) return 'N/A';
+  return receiver.name || receiver.companyName || 'N/A';
+};
+
+// Format address
+export const formatAddress = (addressObj) => {
+  if (!addressObj) return 'N/A';
   
-  return modes[mode] || mode;
+  const parts = [
+    addressObj.addressLine1,
+    addressObj.addressLine2,
+    addressObj.city,
+    addressObj.state,
+    addressObj.country,
+    addressObj.postalCode
+  ].filter(Boolean);
+  
+  return parts.join(', ') || 'N/A';
 };
 
 // Format date
@@ -554,6 +644,31 @@ export const formatCurrency = (amount, currency = 'USD') => {
   }).format(amount);
 };
 
+// Calculate totals from package details
+export const calculatePackageTotals = (packageDetails) => {
+  if (!packageDetails || !packageDetails.length) {
+    return { totalPackages: 0, totalWeight: 0, totalVolume: 0 };
+  }
+  
+  return packageDetails.reduce((totals, item) => {
+    return {
+      totalPackages: totals.totalPackages + (item.quantity || 0),
+      totalWeight: totals.totalWeight + ((item.weight || 0) * (item.quantity || 0)),
+      totalVolume: totals.totalVolume + ((item.volume || 0) * (item.quantity || 0))
+    };
+  }, { totalPackages: 0, totalWeight: 0, totalVolume: 0 });
+};
+
+// Format package details for display
+export const formatPackageDetails = (packageDetails) => {
+  if (!packageDetails || !packageDetails.length) return [];
+  
+  return packageDetails.map((item, index) => ({
+    ...item,
+    displayName: `${item.description} (${item.quantity} pcs, ${item.weight} kg, ${item.volume} cbm)`
+  }));
+};
+
 // Check if quote is valid
 export const isQuoteValid = (quote) => {
   if (!quote || !quote.validUntil) return false;
@@ -590,29 +705,14 @@ export const canRespondToQuote = (status, pricingStatus, quoteValid) => {
          quoteValid === true;
 };
 
-// Calculate total from cargo details
-export const calculateCargoTotals = (cargoDetails) => {
-  if (!cargoDetails || !cargoDetails.length) {
-    return { totalCartons: 0, totalWeight: 0, totalVolume: 0 };
-  }
-  
-  return cargoDetails.reduce((totals, item) => {
-    return {
-      totalCartons: totals.totalCartons + (item.cartons || 0),
-      totalWeight: totals.totalWeight + ((item.weight || 0) * (item.cartons || 0)),
-      totalVolume: totals.totalVolume + ((item.volume || 0) * (item.cartons || 0))
-    };
-  }, { totalCartons: 0, totalWeight: 0, totalVolume: 0 });
+// Check if booking has shipment
+export const hasShipment = (booking) => {
+  return booking && booking.shipmentId;
 };
 
-// Format cargo details for display
-export const formatCargoDetails = (cargoDetails) => {
-  if (!cargoDetails || !cargoDetails.length) return [];
-  
-  return cargoDetails.map((item, index) => ({
-    ...item,
-    displayName: `${item.description} (${item.cartons} ctns, ${item.weight} kg, ${item.volume} cbm)`
-  }));
+// Check if booking has invoice
+export const hasInvoice = (booking) => {
+  return booking && booking.invoiceId;
 };
 
 // Export bookings to CSV
@@ -622,18 +722,19 @@ export const exportBookingsToCSV = (bookings, filename = 'bookings.csv') => {
   const headers = [
     'Booking Number',
     'Tracking Number',
-    'Customer',
+    'Sender Name',
+    'Receiver Name',
     'Status',
     'Pricing Status',
-    'Origin',
-    'Destination',
+    'Origin Country',
+    'Destination Country',
     'Shipment Type',
-    'Shipping Mode',
-    'Total Cartons',
+    'Total Packages',
     'Total Weight (kg)',
     'Total Volume (cbm)',
     'Quoted Amount',
-    'Quoted Currency',
+    'Currency',
+    'Courier Company',
     'Created Date',
     'Confirmed Date'
   ];
@@ -641,18 +742,19 @@ export const exportBookingsToCSV = (bookings, filename = 'bookings.csv') => {
   const csvData = bookings.map(booking => [
     booking.bookingNumber,
     booking.trackingNumber || 'N/A',
-    booking.customer?.companyName || `${booking.customer?.firstName || ''} ${booking.customer?.lastName || ''}`.trim() || 'N/A',
+    getSenderName(booking.sender),
+    getReceiverName(booking.receiver),
     getStatusDisplayText(booking.status),
     getPricingStatusDisplayText(booking.pricingStatus),
-    getOriginDisplay(booking.shipmentDetails?.origin),
-    getDestinationDisplay(booking.shipmentDetails?.destination),
+    booking.sender?.address?.country || 'N/A',
+    booking.receiver?.address?.country || 'N/A',
     getShipmentTypeDisplay(booking.shipmentDetails?.shipmentType),
-    getShippingModeDisplay(booking.shipmentDetails?.shippingMode),
-    booking.shipmentDetails?.totalCartons || 0,
+    booking.shipmentDetails?.totalPackages || 0,
     booking.shipmentDetails?.totalWeight || 0,
     booking.shipmentDetails?.totalVolume || 0,
     booking.quotedPrice?.amount || '',
-    booking.quotedPrice?.currency || '',
+    booking.quotedPrice?.currency || 'USD',
+    getCourierCompanyDisplay(booking.courier?.company),
     formatDate(booking.createdAt, 'short'),
     booking.confirmedAt ? formatDate(booking.confirmedAt, 'short') : 'N/A'
   ]);
@@ -680,6 +782,8 @@ export const exportBookingsToCSV = (bookings, filename = 'bookings.csv') => {
 // ==================== REACT HOOKS ====================
 
 // Custom hook for booking operations
+import { useState } from 'react';
+
 export const useBooking = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -772,6 +876,23 @@ export const useBooking = () => {
     }
   };
 
+  const updateStatus = async (bookingId, statusData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await updateDeliveryStatus(bookingId, statusData);
+      if (result.success) {
+        setBooking(result.data);
+      }
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -780,7 +901,8 @@ export const useBooking = () => {
     updateQuote,
     accept,
     reject,
-    cancel
+    cancel,
+    updateStatus
   };
 };
 
@@ -830,6 +952,62 @@ export const useCustomerBookings = () => {
     }
   };
 
+  const getBookingDetails = async (bookingId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getMyBookingById(bookingId);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTimeline = async (bookingId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getMyBookingTimeline(bookingId);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getInvoice = async (bookingId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getMyBookingInvoice(bookingId);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getQuote = async (bookingId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getMyBookingQuote(bookingId);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -837,6 +1015,10 @@ export const useCustomerBookings = () => {
     summary,
     pagination,
     fetchMyBookings,
-    fetchSummary
+    fetchSummary,
+    getBookingDetails,
+    getTimeline,
+    getInvoice,
+    getQuote
   };
 };

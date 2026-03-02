@@ -1,4 +1,4 @@
-// components/bookings/allBookins.js
+// components/bookings/allBookings.js (নাম ঠিক করেছেন? ফাইল নাম হবে allBookings.js)
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -14,7 +14,7 @@ import {
   getMyBookings,
   getMyBookingById,
   getMyBookingTimeline,
-  getMyBookingInvoices,
+  getMyBookingInvoice,        // Singular - invoice
   getMyBookingQuote,
   getMyBookingsSummary,
   downloadBookingDocument,
@@ -24,9 +24,10 @@ import {
   getStatusDisplayText,
   getPricingStatusDisplayText,
   getShipmentTypeDisplay,
-  getOriginDisplay,
-  getDestinationDisplay,
-  getShippingModeDisplay,
+  getCourierCompanyDisplay,    // নতুন
+  getSenderName,               // নতুন
+  getReceiverName,             // নতুন
+  formatAddress,               // নতুন
   formatDate,
   formatCurrency,
   isQuoteValid,
@@ -34,8 +35,8 @@ import {
   canCancelBooking,
   canQuoteBooking,
   canRespondToQuote,
-  calculateCargoTotals,
-  formatCargoDetails,
+  calculatePackageTotals,      // পরিবর্তিত
+  formatPackageDetails,        // পরিবর্তিত
   exportBookingsToCSV,
   useBooking,
   useCustomerBookings
@@ -59,7 +60,7 @@ import {
   Maximize2, Minimize2, Grid, List,
   AlertTriangle, Info, CheckCircle as CheckCircleSolid,
   XCircle as XCircleSolid, Clock as ClockSolid,
-  Receipt, FileSpreadsheet, CreditCard
+  Receipt, FileSpreadsheet, CreditCard, UserPlus, Building, Ruler
 } from 'lucide-react';
 
 // ==================== COLOR CONSTANTS ====================
@@ -103,49 +104,40 @@ const STATUS_CONFIG = {
     icon: CheckCircle,
     progress: 40,
     editable: true,
-    cancellable: true,
-    nextStatus: ['pickup_scheduled', 'cancelled']
+    cancellable: false,
+    nextStatus: ['pending']
   },
-  pickup_scheduled: {
-    label: 'Pickup Scheduled',
-    color: 'bg-purple-50 text-purple-700 border-purple-200',
-    icon: Calendar,
-    progress: 50,
+  pending: {
+    label: 'Pending',
+    color: 'bg-gray-50 text-gray-700 border-gray-200',
+    icon: Clock,
+    progress: 45,
     editable: true,
-    cancellable: true,
-    nextStatus: ['received_at_warehouse', 'cancelled']
+    cancellable: false,
+    nextStatus: ['received_at_warehouse']
   },
   received_at_warehouse: {
     label: 'Received at Warehouse',
     color: 'bg-orange-50 text-orange-700 border-orange-200',
     icon: Package,
     progress: 60,
-    editable: true,
+    editable: false,
     cancellable: false,
     nextStatus: ['consolidation_in_progress']
   },
   consolidation_in_progress: {
-    label: 'Consolidation in Progress',
+    label: 'Consolidation',
     color: 'bg-amber-50 text-amber-700 border-amber-200',
     icon: Box,
     progress: 70,
     editable: false,
     cancellable: false,
-    nextStatus: ['loaded_in_container', 'loaded_on_flight']
+    nextStatus: ['loaded_in_container']
   },
   loaded_in_container: {
-    label: 'Loaded in Container',
+    label: 'Loaded',
     color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     icon: Ship,
-    progress: 75,
-    editable: false,
-    cancellable: false,
-    nextStatus: ['loaded_on_flight']
-  },
-  loaded_on_flight: {
-    label: 'Loaded on Flight',
-    color: 'bg-sky-50 text-sky-700 border-sky-200',
-    icon: Plane,
     progress: 75,
     editable: false,
     cancellable: false,
@@ -161,7 +153,7 @@ const STATUS_CONFIG = {
     nextStatus: ['arrived_at_destination']
   },
   arrived_at_destination: {
-    label: 'Arrived at Destination',
+    label: 'Arrived',
     color: 'bg-teal-50 text-teal-700 border-teal-200',
     icon: MapPin,
     progress: 85,
@@ -170,7 +162,7 @@ const STATUS_CONFIG = {
     nextStatus: ['customs_clearance']
   },
   customs_clearance: {
-    label: 'Customs Clearance',
+    label: 'Customs',
     color: 'bg-lime-50 text-lime-700 border-lime-200',
     icon: FileText,
     progress: 90,
@@ -220,7 +212,7 @@ const STATUS_CONFIG = {
 const SHIPMENT_TYPE_ICONS = {
   air_freight: Plane,
   sea_freight: Ship,
-  express_courier: Package
+  express_courier: Truck
 };
 
 const SHIPMENT_TYPE_COLORS = {
@@ -231,20 +223,8 @@ const SHIPMENT_TYPE_COLORS = {
 
 // ==================== COMPONENTS ====================
 
-// Button Component
-const Button = ({
-  children,
-  type = 'button',
-  variant = 'primary',
-  size = 'md',
-  isLoading = false,
-  disabled = false,
-  onClick,
-  className = '',
-  icon = null,
-  iconPosition = 'left',
-  fullWidth = false
-}) => {
+// Button Component (same as before)
+const Button = ({ children, type = 'button', variant = 'primary', size = 'md', isLoading = false, disabled = false, onClick, className = '', icon = null, iconPosition = 'left', fullWidth = false }) => {
   const baseClasses = 'rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center';
   
   const variants = {
@@ -288,21 +268,8 @@ const Button = ({
   );
 };
 
-// Input Component
-const Input = ({
-  type = 'text',
-  name,
-  value,
-  onChange,
-  placeholder,
-  label,
-  error,
-  icon: Icon,
-  required = false,
-  disabled = false,
-  className = '',
-  ...props
-}) => {
+// Input Component (same as before)
+const Input = ({ type = 'text', name, value, onChange, placeholder, label, error, icon: Icon, required = false, disabled = false, className = '', ...props }) => {
   return (
     <div className="space-y-1">
       {label && (
@@ -339,20 +306,8 @@ const Input = ({
   );
 };
 
-// Select Component
-const Select = ({
-  name,
-  value,
-  onChange,
-  options,
-  placeholder = 'Select option',
-  label,
-  error,
-  icon: Icon,
-  required = false,
-  disabled = false,
-  className = ''
-}) => {
+// Select Component (same as before)
+const Select = ({ name, value, onChange, options, placeholder = 'Select option', label, error, icon: Icon, required = false, disabled = false, className = '' }) => {
   return (
     <div className="space-y-1">
       {label && (
@@ -397,19 +352,8 @@ const Select = ({
   );
 };
 
-// TextArea Component
-const TextArea = ({
-  name,
-  value,
-  onChange,
-  placeholder,
-  label,
-  error,
-  rows = 3,
-  required = false,
-  disabled = false,
-  className = ''
-}) => {
+// TextArea Component (same as before)
+const TextArea = ({ name, value, onChange, placeholder, label, error, rows = 3, required = false, disabled = false, className = '' }) => {
   return (
     <div className="space-y-1">
       {label && (
@@ -496,7 +440,17 @@ const ShipmentTypeBadge = ({ type }) => {
   );
 };
 
-// Action Menu Component
+// Courier Badge (New)
+const CourierBadge = ({ company, serviceType }) => {
+  return (
+    <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+      <Truck className="h-3.5 w-3.5 mr-1" />
+      {company} {serviceType && `(${serviceType})`}
+    </span>
+  );
+};
+
+// Action Menu Component - Updated with correct schema fields
 const ActionMenu = ({ booking, onAction }) => {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = React.useRef(null);
@@ -531,9 +485,9 @@ const ActionMenu = ({ booking, onAction }) => {
       show: true
     },
     { 
-      label: 'View Invoices', 
+      label: 'View Invoice', 
       icon: Receipt, 
-      action: 'invoices', 
+      action: 'invoice',      // Changed from 'invoices' to 'invoice'
       color: 'text-green-600',
       show: true
     },
@@ -711,384 +665,364 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   );
 };
 
-// Price Quote Modal - Backend structure অনুযায়ী
+// Price Quote Modal - Updated with schema fields
 const PriceQuoteModal = ({ isOpen, onClose, booking, onSave }) => {
-    const [formData, setFormData] = useState({
-        amount: '',
-        currency: 'USD',
-        validUntil: '',
-        notes: '',
-        breakdown: {
-            freightCost: 0,
-            handlingFee: 0,
-            warehouseFee: 0,
-            customsFee: 0,
-            insurance: 0,
-            otherCharges: 0
+  const [formData, setFormData] = useState({
+    amount: '',
+    currency: 'USD',
+    validUntil: '',
+    notes: '',
+    breakdown: {
+      baseRate: 0,
+      weightCharge: 0,
+      fuelSurcharge: 0,
+      residentialSurcharge: 0,
+      insurance: 0,
+      tax: 0,
+      otherCharges: 0
+    }
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (booking) {
+      // Set default valid until date (7 days from now)
+      const defaultValidUntil = new Date();
+      defaultValidUntil.setDate(defaultValidUntil.getDate() + 7);
+      
+      setFormData({
+        amount: booking.quotedPrice?.amount || '',
+        currency: booking.quotedPrice?.currency || 'USD',
+        validUntil: booking.quotedPrice?.validUntil 
+          ? new Date(booking.quotedPrice.validUntil).toISOString().split('T')[0]
+          : defaultValidUntil.toISOString().split('T')[0],
+        notes: booking.quotedPrice?.notes || '',
+        breakdown: booking.quotedPrice?.breakdown || {
+          baseRate: 0,
+          weightCharge: 0,
+          fuelSurcharge: 0,
+          residentialSurcharge: 0,
+          insurance: 0,
+          tax: 0,
+          otherCharges: 0
         }
-    });
-    const [loading, setLoading] = useState(false);
+      });
+    }
+  }, [booking]);
 
-    useEffect(() => {
-        if (booking) {
-            // Set default valid until date (7 days from now)
-            const defaultValidUntil = new Date();
-            defaultValidUntil.setDate(defaultValidUntil.getDate() + 7);
-            
-            // Format as DD-MM-YYYY
-            const day = String(defaultValidUntil.getDate()).padStart(2, '0');
-            const month = String(defaultValidUntil.getMonth() + 1).padStart(2, '0');
-            const year = defaultValidUntil.getFullYear();
-            const formattedDate = `${day}-${month}-${year}`;
-            
-            setFormData({
-                amount: booking.quotedPrice?.amount || '',
-                currency: booking.quotedPrice?.currency || 'USD',
-                validUntil: booking.quotedPrice?.validUntil 
-                    ? formatDateForInput(booking.quotedPrice.validUntil)
-                    : formattedDate,
-                notes: booking.quotedPrice?.notes || '',
-                breakdown: booking.quotedPrice?.breakdown || {
-                    freightCost: 0,
-                    handlingFee: 0,
-                    warehouseFee: 0,
-                    customsFee: 0,
-                    insurance: 0,
-                    otherCharges: 0
-                }
-            });
-        }
-    }, [booking]);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-    // Helper function to format date for input
-    const formatDateForInput = (dateString) => {
-        const date = new Date(dateString);
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = date.getFullYear();
-        return `${day}-${month}-${year}`;
-    };
+  const handleBreakdownChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      breakdown: {
+        ...prev.breakdown,
+        [field]: parseFloat(value) || 0
+      }
+    }));
+  };
 
-    // Parse DD-MM-YYYY to ISO string for backend
-    const parseDateToISO = (dateString) => {
-        const [day, month, year] = dateString.split('-');
-        return new Date(`${year}-${month}-${day}`).toISOString();
-    };
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleBreakdownChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            breakdown: {
-                ...prev.breakdown,
-                [field]: parseFloat(value) || 0
-            }
-        }));
-    };
-
-    // In your frontend PriceQuoteModal handleSubmit function
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.amount || !formData.validUntil) {
-        toast.warning('Please fill in all required fields');
-        return;
+      toast.warning('Please fill in all required fields');
+      return;
     }
 
     setLoading(true);
     try {
-        // Parse date from DD-MM-YYYY format
-        const [day, month, year] = formData.validUntil.split('-');
-        const validUntilDate = new Date(`${year}-${month}-${day}`);
-        
-        const quoteData = {
-            amount: parseFloat(formData.amount),
-            currency: formData.currency,
-            validUntil: validUntilDate.toISOString(),
-            notes: formData.notes,
-            breakdown: {
-                freightCost: parseFloat(formData.freightCost) || 0,
-                handlingFee: parseFloat(formData.handlingFee) || 0,
-                warehouseFee: parseFloat(formData.warehouseFee) || 0,
-                customsFee: parseFloat(formData.customsFee) || 0,
-                insurance: parseFloat(formData.insurance) || 0,
-                otherCharges: parseFloat(formData.otherCharges) || 0
-            }
-        };
-        
-        await onSave(booking._id, quoteData);
-        onClose();
-        toast.success('Price quote updated successfully!');
+      const quoteData = {
+        amount: parseFloat(formData.amount),
+        currency: formData.currency,
+        validUntil: new Date(formData.validUntil).toISOString(),
+        notes: formData.notes,
+        breakdown: {
+          baseRate: parseFloat(formData.breakdown.baseRate) || 0,
+          weightCharge: parseFloat(formData.breakdown.weightCharge) || 0,
+          fuelSurcharge: parseFloat(formData.breakdown.fuelSurcharge) || 0,
+          residentialSurcharge: parseFloat(formData.breakdown.residentialSurcharge) || 0,
+          insurance: parseFloat(formData.breakdown.insurance) || 0,
+          tax: parseFloat(formData.breakdown.tax) || 0,
+          otherCharges: parseFloat(formData.breakdown.otherCharges) || 0
+        }
+      };
+      
+      await onSave(booking._id, quoteData);
+      onClose();
     } catch (error) {
-        toast.error(error.message || 'Failed to update price quote');
+      // Error handled in parent
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
+  };
+
+  if (!isOpen || !booking) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Update Price Quote" size="lg">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Amount and Currency row */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Amount <span className="text-red-500">*</span>
+          </label>
+          <div className="flex items-center space-x-2">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span className="text-gray-500">$</span>
+              </div>
+              <input
+                type="number"
+                name="amount"
+                value={formData.amount}
+                onChange={handleChange}
+                step="0.01"
+                min="0"
+                className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-transparent"
+                placeholder="0.00"
+                required
+              />
+            </div>
+            <select
+              name="currency"
+              value={formData.currency}
+              onChange={handleChange}
+              className="w-24 px-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-transparent bg-white"
+            >
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="CAD">CAD</option>
+              <option value="THB">THB</option>
+              <option value="CNY">CNY</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Valid Until */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Valid Until <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            name="validUntil"
+            value={formData.validUntil}
+            onChange={handleChange}
+            className="w-full px-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-transparent"
+            required
+          />
+        </div>
+
+        {/* Price Breakdown Section - Updated */}
+        <div className="border rounded-lg p-4 bg-gray-50">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">Price Breakdown</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Base Rate</label>
+              <input
+                type="number"
+                value={formData.breakdown.baseRate}
+                onChange={(e) => handleBreakdownChange('baseRate', e.target.value)}
+                className="w-full px-3 py-1 text-sm border rounded-lg"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Weight Charge</label>
+              <input
+                type="number"
+                value={formData.breakdown.weightCharge}
+                onChange={(e) => handleBreakdownChange('weightCharge', e.target.value)}
+                className="w-full px-3 py-1 text-sm border rounded-lg"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Fuel Surcharge</label>
+              <input
+                type="number"
+                value={formData.breakdown.fuelSurcharge}
+                onChange={(e) => handleBreakdownChange('fuelSurcharge', e.target.value)}
+                className="w-full px-3 py-1 text-sm border rounded-lg"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Residential Surcharge</label>
+              <input
+                type="number"
+                value={formData.breakdown.residentialSurcharge}
+                onChange={(e) => handleBreakdownChange('residentialSurcharge', e.target.value)}
+                className="w-full px-3 py-1 text-sm border rounded-lg"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Insurance</label>
+              <input
+                type="number"
+                value={formData.breakdown.insurance}
+                onChange={(e) => handleBreakdownChange('insurance', e.target.value)}
+                className="w-full px-3 py-1 text-sm border rounded-lg"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Tax</label>
+              <input
+                type="number"
+                value={formData.breakdown.tax}
+                onChange={(e) => handleBreakdownChange('tax', e.target.value)}
+                className="w-full px-3 py-1 text-sm border rounded-lg"
+                placeholder="0.00"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Other Charges</label>
+              <input
+                type="number"
+                value={formData.breakdown.otherCharges}
+                onChange={(e) => handleBreakdownChange('otherCharges', e.target.value)}
+                className="w-full px-3 py-1 text-sm border rounded-lg"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Notes (Optional)
+          </label>
+          <textarea
+            name="notes"
+            value={formData.notes}
+            onChange={handleChange}
+            rows={3}
+            placeholder="Add any notes about this quote..."
+            className="w-full px-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-transparent"
+          />
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex justify-end space-x-3 pt-4 border-t">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 text-sm font-medium text-white bg-[#E67E22] rounded-lg hover:bg-[#d35400] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Quote'
+            )}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
 };
 
-    if (!isOpen || !booking) return null;
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Update Price Quote" size="lg">
-            <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Amount and Currency row */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Amount <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex items-center space-x-2">
-                        <div className="relative flex-1">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <span className="text-gray-500">$</span>
-                            </div>
-                            <input
-                                type="number"
-                                name="amount"
-                                value={formData.amount}
-                                onChange={handleChange}
-                                step="0.01"
-                                min="0"
-                                className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-transparent"
-                                placeholder="0.00"
-                                required
-                            />
-                        </div>
-                        <select
-                            name="currency"
-                            value={formData.currency}
-                            onChange={handleChange}
-                            className="w-24 px-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-transparent bg-white"
-                        >
-                            <option value="USD">USD</option>
-                            <option value="GBP">GBP</option>
-                            <option value="CAD">CAD</option>
-                            <option value="THB">THB</option>
-                            <option value="CNY">CNY</option>
-                        </select>
-                    </div>
-                </div>
-
-                {/* Valid Until - DD-MM-YYYY format */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Valid Until <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                        type="text"
-                        name="validUntil"
-                        value={formData.validUntil}
-                        onChange={handleChange}
-                        placeholder="DD-MM-YYYY"
-                        pattern="\d{2}-\d{2}-\d{4}"
-                        className="w-full px-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-transparent"
-                        required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Format: DD-MM-YYYY (e.g., 07-03-2026)</p>
-                </div>
-
-                {/* Price Breakdown Section - Optional but good to have */}
-                <div className="border rounded-lg p-4 bg-gray-50">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">Price Breakdown (Optional)</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Freight Cost</label>
-                            <input
-                                type="number"
-                                value={formData.breakdown.freightCost}
-                                onChange={(e) => handleBreakdownChange('freightCost', e.target.value)}
-                                className="w-full px-3 py-1 text-sm border rounded-lg"
-                                placeholder="0.00"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Handling Fee</label>
-                            <input
-                                type="number"
-                                value={formData.breakdown.handlingFee}
-                                onChange={(e) => handleBreakdownChange('handlingFee', e.target.value)}
-                                className="w-full px-3 py-1 text-sm border rounded-lg"
-                                placeholder="0.00"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Warehouse Fee</label>
-                            <input
-                                type="number"
-                                value={formData.breakdown.warehouseFee}
-                                onChange={(e) => handleBreakdownChange('warehouseFee', e.target.value)}
-                                className="w-full px-3 py-1 text-sm border rounded-lg"
-                                placeholder="0.00"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Customs Fee</label>
-                            <input
-                                type="number"
-                                value={formData.breakdown.customsFee}
-                                onChange={(e) => handleBreakdownChange('customsFee', e.target.value)}
-                                className="w-full px-3 py-1 text-sm border rounded-lg"
-                                placeholder="0.00"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Insurance</label>
-                            <input
-                                type="number"
-                                value={formData.breakdown.insurance}
-                                onChange={(e) => handleBreakdownChange('insurance', e.target.value)}
-                                className="w-full px-3 py-1 text-sm border rounded-lg"
-                                placeholder="0.00"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">Other Charges</label>
-                            <input
-                                type="number"
-                                value={formData.breakdown.otherCharges}
-                                onChange={(e) => handleBreakdownChange('otherCharges', e.target.value)}
-                                className="w-full px-3 py-1 text-sm border rounded-lg"
-                                placeholder="0.00"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Notes */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Notes (Optional)
-                    </label>
-                    <textarea
-                        name="notes"
-                        value={formData.notes}
-                        onChange={handleChange}
-                        rows={3}
-                        placeholder="Add any notes about this quote..."
-                        className="w-full px-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-transparent"
-                    />
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="px-4 py-2 text-sm font-medium text-white bg-[#E67E22] rounded-lg hover:bg-[#d35400] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                    >
-                        {loading ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Saving...
-                            </>
-                        ) : (
-                            'Save Quote'
-                        )}
-                    </button>
-                </div>
-            </form>
-        </Modal>
-    );
-};
-
-// Accept/Reject Quote Modal - FIXED VERSION with null checks 
+// Accept/Reject Quote Modal
 const QuoteResponseModal = ({ isOpen, onClose, booking, type, onRespond }) => {
-    const [notes, setNotes] = useState('');
-    const [loading, setLoading] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    if (!isOpen || !booking) return null;
+  if (!isOpen || !booking) return null;
 
-    // Safely access quote data
-    const quoteAmount = booking.quotedPrice?.amount;
-    const quoteCurrency = booking.quotedPrice?.currency || 'USD';
-    const quoteValidUntil = booking.quotedPrice?.validUntil;
+  const quoteAmount = booking.quotedPrice?.amount;
+  const quoteCurrency = booking.quotedPrice?.currency || 'USD';
+  const quoteValidUntil = booking.quotedPrice?.validUntil;
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        
-        // For reject, reason is required
-        if (type === 'reject' && !notes.trim()) {
-            toast.warning('Please provide a reason for rejection');
-            return;
-        }
-        
-        setLoading(true);
-        try {
-            // Backend expects just the reason/notes
-            await onRespond(booking._id, notes);
-            onClose();
-        } catch (error) {
-            toast.error(error.message || `Failed to ${type} quote`);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (type === 'reject' && !notes.trim()) {
+      toast.warning('Please provide a reason for rejection');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onRespond(booking._id, notes);
+      onClose();
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={type === 'accept' ? 'Accept Quote' : 'Reject Quote'} size="md">
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div className={`p-4 rounded-lg ${type === 'accept' ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <div className="flex items-start">
-                        {type === 'accept' ? (
-                            <CheckCircle className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
-                        ) : (
-                            <AlertTriangle className="h-5 w-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
-                        )}
-                        <div>
-                            <p className={`text-sm font-medium ${type === 'accept' ? 'text-green-800' : 'text-red-800'}`}>
-                                {type === 'accept' 
-                                    ? 'Are you sure you want to accept this quote?' 
-                                    : 'Are you sure you want to reject this quote?'}
-                            </p>
-                            {quoteAmount && (
-                                <p className="text-xs text-gray-600 mt-1">
-                                    Amount: {formatCurrency(quoteAmount, quoteCurrency)}
-                                    {quoteValidUntil && ` • Valid until: ${formatDate(quoteValidUntil)}`}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                </div>
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={type === 'accept' ? 'Accept Quote' : 'Reject Quote'} size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className={`p-4 rounded-lg ${type === 'accept' ? 'bg-green-50' : 'bg-red-50'}`}>
+          <div className="flex items-start">
+            {type === 'accept' ? (
+              <CheckCircle className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+            )}
+            <div>
+              <p className={`text-sm font-medium ${type === 'accept' ? 'text-green-800' : 'text-red-800'}`}>
+                {type === 'accept' 
+                  ? 'Are you sure you want to accept this quote?' 
+                  : 'Are you sure you want to reject this quote?'}
+              </p>
+              {quoteAmount && (
+                <p className="text-xs text-gray-600 mt-1">
+                  Amount: {formatCurrency(quoteAmount, quoteCurrency)}
+                  {quoteValidUntil && ` • Valid until: ${formatDate(quoteValidUntil)}`}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
 
-                <TextArea
-                    label={type === 'accept' ? 'Notes (Optional)' : 'Reason for rejection'}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder={type === 'accept' ? 'Add any notes...' : 'Please provide a reason for rejection...'}
-                    rows={3}
-                    required={type === 'reject'}
-                />
+        <TextArea
+          label={type === 'accept' ? 'Notes (Optional)' : 'Reason for rejection'}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder={type === 'accept' ? 'Add any notes...' : 'Please provide a reason for rejection...'}
+          rows={3}
+          required={type === 'reject'}
+        />
 
-                <div className="flex justify-end space-x-3 pt-4">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={onClose}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        type="submit"
-                        variant={type === 'accept' ? 'success' : 'danger'}
-                        isLoading={loading}
-                        icon={type === 'accept' ? <Check className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                    >
-                        {type === 'accept' ? 'Yes, Accept' : 'Yes, Reject'}
-                    </Button>
-                </div>
-            </form>
-        </Modal>
-    );
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant={type === 'accept' ? 'success' : 'danger'}
+            isLoading={loading}
+            icon={type === 'accept' ? <Check className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          >
+            {type === 'accept' ? 'Yes, Accept' : 'Yes, Reject'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
 };
 
 // Cancel Booking Modal
@@ -1163,13 +1097,13 @@ const CancelModal = ({ isOpen, onClose, booking, onCancel }) => {
   );
 };
 
-// Booking Details Modal
+// Booking Details Modal - Updated with schema
 const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
   const [activeTab, setActiveTab] = useState('details');
   
   if (!isOpen || !booking) return null;
 
-  const cargoTotals = calculateCargoTotals(booking.cargoDetails);
+  const packageTotals = calculatePackageTotals(booking.shipmentDetails?.packageDetails || []);
   const quoteValid = booking.quotedPrice ? isQuoteValid(booking.quotedPrice) : false;
   const daysRemaining = booking.quotedPrice ? getQuoteDaysRemaining(booking.quotedPrice.validUntil) : 0;
 
@@ -1192,12 +1126,24 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
           </div>
         </div>
 
+        {/* Courier Info - New Section */}
+        {booking.courier && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+            <div className="flex items-center">
+              <Truck className="h-4 w-4 text-purple-600 mr-2" />
+              <span className="text-sm font-medium text-purple-700">
+                {booking.courier.company} - {booking.courier.serviceType}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="border-b border-gray-200">
           <nav className="flex space-x-4">
             {[
               { id: 'details', label: 'Details', icon: Package },
-              { id: 'cargo', label: 'Cargo', icon: Box },
+              { id: 'package', label: 'Package', icon: Box },
               { id: 'pricing', label: 'Pricing', icon: DollarSign },
               { id: 'tracking', label: 'Tracking', icon: Hash }
             ].map(tab => (
@@ -1221,32 +1167,62 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
         <div className="min-h-[300px]">
           {activeTab === 'details' && (
             <div className="space-y-4">
-              {/* Customer Info */}
+              {/* Sender Info */}
               <div className="border rounded-lg p-4">
                 <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                   <User className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
-                  Customer Information
+                  Sender Information
                 </h5>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-gray-500">Company Name</p>
-                    <p className="text-sm font-medium">
-                      {booking.customer?.companyName || 'N/A'}
-                    </p>
+                    <p className="text-xs text-gray-500">Name</p>
+                    <p className="text-sm font-medium">{getSenderName(booking.sender)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Contact Person</p>
-                    <p className="text-sm font-medium">
-                      {booking.customer?.firstName} {booking.customer?.lastName}
-                    </p>
+                    <p className="text-xs text-gray-500">Company</p>
+                    <p className="text-sm font-medium">{booking.sender?.companyName || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Email</p>
-                    <p className="text-sm font-medium">{booking.customer?.email || 'N/A'}</p>
+                    <p className="text-sm font-medium">{booking.sender?.email || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Phone</p>
-                    <p className="text-sm font-medium">{booking.customer?.phone || 'N/A'}</p>
+                    <p className="text-sm font-medium">{booking.sender?.phone || 'N/A'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-500">Address</p>
+                    <p className="text-sm font-medium">{formatAddress(booking.sender?.address)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Receiver Info */}
+              <div className="border rounded-lg p-4">
+                <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                  <UserPlus className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
+                  Receiver Information
+                </h5>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Name</p>
+                    <p className="text-sm font-medium">{getReceiverName(booking.receiver)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Company</p>
+                    <p className="text-sm font-medium">{booking.receiver?.companyName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Email</p>
+                    <p className="text-sm font-medium">{booking.receiver?.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Phone</p>
+                    <p className="text-sm font-medium">{booking.receiver?.phone || 'N/A'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-500">Address</p>
+                    <p className="text-sm font-medium">{formatAddress(booking.receiver?.address)}</p>
                   </div>
                 </div>
               </div>
@@ -1264,15 +1240,15 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Shipping Mode</p>
-                    <p className="text-sm font-medium">{getShippingModeDisplay(booking.shipmentDetails?.shippingMode)}</p>
+                    <p className="text-sm font-medium">{booking.shipmentDetails?.shippingMode || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Origin</p>
-                    <p className="text-sm font-medium">{getOriginDisplay(booking.shipmentDetails?.origin)}</p>
+                    <p className="text-sm font-medium">{booking.shipmentDetails?.origin || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Destination</p>
-                    <p className="text-sm font-medium">{getDestinationDisplay(booking.shipmentDetails?.destination)}</p>
+                    <p className="text-sm font-medium">{booking.shipmentDetails?.destination || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -1309,60 +1285,62 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
             </div>
           )}
 
-          {activeTab === 'cargo' && (
+          {activeTab === 'package' && (
             <div className="space-y-4">
-              {/* Cargo Summary */}
+              {/* Package Summary */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-gray-50 p-4 rounded-lg text-center">
-                  <p className="text-xs text-gray-500">Total Cartons</p>
+                  <p className="text-xs text-gray-500">Total Packages</p>
                   <p className="text-2xl font-semibold" style={{ color: COLORS.primary }}>
-                    {cargoTotals.totalCartons}
+                    {packageTotals.totalPackages}
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg text-center">
                   <p className="text-xs text-gray-500">Total Weight (kg)</p>
                   <p className="text-2xl font-semibold" style={{ color: COLORS.secondary }}>
-                    {cargoTotals.totalWeight.toFixed(1)}
+                    {packageTotals.totalWeight.toFixed(1)}
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg text-center">
                   <p className="text-xs text-gray-500">Total Volume (cbm)</p>
                   <p className="text-2xl font-semibold" style={{ color: COLORS.success }}>
-                    {cargoTotals.totalVolume.toFixed(2)}
+                    {packageTotals.totalVolume.toFixed(2)}
                   </p>
                 </div>
               </div>
 
-              {/* Cargo Details Table */}
-              {booking.cargoDetails && booking.cargoDetails.length > 0 ? (
+              {/* Package Details Table */}
+              {booking.shipmentDetails?.packageDetails && booking.shipmentDetails.packageDetails.length > 0 ? (
                 <div className="border rounded-lg overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Description</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Cartons</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Qty</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Weight/Unit</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Volume/Unit</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Total Weight</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Total Volume</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Dimensions</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Volume</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {booking.cargoDetails.map((item, index) => (
+                      {booking.shipmentDetails.packageDetails.map((item, index) => (
                         <tr key={index}>
                           <td className="px-4 py-2 text-sm">{item.description}</td>
-                          <td className="px-4 py-2 text-sm">{item.cartons}</td>
+                          <td className="px-4 py-2 text-sm">{item.quantity}</td>
                           <td className="px-4 py-2 text-sm">{item.weight} kg</td>
+                          <td className="px-4 py-2 text-sm">
+                            {item.dimensions?.length && item.dimensions?.width && item.dimensions?.height ? (
+                              `${item.dimensions.length}x${item.dimensions.width}x${item.dimensions.height} cm`
+                            ) : 'N/A'}
+                          </td>
                           <td className="px-4 py-2 text-sm">{item.volume} cbm</td>
-                          <td className="px-4 py-2 text-sm">{(item.weight * item.cartons).toFixed(1)} kg</td>
-                          <td className="px-4 py-2 text-sm">{(item.volume * item.cartons).toFixed(2)} cbm</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 text-center py-4">No cargo details available</p>
+                <p className="text-sm text-gray-500 text-center py-4">No package details available</p>
               )}
             </div>
           )}
@@ -1393,12 +1371,20 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                     </div>
                   </div>
 
-                  {booking.finalAmount && (
+                  {/* Breakdown */}
+                  {booking.quotedPrice.breakdown && (
                     <div className="border rounded-lg p-4">
-                      <p className="text-xs text-gray-500 mb-1">Final Amount</p>
-                      <p className="text-lg font-semibold" style={{ color: COLORS.primary }}>
-                        {formatCurrency(booking.finalAmount, booking.currency)}
-                      </p>
+                      <h5 className="text-sm font-medium text-gray-700 mb-3">Breakdown</h5>
+                      <div className="space-y-2">
+                        {Object.entries(booking.quotedPrice.breakdown).map(([key, value]) => (
+                          value > 0 && (
+                            <div key={key} className="flex justify-between text-sm">
+                              <span className="text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                              <span className="font-medium">{formatCurrency(value, booking.quotedPrice.currency)}</span>
+                            </div>
+                          )
+                        ))}
+                      </div>
                     </div>
                   )}
                 </>
@@ -1451,6 +1437,17 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Current Location */}
+                  {booking.currentLocation && (
+                    <div className="border rounded-lg p-4">
+                      <p className="text-xs text-gray-500 mb-1">Current Location</p>
+                      <p className="text-sm font-medium">{booking.currentLocation.location}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Last updated: {formatDate(booking.currentLocation.timestamp)}
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="text-sm text-gray-500 text-center py-4">No tracking number assigned yet</p>
@@ -1460,10 +1457,10 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
         </div>
 
         {/* Special Instructions */}
-        {booking.specialInstructions && (
+        {booking.shipmentDetails?.specialInstructions && (
           <div className="border rounded-lg p-4">
             <h5 className="text-sm font-medium text-gray-700 mb-2">Special Instructions</h5>
-            <p className="text-sm text-gray-600">{booking.specialInstructions}</p>
+            <p className="text-sm text-gray-600">{booking.shipmentDetails.specialInstructions}</p>
           </div>
         )}
 
@@ -1497,7 +1494,7 @@ const TimelineModal = ({ isOpen, onClose, bookingId }) => {
     try {
       const result = await getMyBookingTimeline(bookingId);
       if (result.success) {
-        setTimeline(result.data || []);
+        setTimeline(result.data?.timeline || []);
       } else {
         toast.error(result.message);
       }
@@ -1522,20 +1519,16 @@ const TimelineModal = ({ isOpen, onClose, bookingId }) => {
           {timeline.map((event, index) => (
             <div key={index} className="flex items-start space-x-3">
               <div className="flex-shrink-0">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  event.type === 'status' ? 'bg-blue-100' :
-                  event.type === 'note' ? 'bg-purple-100' :
-                  event.type === 'document' ? 'bg-green-100' : 'bg-gray-100'
-                }`}>
-                  {event.type === 'status' && <Activity className="h-4 w-4 text-blue-600" />}
-                  {event.type === 'note' && <MessageSquare className="h-4 w-4 text-purple-600" />}
-                  {event.type === 'document' && <FileText className="h-4 w-4 text-green-600" />}
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-blue-600" />
                 </div>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                <p className="text-sm font-medium text-gray-900">{event.status}</p>
                 <p className="text-xs text-gray-500">{event.description}</p>
-                <p className="text-xs text-gray-400 mt-1">{formatDate(event.createdAt, 'long')}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {formatDate(event.timestamp, 'long')} by {event.updatedBy?.firstName} {event.updatedBy?.lastName}
+                </p>
               </div>
             </div>
           ))}
@@ -1547,28 +1540,28 @@ const TimelineModal = ({ isOpen, onClose, bookingId }) => {
   );
 };
 
-// Invoices Modal
-const InvoicesModal = ({ isOpen, onClose, bookingId }) => {
-  const [invoices, setInvoices] = useState([]);
+// Invoice Modal - Updated (Singular)
+const InvoiceModal = ({ isOpen, onClose, bookingId }) => {
+  const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen && bookingId) {
-      fetchInvoices();
+      fetchInvoice();
     }
   }, [isOpen, bookingId]);
 
-  const fetchInvoices = async () => {
+  const fetchInvoice = async () => {
     setLoading(true);
     try {
-      const result = await getMyBookingInvoices(bookingId);
+      const result = await getMyBookingInvoice(bookingId);
       if (result.success) {
-        setInvoices(result.data || []);
+        setInvoice(result.data);
       } else {
         toast.error(result.message);
       }
     } catch (error) {
-      toast.error('Failed to fetch invoices');
+      toast.error('Failed to fetch invoice');
     } finally {
       setLoading(false);
     }
@@ -1586,40 +1579,67 @@ const InvoicesModal = ({ isOpen, onClose, bookingId }) => {
   if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Invoices & Documents" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Invoice Details" size="lg">
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: COLORS.primary }} />
-          <span className="ml-2 text-sm text-gray-500">Loading invoices...</span>
+          <span className="ml-2 text-sm text-gray-500">Loading invoice...</span>
         </div>
-      ) : invoices.length > 0 ? (
-        <div className="space-y-3">
-          {invoices.map((invoice) => (
-            <div key={invoice._id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <FileText className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{invoice.title}</p>
-                    <p className="text-xs text-gray-500">
-                      {invoice.type} • {formatDate(invoice.createdAt)}
-                    </p>
+      ) : invoice ? (
+        <div className="space-y-4">
+          {/* Invoice Header */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Invoice #{invoice.invoiceNumber}</p>
+                <p className="text-xs text-gray-500">Date: {formatDate(invoice.createdAt)}</p>
+              </div>
+              <PricingStatusBadge status={invoice.paymentStatus} />
+            </div>
+          </div>
+
+          {/* Amount */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-xs text-green-600 mb-1">Total Amount</p>
+            <p className="text-2xl font-bold text-green-700">
+              {formatCurrency(invoice.totalAmount, invoice.currency)}
+            </p>
+          </div>
+
+          {/* Charges */}
+          {invoice.charges && invoice.charges.length > 0 && (
+            <div className="border rounded-lg p-4">
+              <h5 className="text-sm font-medium text-gray-700 mb-3">Charges</h5>
+              <div className="space-y-2">
+                {invoice.charges.map((charge, index) => (
+                  <div key={index} className="flex justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
+                    <div>
+                      <span className="text-gray-600">{charge.description}</span>
+                      <span className="text-xs text-gray-400 ml-2">({charge.type})</span>
+                    </div>
+                    <span className="font-medium">{formatCurrency(charge.amount, charge.currency)}</span>
                   </div>
-                </div>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() => handleDownload(invoice._id)}
-                  icon={<Download className="h-3 w-3" />}
-                >
-                  Download
-                </Button>
+                ))}
               </div>
             </div>
-          ))}
+          )}
+
+          {/* Download Button */}
+          {invoice._id && (
+            <div className="flex justify-end">
+              <Button
+                variant="light"
+                size="sm"
+                onClick={() => handleDownload(invoice._id)}
+                icon={<Download className="h-4 w-4" />}
+              >
+                Download Invoice
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
-        <p className="text-sm text-gray-500 text-center py-4">No invoices found</p>
+        <p className="text-sm text-gray-500 text-center py-4">No invoice found</p>
       )}
     </Modal>
   );
@@ -1666,37 +1686,39 @@ const QuoteDetailsModal = ({ isOpen, onClose, bookingId }) => {
           <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
             <p className="text-xs text-green-600 mb-1">Quote Amount</p>
             <p className="text-3xl font-bold" style={{ color: COLORS.success }}>
-              {formatCurrency(quote.amount, quote.currency)}
+              {formatCurrency(quote.quotedPrice?.amount, quote.quotedPrice?.currency)}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="border rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1">Valid Until</p>
-              <p className="text-sm font-medium">{formatDate(quote.validUntil)}</p>
+              <p className="text-sm font-medium">{formatDate(quote.quotedPrice?.validUntil)}</p>
             </div>
             <div className="border rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1">Status</p>
-              <PricingStatusBadge status={quote.status} />
+              <PricingStatusBadge status={quote.pricingStatus} />
             </div>
           </div>
 
-          {quote.notes && (
+          {quote.quotedPrice?.notes && (
             <div className="border rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1">Notes</p>
-              <p className="text-sm">{quote.notes}</p>
+              <p className="text-sm">{quote.quotedPrice.notes}</p>
             </div>
           )}
 
-          {quote.items && quote.items.length > 0 && (
+          {quote.quotedPrice?.breakdown && (
             <div className="border rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-2">Quote Items</p>
+              <p className="text-xs text-gray-500 mb-2">Breakdown</p>
               <div className="space-y-2">
-                {quote.items.map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <span className="text-gray-600">{item.description}</span>
-                    <span className="font-medium">{formatCurrency(item.amount, quote.currency)}</span>
-                  </div>
+                {Object.entries(quote.quotedPrice.breakdown).map(([key, value]) => (
+                  value > 0 && (
+                    <div key={key} className="flex justify-between text-sm">
+                      <span className="text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                      <span className="font-medium">{formatCurrency(value, quote.quotedPrice.currency)}</span>
+                    </div>
+                  )
                 ))}
               </div>
             </div>
@@ -1746,7 +1768,7 @@ export default function BookingsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showTimelineModal, setShowTimelineModal] = useState(false);
-  const [showInvoicesModal, setShowInvoicesModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);      // Changed from showInvoicesModal
   const [showQuoteModal, setShowQuoteModal] = useState(false);
 
   // Stats
@@ -1863,8 +1885,8 @@ export default function BookingsPage() {
       case 'timeline':
         setShowTimelineModal(true);
         break;
-      case 'invoices':
-        setShowInvoicesModal(true);
+      case 'invoice':           // Changed from 'invoices' to 'invoice'
+        setShowInvoiceModal(true);
         break;
       case 'quote':
         setShowQuoteModal(true);
@@ -2039,7 +2061,7 @@ export default function BookingsPage() {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => router.push('/bookings/new')}
+                onClick={() => router.push('/create-booking')}
                 icon={<Plus className="h-4 w-4" />}
               >
                 New Booking
@@ -2073,7 +2095,7 @@ export default function BookingsPage() {
               <div className="flex-1">
                 <Input
                   type="text"
-                  placeholder="Search by booking number, customer, tracking number..."
+                  placeholder="Search by booking number, customer name, tracking number..."
                   value={filters.search}
                   onChange={handleSearch}
                   icon={Search}
@@ -2087,7 +2109,7 @@ export default function BookingsPage() {
               >
                 Filters
                 {(filters.status || filters.startDate || filters.endDate) && (
-                  <span className="ml-2 bg-white text-[${COLORS.primary}] rounded-full px-2 py-0.5 text-xs">
+                  <span className="ml-2 bg-white text-[#E67E22] rounded-full px-2 py-0.5 text-xs">
                     {Object.values(filters).filter(v => v && v !== '' && v !== 20 && v !== 1).length}
                   </span>
                 )}
@@ -2177,7 +2199,7 @@ export default function BookingsPage() {
                       type="checkbox"
                       checked={selectedBookings.length === filteredBookings.length && filteredBookings.length > 0}
                       onChange={handleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300 focus:ring-[${COLORS.primary}]"
+                      className="h-4 w-4 rounded border-gray-300 focus:ring-[#E67E22]"
                       style={{ accentColor: COLORS.primary }}
                     />
                   </th>
@@ -2191,19 +2213,16 @@ export default function BookingsPage() {
                     </div>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div 
-                      className="flex items-center cursor-pointer hover:text-gray-700"
-                      onClick={() => handleSort('customer')}
-                    >
-                      Customer
-                      <ArrowUpDown className="h-4 w-4 ml-1" />
-                    </div>
+                    Sender
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Receiver
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Route
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
+                    Type / Courier
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div 
@@ -2215,7 +2234,7 @@ export default function BookingsPage() {
                     </div>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cargo
+                    Package
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -2231,7 +2250,7 @@ export default function BookingsPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center">
+                    <td colSpan="11" className="px-4 py-8 text-center">
                       <div className="flex items-center justify-center">
                         <Loader2 className="h-6 w-6 animate-spin" style={{ color: COLORS.primary }} />
                         <span className="ml-2 text-sm text-gray-500">Loading bookings...</span>
@@ -2240,14 +2259,14 @@ export default function BookingsPage() {
                   </tr>
                 ) : filteredBookings.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center">
+                    <td colSpan="11" className="px-4 py-8 text-center">
                       <div className="flex flex-col items-center">
                         <Package className="h-12 w-12 text-gray-400 mb-3" />
                         <p className="text-sm text-gray-500">No bookings found</p>
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => router.push('/bookings/new')}
+                          onClick={() => router.push('/create-booking')}
                           className="mt-3"
                           icon={<Plus className="h-4 w-4" />}
                         >
@@ -2258,7 +2277,7 @@ export default function BookingsPage() {
                   </tr>
                 ) : (
                   filteredBookings.map((booking) => {
-                    const cargoTotals = calculateCargoTotals(booking.cargoDetails);
+                    const packageTotals = calculatePackageTotals(booking.shipmentDetails?.packageDetails || []);
                     const quoteValid = booking.quotedPrice ? isQuoteValid(booking.quotedPrice) : false;
                     
                     return (
@@ -2277,7 +2296,7 @@ export default function BookingsPage() {
                                 setSelectedBookings([...selectedBookings, booking._id]);
                               }
                             }}
-                            className="h-4 w-4 rounded border-gray-300 focus:ring-[${COLORS.primary}]"
+                            className="h-4 w-4 rounded border-gray-300 focus:ring-[#E67E22]"
                             style={{ accentColor: COLORS.primary }}
                           />
                         </td>
@@ -2303,25 +2322,36 @@ export default function BookingsPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {booking.customer?.companyName || `${booking.customer?.firstName || ''} ${booking.customer?.lastName || ''}`.trim() || 'N/A'}
+                            {getSenderName(booking.sender)}
                           </div>
-                          {booking.customer?.email && (
+                          {booking.sender?.email && (
                             <div className="text-xs text-gray-500">
-                              {booking.customer.email}
+                              {booking.sender.email}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-medium text-gray-900">
+                            {getReceiverName(booking.receiver)}
+                          </div>
+                          {booking.receiver?.email && (
+                            <div className="text-xs text-gray-500">
+                              {booking.receiver.email}
                             </div>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center text-xs">
-                            <span className="font-medium text-gray-900">{getOriginDisplay(booking.shipmentDetails?.origin) || 'N/A'}</span>
+                            <span className="font-medium text-gray-900">{booking.shipmentDetails?.origin || 'N/A'}</span>
                             <ChevronRight className="h-3 w-3 mx-1 text-gray-400" />
-                            <span className="font-medium text-gray-900">{getDestinationDisplay(booking.shipmentDetails?.destination) || 'N/A'}</span>
+                            <span className="font-medium text-gray-900">{booking.shipmentDetails?.destination || 'N/A'}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center">
-                            {booking.shipmentDetails?.shipmentType && (
-                              <ShipmentTypeBadge type={booking.shipmentDetails.shipmentType} />
+                          <div className="space-y-1">
+                            <ShipmentTypeBadge type={booking.shipmentDetails?.shipmentType} />
+                            {booking.courier && (
+                              <CourierBadge company={booking.courier.company} serviceType={booking.courier.serviceType} />
                             )}
                           </div>
                         </td>
@@ -2333,10 +2363,10 @@ export default function BookingsPage() {
                         <td className="px-4 py-3">
                           <div className="text-xs">
                             <div className="text-gray-900">
-                              {cargoTotals.totalCartons} ctns
+                              {packageTotals.totalPackages} pkg
                             </div>
                             <div className="text-gray-500">
-                              {cargoTotals.totalWeight.toFixed(1)} kg
+                              {packageTotals.totalWeight.toFixed(1)} kg
                             </div>
                           </div>
                         </td>
@@ -2478,9 +2508,9 @@ export default function BookingsPage() {
         bookingId={selectedBooking?._id}
       />
 
-      <InvoicesModal
-        isOpen={showInvoicesModal}
-        onClose={() => setShowInvoicesModal(false)}
+      <InvoiceModal                                 // Changed from InvoicesModal to InvoiceModal
+        isOpen={showInvoiceModal}
+        onClose={() => setShowInvoiceModal(false)}
         bookingId={selectedBooking?._id}
       />
 
