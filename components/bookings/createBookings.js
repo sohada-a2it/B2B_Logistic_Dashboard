@@ -7,7 +7,9 @@ import Link from 'next/link';
 import { toast } from 'react-toastify';
 import { createBooking } from '@/Api/booking';
 import { getAllUsers } from '@/Api/Authentication';
-import LocationSelector from '@/components/locationSelector';
+
+// ✅ location.js থেকে ফাংশন ইম্পোর্ট করুন
+import { getStates, fetchCitiesByState, getPostalCodes } from '@/Api/location';
 
 // Icons
 import {
@@ -21,6 +23,7 @@ import {
 } from 'lucide-react';
 
 // ==================== CONSTANTS ====================
+
 const SHIPMENT_MAIN_TYPES = [
   { value: 'sea_freight', label: 'Sea Freight', icon: Ship },
   { value: 'air_freight', label: 'Air Freight', icon: Plane },
@@ -178,7 +181,7 @@ const Input = ({ label, type = 'text', name, value, onChange, onBlur, placeholde
   );
 };
 
-const Select = ({ label, name, value, onChange, options, error, required = false, icon: Icon, placeholder = 'Select...', disabled = false }) => {
+const Select = ({ label, name, value, onChange, options, error, required = false, icon: Icon, placeholder = 'Select...', disabled = false, loading = false }) => {
   return (
     <div className="mb-3">
       {label && (
@@ -198,22 +201,29 @@ const Select = ({ label, name, value, onChange, options, error, required = false
           name={name}
           value={value || ''}
           onChange={onChange}
-          disabled={disabled}
+          disabled={disabled || loading}
           className={`
             w-full px-3 py-2 text-sm border rounded-md shadow-sm appearance-none
             focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb]
             ${error ? 'border-red-300 bg-red-50' : 'border-gray-300'}
             ${Icon ? 'pl-8' : ''}
-            ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}
+            ${disabled || loading ? 'bg-gray-100 cursor-not-allowed' : ''}
           `}
         >
-          <option value="">{placeholder}</option>
-          {options.map(option => (
+          <option value="">
+            {loading ? 'Loading...' : placeholder}
+          </option>
+          {!loading && options.map(option => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
+        {loading && (
+          <div className="absolute inset-y-0 right-8 flex items-center">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
+          </div>
+        )}
         <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
           <ChevronRight className="h-3.5 w-3.5 text-gray-400 transform rotate-90" />
         </div>
@@ -364,6 +374,12 @@ export default function CreateBooking() {
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
   const [availableSubTypes, setAvailableSubTypes] = useState([]);
+  
+  // Location States
+  const [cities, setCities] = useState([]);
+  const [states, setStates] = useState([]);
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [postalCodes, setPostalCodes] = useState([]);
 
   // ===== Form Data State with Default Values =====
   const [formData, setFormData] = useState({
@@ -470,25 +486,173 @@ export default function CreateBooking() {
 
   const [errors, setErrors] = useState({});
 
-  // ===== Location Selector Handler =====
-  const handleLocationSelect = (location) => {
-    console.log('📍 Selected location:', location);
+  // ===== Location Functions (NO FETCH, সরাসরি ইম্পোর্ট করা ফাংশন) =====
+
+  // রাজ্য লোড করার ফাংশন - সরাসরি ইম্পোর্ট করা ফাংশন কল
+ // ===== Location Functions (সঠিক ভার্সন) =====
+
+// রাজ্য লোড করার ফাংশন
+const loadStates = (country) => {
+  if (!country) return;
+  
+  setLoadingLocation(true);
+  try {
+    console.log('🌍 Loading states for:', country);
     
-    if (location) {
+    // ✅ getStates ব্যবহার করুন (import করা ফাংশন)
+    const statesData = getStates(country);
+    
+    if (statesData && statesData.length > 0) {
+      setStates(statesData.map(s => s.name));
+      console.log(`✅ Loaded ${statesData.length} states for ${country}`);
+    } else {
+      console.error('No states found');
+      toast.error('No states found');
+    }
+  } catch (error) {
+    console.error('Error loading states:', error);
+    toast.error('Error loading states');
+  } finally {
+    setLoadingLocation(false);
+  }
+};
+
+// শহর লোড করার ফাংশন
+const loadCities = (country, state) => {
+  if (!country || !state) return;
+  
+  setLoadingLocation(true);
+  try {
+    console.log('🌍 Loading cities for:', state);
+    
+    // ✅ fetchCitiesByState ব্যবহার করুন (import করা ফাংশন)
+    const citiesData = fetchCitiesByState(country, state);
+    
+    if (citiesData && citiesData.length > 0) {
+      setCities(citiesData.map(c => c.name));
+      console.log(`✅ Loaded ${citiesData.length} cities for ${state}`);
+    } else {
+      console.error('No cities found');
+      toast.error('No cities found');
+    }
+  } catch (error) {
+    console.error('Error loading cities:', error);
+    toast.error('Error loading cities');
+  } finally {
+    setLoadingLocation(false);
+  }
+};
+
+// পোস্টাল কোড লোড করার ফাংশন
+const loadPostalCodes = (country, city) => {
+  if (!country || !city) return;
+  
+  setLoadingLocation(true);
+  try {
+    console.log('📮 Loading postal codes for:', city);
+    
+    // getPostalCodes ব্যবহার করুন (import করা ফাংশন)
+    const postalData = getPostalCodes(country, city);
+    
+    if (postalData && postalData.length > 0) {
+      setPostalCodes(postalData);
+      console.log(`✅ Loaded ${postalData.length} postal codes for ${city}`);
+    } else {
+      console.log('No postal codes found');
+      setPostalCodes([]);
+    }
+  } catch (error) {
+    console.error('Error loading postal codes:', error);
+    setPostalCodes([]);
+  } finally {
+    setLoadingLocation(false);
+  }
+};
+
+  // ===== Destination Change Handler
+  const handleDestinationChange = (e) => {
+    const { value } = e.target;
+    
+    handleInputChange(e);
+    
+    if (value) {
+      // Reset states and cities
+      setStates([]);
+      setCities([]);
+      setPostalCodes([]);
+      
+      // Load states for selected country - সরাসরি কল (async নেই)
+      loadStates(value);
+      
+      // Update receiver country
       setFormData(prev => ({
         ...prev,
         receiver: {
           ...prev.receiver,
           address: {
             ...prev.receiver.address,
-            city: location.cityName || '',
-            state: location.stateName || '',
-            country: location.countryName || ''
+            country: value,
+            city: '',
+            state: '',
+            postalCode: ''
           }
         }
       }));
       
-      toast.success(`Location selected: ${location.cityName}, ${location.countryName}`);
+      toast.success(`${value} selected - Please select state in Step 3`);
+    }
+  };
+
+  // State Change Handler
+  const handleStateChange = (e) => {
+    const { value } = e.target;
+    
+    handleInputChange(e);
+    
+    if (value && formData.receiver.address.country) {
+      // Reset cities and postal codes
+      setCities([]);
+      setPostalCodes([]);
+      
+      // Load cities for selected state - সরাসরি কল (async নেই)
+      loadCities(formData.receiver.address.country, value);
+      
+      setFormData(prev => ({
+        ...prev,
+        receiver: {
+          ...prev.receiver,
+          address: {
+            ...prev.receiver.address,
+            state: value,
+            city: '',
+            postalCode: ''
+          }
+        }
+      }));
+    }
+  };
+
+  // City Change Handler
+  const handleCityChange = (e) => {
+    const { value } = e.target;
+    
+    handleInputChange(e);
+    
+    if (value && formData.receiver.address.country) {
+      // Load postal codes for selected city
+      loadPostalCodes(formData.receiver.address.country, value);
+      
+      setFormData(prev => ({
+        ...prev,
+        receiver: {
+          ...prev.receiver,
+          address: {
+            ...prev.receiver.address,
+            city: value,
+            postalCode: ''
+          }
+        }
+      }));
     }
   };
 
@@ -530,6 +694,17 @@ export default function CreateBooking() {
     };
     loadInitialData();
   }, []);
+
+  // Debug useEffect
+  useEffect(() => {
+    console.log('📍 Step 3 - Cities state:', cities);
+    console.log('📍 Step 3 - States state:', states);
+    console.log('📍 Step 3 - Postal codes state:', postalCodes);
+    console.log('📍 Step 3 - Selected country:', formData.receiver.address.country);
+    console.log('📍 Step 3 - Selected state:', formData.receiver.address.state);
+    console.log('📍 Step 3 - Selected city:', formData.receiver.address.city);
+    console.log('📍 Step 3 - Loading:', loadingLocation);
+  }, [cities, states, postalCodes, formData.receiver.address.country, formData.receiver.address.state, formData.receiver.address.city, loadingLocation]);
 
   // Load customers from API
   const loadCustomers = async () => {
@@ -1201,7 +1376,7 @@ export default function CreateBooking() {
                     label="Destination"
                     name="shipmentDetails.destination"
                     value={formData.shipmentDetails.destination}
-                    onChange={handleInputChange}
+                    onChange={handleDestinationChange}
                     options={DESTINATIONS}
                     required
                     icon={Globe}
@@ -1674,37 +1849,72 @@ export default function CreateBooking() {
                       />
                     </div>
 
-                    <Input
-                      label="City"
-                      name="receiver.address.city"
-                      value={formData.receiver.address.city}
-                      onChange={handleInputChange}
-                      required
-                      error={errors['receiver.address.city']}
-                    />
+                    {/* State Dropdown */}
+                    <div>
+                      <Select
+                        label="State"
+                        name="receiver.address.state"
+                        value={formData.receiver.address.state}
+                        onChange={handleStateChange}
+                        options={states.map(state => ({ value: state, label: state }))}
+                        icon={MapPin}
+                        error={errors['receiver.address.state']}
+                        disabled={!formData.receiver.address.country || loadingLocation}
+                        loading={loadingLocation}
+                        placeholder={loadingLocation ? 'Loading states...' : 'Select state'}
+                      />
+                      
+                      {states.length > 0 && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          {states.length} states available
+                        </div>
+                      )}
+                    </div>
 
-                    <Input
-                      label="State"
-                      name="receiver.address.state"
-                      value={formData.receiver.address.state}
-                      onChange={handleInputChange}
-                    />
+                    {/* City Dropdown */}
+                    <div>
+                      <Select
+                        label="City"
+                        name="receiver.address.city"
+                        value={formData.receiver.address.city}
+                        onChange={handleCityChange}
+                        options={cities.map(city => ({ value: city, label: city }))}
+                        required
+                        icon={MapPin}
+                        error={errors['receiver.address.city']}
+                        disabled={!formData.receiver.address.state || loadingLocation}
+                        loading={loadingLocation}
+                        placeholder={loadingLocation ? 'Loading cities...' : 'Select city'}
+                      />
+                      
+                      {cities.length > 0 && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          {cities.length} cities available
+                        </div>
+                      )}
+                    </div>
 
-                    <Input
-                      label="Country"
-                      name="receiver.address.country"
-                      value={formData.receiver.address.country}
-                      onChange={handleInputChange}
-                      required
-                      error={errors['receiver.address.country']}
-                    />
-
-                    <Input
-                      label="Postal Code"
-                      name="receiver.address.postalCode"
-                      value={formData.receiver.address.postalCode}
-                      onChange={handleInputChange}
-                    />
+                    {/* Postal Code Dropdown */}
+                    <div>
+                      <Select
+                        label="Postal Code"
+                        name="receiver.address.postalCode"
+                        value={formData.receiver.address.postalCode}
+                        onChange={handleInputChange}
+                        options={postalCodes.map(code => ({ value: code, label: code }))}
+                        icon={MapPin}
+                        error={errors['receiver.address.postalCode']}
+                        disabled={!formData.receiver.address.city || loadingLocation}
+                        loading={loadingLocation}
+                        placeholder={loadingLocation ? 'Loading codes...' : 'Select postal code'}
+                      />
+                      
+                      {postalCodes.length > 0 && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          {postalCodes.length} postal codes available
+                        </div>
+                      )}
+                    </div>
 
                     <div className="col-span-2">
                       <TextArea
@@ -1731,23 +1941,22 @@ export default function CreateBooking() {
                     </div>
                   </div>
 
-                  {/* ===== Location Selector - এখানে সঠিক জায়গায় ===== */}
-                  <div className="mt-6 pt-4 border-t border-gray-200">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                      <MapPin className="h-4 w-4 mr-2 text-[#2563eb]" />
-                      Search & Select Location
-                    </h4>
-                    <LocationSelector onLocationSelect={handleLocationSelect} />
-                    
-                    {/* Show selected location preview */}
-                    {formData.receiver.address.country && (
-                      <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                        <p className="text-xs text-blue-700">
-                          ✅ Selected: {formData.receiver.address.city || 'N/A'}, {formData.receiver.address.state || 'N/A'}, {formData.receiver.address.country || 'N/A'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  {/* Loading indicator */}
+                  {loadingLocation && (
+                    <div className="mt-3 p-2 bg-blue-50 rounded-md flex items-center">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500 mr-2" />
+                      <span className="text-xs text-blue-600">Loading location data...</span>
+                    </div>
+                  )}
+
+                  {/* Selected country info */}
+                  {formData.receiver.address.country && !loadingLocation && (
+                    <div className="mt-3 p-2 bg-green-50 rounded-md">
+                      <p className="text-xs text-green-700">
+                        ✓ Showing states for {formData.receiver.address.country}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1852,6 +2061,9 @@ export default function CreateBooking() {
                       {formData.sender.companyName && <p>{formData.sender.companyName}</p>}
                       <p className="text-gray-600 mt-1">📞 {formData.sender.phone}</p>
                       <p className="text-gray-600">✉️ {formData.sender.email}</p>
+                      <p className="text-gray-600 mt-1">
+                        {formData.sender.address.city}, {formData.sender.address.state}, {formData.sender.address.country}
+                      </p>
                     </div>
                   </div>
 
@@ -1864,7 +2076,10 @@ export default function CreateBooking() {
                       <p className="font-medium">{formData.receiver.name}</p>
                       {formData.receiver.companyName && <p>{formData.receiver.companyName}</p>}
                       <p className="text-gray-600">{formData.receiver.address.addressLine1}</p>
-                      <p className="text-gray-600">{formData.receiver.address.city}</p>
+                      <p className="text-gray-600">
+                        {formData.receiver.address.city}, {formData.receiver.address.state} {formData.receiver.address.postalCode}
+                      </p>
+                      <p className="text-gray-600">{formData.receiver.address.country}</p>
                       <p className="text-gray-600 mt-1">📞 {formData.receiver.phone}</p>
                       <p className="text-gray-600">✉️ {formData.receiver.email}</p>
                     </div>
@@ -1928,7 +2143,7 @@ export default function CreateBooking() {
         {/* Progress Summary */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            {currentStep === 1 && "📦 Select customer, shipment type and payment"}
+            {currentStep === 1 && "📦 Select customer, shipment type and destination country"}
             {currentStep === 2 && "📦 Add package details with packaging type"}
             {currentStep === 3 && "📦 Enter sender and receiver information"}
             {currentStep === 4 && "📦 Review and confirm booking"}
