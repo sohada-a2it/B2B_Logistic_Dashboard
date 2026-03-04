@@ -491,52 +491,67 @@ export default function CreateBooking() {
   // রাজ্য লোড করার ফাংশন - সরাসরি ইম্পোর্ট করা ফাংশন কল
  // ===== Location Functions (সঠিক ভার্সন) =====
 
-// রাজ্য লোড করার ফাংশন
+// এই ফাংশনগুলো আপডেট করুন
+
 const loadStates = (country) => {
   if (!country) return;
   
   setLoadingLocation(true);
   try {
     console.log('🌍 Loading states for:', country);
-    
-    // ✅ getStates ব্যবহার করুন (import করা ফাংশন)
     const statesData = getStates(country);
     
+    console.log('📦 States data received:', statesData);
+    
     if (statesData && statesData.length > 0) {
-      setStates(statesData.map(s => s.name));
-      console.log(`✅ Loaded ${statesData.length} states for ${country}`);
+      // শুধু নামগুলো নিন
+      const stateNames = statesData.map(s => s.name);
+      setStates(stateNames);
+      console.log(`✅ Loaded ${stateNames.length} states:`, stateNames);
+      
+      // UK-এর জন্য বিশেষ নোটিফিকেশন
+      if (country === 'UK') {
+        toast.info(`UK states loaded: ${stateNames.join(', ')}`);
+      }
     } else {
-      console.error('No states found');
-      toast.error('No states found');
+      console.warn('⚠️ No states found for', country);
+      setStates([]);
+      toast.warning(`No states found for ${country}`);
     }
   } catch (error) {
-    console.error('Error loading states:', error);
+    console.error('❌ Error loading states:', error);
     toast.error('Error loading states');
   } finally {
     setLoadingLocation(false);
   }
 };
 
-// শহর লোড করার ফাংশন
 const loadCities = (country, state) => {
   if (!country || !state) return;
   
   setLoadingLocation(true);
   try {
-    console.log('🌍 Loading cities for:', state);
-    
-    // ✅ fetchCitiesByState ব্যবহার করুন (import করা ফাংশন)
+    console.log('🌍 Loading cities for:', { country, state });
     const citiesData = fetchCitiesByState(country, state);
     
+    console.log('📦 Cities data received:', citiesData);
+    
     if (citiesData && citiesData.length > 0) {
-      setCities(citiesData.map(c => c.name));
-      console.log(`✅ Loaded ${citiesData.length} cities for ${state}`);
+      const cityNames = citiesData.map(c => c.name);
+      setCities(cityNames);
+      console.log(`✅ Loaded ${cityNames.length} cities:`, cityNames.slice(0, 5));
+      
+      // UK-এর জন্য সিটি দেখালে Toast
+      if (country === 'UK') {
+        toast.success(`Found ${cityNames.length} cities in ${state}`);
+      }
     } else {
-      console.error('No cities found');
-      toast.error('No cities found');
+      console.warn('⚠️ No cities found for', state);
+      setCities([]);
+      toast.warning(`No cities found for ${state}`);
     }
   } catch (error) {
-    console.error('Error loading cities:', error);
+    console.error('❌ Error loading cities:', error);
     toast.error('Error loading cities');
   } finally {
     setLoadingLocation(false);
@@ -655,7 +670,26 @@ const loadPostalCodes = (country, city) => {
       }));
     }
   };
-
+// লোকেশন ডিবাগ করার জন্য useEffect
+useEffect(() => {
+  if (formData.receiver.address.country === 'UK') {
+    console.log('🇬🇧 UK Selected - Testing location data');
+    
+    // সরাসরি প্যাকেজ থেকে টেস্ট
+    import('country-state-city').then(({ State, City }) => {
+      const states = State.getStatesOfCountry('GB');
+      console.log('Direct API - UK States:', states.map(s => s.name));
+      
+      if (states.length > 0) {
+        const england = states.find(s => s.name === 'England');
+        if (england) {
+          const cities = City.getCitiesOfState('GB', england.isoCode);
+          console.log('Direct API - England cities:', cities.length);
+        }
+      }
+    });
+  }
+}, [formData.receiver.address.country]);
   // Update sub types when main type changes
   useEffect(() => {
     if (formData.shipmentClassification.mainType) {
@@ -694,7 +728,27 @@ const loadPostalCodes = (country, city) => {
     };
     loadInitialData();
   }, []);
+// লোকেশন ডিবাগ করার জন্য
+useEffect(() => {
+  console.log('📍 Location State Updated:', {
+    country: formData.receiver.address.country,
+    state: formData.receiver.address.state,
+    availableStates: states,
+    availableCities: cities,
+    loading: loadingLocation
+  });
+}, [formData.receiver.address.country, formData.receiver.address.state, states, cities, loadingLocation]);
 
+// UK সিলেক্ট করলে টেস্ট
+useEffect(() => {
+  if (formData.receiver.address.country === 'UK') {
+    console.log('🇬🇧 UK Selected - Testing with fallback data');
+    
+    // ফallback ডাটা টেস্ট
+    const testCities = fetchCitiesByState('UK', 'England');
+    console.log('Test cities for England:', testCities);
+  }
+}, [formData.receiver.address.country]);
   // Debug useEffect
   useEffect(() => {
     console.log('📍 Step 3 - Cities state:', cities);
@@ -1848,51 +1902,61 @@ const loadPostalCodes = (country, city) => {
                         icon={MapPin}
                       />
                     </div>
+ 
 
-                    {/* State Dropdown */}
-                    <div>
-                      <Select
-                        label="State"
-                        name="receiver.address.state"
-                        value={formData.receiver.address.state}
-                        onChange={handleStateChange}
-                        options={states.map(state => ({ value: state, label: state }))}
-                        icon={MapPin}
-                        error={errors['receiver.address.state']}
-                        disabled={!formData.receiver.address.country || loadingLocation}
-                        loading={loadingLocation}
-                        placeholder={loadingLocation ? 'Loading states...' : 'Select state'}
-                      />
-                      
-                      {states.length > 0 && (
-                        <div className="mt-1 text-xs text-gray-500">
-                          {states.length} states available
-                        </div>
-                      )}
-                    </div>
+{/* State Dropdown - Improved Version */}
+<div>
+  <Select
+    label="State"
+    name="receiver.address.state"
+    value={formData.receiver.address.state}
+    onChange={handleStateChange}
+    options={states.map(state => ({ value: state, label: state }))}
+    required
+    icon={MapPin}
+    error={errors['receiver.address.state']}
+    disabled={!formData.receiver.address.country || loadingLocation}
+    loading={loadingLocation}
+    placeholder={loadingLocation ? 'Loading states...' : 'Select state'}
+  />
+  
+  {/* Debug Info - Remove after fixing */}
+  {formData.receiver.address.country === 'UK' && (
+    <div className="mt-1 text-xs">
+      <span className="text-gray-500">States loaded: {states.length}</span>
+      {states.length > 0 && (
+        <span className="text-green-600 ml-2">✓ {states.slice(0, 3).join(', ')}...</span>
+      )}
+    </div>
+  )}
+</div>
 
-                    {/* City Dropdown */}
-                    <div>
-                      <Select
-                        label="City"
-                        name="receiver.address.city"
-                        value={formData.receiver.address.city}
-                        onChange={handleCityChange}
-                        options={cities.map(city => ({ value: city, label: city }))}
-                        required
-                        icon={MapPin}
-                        error={errors['receiver.address.city']}
-                        disabled={!formData.receiver.address.state || loadingLocation}
-                        loading={loadingLocation}
-                        placeholder={loadingLocation ? 'Loading cities...' : 'Select city'}
-                      />
-                      
-                      {cities.length > 0 && (
-                        <div className="mt-1 text-xs text-gray-500">
-                          {cities.length} cities available
-                        </div>
-                      )}
-                    </div>
+{/* City Dropdown - Improved Version */}
+<div>
+  <Select
+    label="City"
+    name="receiver.address.city"
+    value={formData.receiver.address.city}
+    onChange={handleCityChange}
+    options={cities.map(city => ({ value: city, label: city }))}
+    required
+    icon={MapPin}
+    error={errors['receiver.address.city']}
+    disabled={!formData.receiver.address.state || loadingLocation}
+    loading={loadingLocation}
+    placeholder={loadingLocation ? 'Loading cities...' : 'Select city'}
+  />
+  
+  {/* Debug Info - Remove after fixing */}
+  {formData.receiver.address.state && (
+    <div className="mt-1 text-xs">
+      <span className="text-gray-500">Cities loaded: {cities.length}</span>
+      {cities.length > 0 && (
+        <span className="text-green-600 ml-2">✓ {cities.slice(0, 3).join(', ')}...</span>
+      )}
+    </div>
+  )}
+</div>
 
                     {/* Postal Code Dropdown */}
                     <div>

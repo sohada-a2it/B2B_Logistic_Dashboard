@@ -1,9 +1,9 @@
 import React from 'react'
-import ReceiveShipmentPage from '@/components/warehouse/recievePage'
+import ReceivedShipments from "@/components/warehouse/inceptionPage"
 function page() {
   return (
     <div>
-      <ReceiveShipmentPage />
+      <ReceivedShipments />
     </div>
   )
 }

@@ -104,11 +104,26 @@ const menuItems = [
         icon: <HiOutlineHome className="w-4 h-4" />,
       },
       {
-        title: 'Receive Cargo',
+        title: 'Expected Shipments',
         path: '/warehouse',
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
       {
+        title: 'Received Shipments',
+        path: '/warehouse/recieve-shipments',
+        icon: <HiOutlineDownload className="w-4 h-4" />,
+      },
+      {
+        title: 'Inception Shipments',
+        path: '/warehouse/inception',
+        icon: <HiOutlineDownload className="w-4 h-4" />,
+      },
+      {
+        title: 'Consolidated Shipments',
+        path: '/warehouse/consolidation-queue',
+        icon: <HiOutlineDownload className="w-4 h-4" />,
+      },
+      { 
         title: 'Containers',
         path: '/admin/warehouse/containers',
         icon: <HiOutlineDownload className="w-4 h-4" />,

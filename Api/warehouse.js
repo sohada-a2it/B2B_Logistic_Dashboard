@@ -69,25 +69,96 @@ export const getExpectedShipments = async (params = {}) => {
 };
 
 // 2. RECEIVE SHIPMENT AT WAREHOUSE
+// Api/warehouse.js - আপডেটেড receiveShipment ফাংশন
+
 export const receiveShipment = async (shipmentId, receiptData) => {
   try {
-    const response = await axiosInstance.post(`/warehouse/shipments/${shipmentId}/receive`, receiptData);
+    console.log('📤 Sending receive request for shipment:', shipmentId);
+    console.log('📦 Receipt data:', receiptData);
     
+    const response = await axiosInstance.post(`/receive/${shipmentId}`, receiptData);
+    
+    console.log('📥 Receive response:', response.data);
+    
+    // Success response
     if (response.data.success) {
       return {
         success: true,
         data: response.data.data,
-        message: response.data.message
+        message: response.data.message || 'Shipment received successfully'
       };
     }
     
-    throw new Error(response.data.message || 'Failed to receive shipment');
-    
-  } catch (error) {
-    console.error('Receive shipment error:', error);
+    // If backend returns success: false but with data
     return {
       success: false,
-      message: error.response?.data?.error || error.message || 'Failed to receive shipment',
+      message: response.data.message || 'Failed to receive shipment',
+      data: response.data.data,
+      error: response.data.error
+    };
+    
+  } catch (error) {
+    console.error('❌ Receive shipment error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    
+    // Handle 400 error (Bad Request) - often means already received
+    if (error.response?.status === 400) {
+      const errorMessage = error.response.data?.message || error.response.data?.error || 'Bad request';
+      
+      // Check if it's "already received" error
+      if (errorMessage.toLowerCase().includes('already received')) {
+        return {
+          success: false,
+          message: errorMessage,
+          alreadyReceived: true,  // Special flag for UI
+          statusCode: 400
+        };
+      }
+      
+      return {
+        success: false,
+        message: errorMessage,
+        statusCode: 400,
+        error: error.response.data
+      };
+    }
+    
+    // Handle 404 error (Not Found)
+    if (error.response?.status === 404) {
+      return {
+        success: false,
+        message: 'Shipment not found',
+        statusCode: 404
+      };
+    }
+    
+    // Handle 500 error (Server Error)
+    if (error.response?.status === 500) {
+      return {
+        success: false,
+        message: 'Server error. Please try again.',
+        statusCode: 500,
+        error: error.response.data
+      };
+    }
+    
+    // Handle network errors (no response)
+    if (error.request && !error.response) {
+      return {
+        success: false,
+        message: 'Network error. Please check your connection.',
+        isNetworkError: true
+      };
+    }
+    
+    // Generic error
+    return {
+      success: false,
+      message: error.message || 'Failed to receive shipment',
       error: error.response?.data
     };
   }
@@ -105,7 +176,7 @@ export const getWarehouseReceipts = async (params = {}) => {
       ...(params.endDate && { endDate: params.endDate })
     });
 
-    const response = await axiosInstance.get(`/warehouse/receipts?${queryParams}`);
+    const response = await axiosInstance.get(`/receipts?${queryParams}`);
     
     if (response.data.success) {
       return {
@@ -131,7 +202,7 @@ export const getWarehouseReceipts = async (params = {}) => {
 // 4. GET RECEIPT BY ID
 export const getReceiptById = async (receiptId) => {
   try {
-    const response = await axiosInstance.get(`/warehouse/receipts/${receiptId}`);
+    const response = await axiosInstance.get(`/receipts/${receiptId}`);
     
     if (response.data.success) {
       return {
@@ -477,7 +548,7 @@ export const updateWarehouse = async (warehouseId, updateData) => {
 // 17. INSPECT RECEIVED SHIPMENT
 export const inspectShipment = async (receiptId, inspectionData) => {
   try {
-    const response = await axiosInstance.post(`/warehouse/receipts/${receiptId}/inspect`, inspectionData);
+    const response = await axiosInstance.post(`/inspect/${receiptId}`, inspectionData);
     
     if (response.data.success) {
       return {
@@ -552,7 +623,7 @@ export const getRecentReceipts = async (limit = 5) => {
 // 20. GENERATE WAREHOUSE RECEIPT PDF
 export const generateReceiptPDF = async (receiptId) => {
   try {
-    const response = await axiosInstance.get(`/warehouse/receipts/${receiptId}/pdf`, {
+    const response = await axiosInstance.get(`/receipts/${receiptId}/pdf`, {
       responseType: 'blob'
     });
     
