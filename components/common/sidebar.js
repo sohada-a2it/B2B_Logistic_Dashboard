@@ -123,6 +123,11 @@ const menuItems = [
         path: '/warehouse/consolidation-queue',
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
+      {
+        title: 'All Consolidated Shipments',
+        path: '/warehouse/all-consolidation',
+        icon: <HiOutlineDownload className="w-4 h-4" />,
+      },
       { 
         title: 'Containers',
         path: '/admin/warehouse/containers',
