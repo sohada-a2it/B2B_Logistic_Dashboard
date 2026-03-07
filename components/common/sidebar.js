@@ -124,8 +124,13 @@ const menuItems = [
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
       {
-        title: 'All Consolidated Shipments',
+        title: 'Shipments In Container',
         path: '/warehouse/all-consolidation',
+        icon: <HiOutlineDownload className="w-4 h-4" />,
+      },
+      {
+        title: 'ready for dispatch',
+        path: '/warehouse/dispatch',
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
       { 
