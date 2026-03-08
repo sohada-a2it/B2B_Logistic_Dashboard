@@ -1,7 +1,7 @@
 // warehouse/consolidations/index.js
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
@@ -44,7 +44,8 @@ import {
   calculateTotalVolume,
   calculateTotalWeight,
   calculateTotalPackages,
-  groupConsolidationsByStatus
+  groupConsolidationsByStatus,
+  markAsReadyForDispatch
 } from '@/Api/consolidation';
 
 // ==================== CONSTANTS ====================
@@ -52,8 +53,12 @@ import {
 const CONSOLIDATION_STATUSES = [
   { value: 'draft', label: 'Draft', color: 'gray', icon: FileText },
   { value: 'in_progress', label: 'In Progress', color: 'blue', icon: Play },
-  { value: 'loaded', label: 'Loaded', color: 'purple', icon: Package },
-  { value: 'departed', label: 'Departed', color: 'orange', icon: Send },
+  { value: 'consolidated', label: 'Consolidated', color: 'purple', icon: Package },
+  { value: 'ready_for_dispatch', label: 'Ready for Dispatch', color: 'orange', icon: Send },
+  { value: 'loaded', label: 'Loaded', color: 'indigo', icon: Package },
+  { value: 'dispatched', label: 'Dispatched', color: 'amber', icon: Send },
+  { value: 'in_transit', label: 'In Transit', color: 'yellow', icon: Truck },
+  { value: 'departed', label: 'Departed', color: 'orange', icon: Ship },
   { value: 'arrived', label: 'Arrived', color: 'green', icon: CheckCircle },
   { value: 'completed', label: 'Completed', color: 'emerald', icon: Check },
   { value: 'cancelled', label: 'Cancelled', color: 'red', icon: Ban }
@@ -64,10 +69,7 @@ const CONTAINER_TYPES = [
   { value: '40ft', label: '40ft Standard Container', maxVolume: 58, icon: '📦📦' },
   { value: '40ft HC', label: '40ft High Cube Container', maxVolume: 68, icon: '📦📦⬆️' },
   { value: '45ft', label: '45ft High Cube Container', maxVolume: 78, icon: '📦📦📦' },
-  { value: 'LCL', label: 'LCL - Less than Container Load', maxVolume: 999, icon: '📦' },
-  { value: 'ULD', label: 'ULD - Air Freight', maxVolume: 15, icon: '✈️' },
-  { value: 'Truck', label: 'Full Truck Load', maxVolume: 90, icon: '🚚' },
-  { value: 'LTL', label: 'Less than Truck Load', maxVolume: 30, icon: '🚚' }
+  { value: 'LCL', label: 'LCL - Less than Container Load', maxVolume: 999, icon: '📦' }
 ];
 
 const MAIN_TYPES = [
@@ -92,6 +94,9 @@ const getStatusBadge = (status) => {
     blue: 'bg-blue-100 text-blue-800',
     purple: 'bg-purple-100 text-purple-800',
     orange: 'bg-orange-100 text-orange-800',
+    indigo: 'bg-indigo-100 text-indigo-800',
+    amber: 'bg-amber-100 text-amber-800',
+    yellow: 'bg-yellow-100 text-yellow-800',
     green: 'bg-green-100 text-green-800',
     emerald: 'bg-emerald-100 text-emerald-800',
     red: 'bg-red-100 text-red-800'
@@ -105,311 +110,1093 @@ const getStatusBadge = (status) => {
   );
 };
 
-// ==================== ডেটা প্রসেসিং হেল্পার ====================
-// আপডেটেড হেল্পার ফাংশন - কনসলিডেশন থেকে ডেস্টিনেশন বের করুন
-const getConsolidationDestination = (consolidation) => {
-  if (!consolidation) return 'N/A';
-  
-  console.log('🔍 Getting destination from consolidation:', consolidation._id);
-  
-  // 1. কনসলিডেশনে সরাসরি destination থাকলে
-  if (consolidation.destination) {
-    console.log('✅ Found destination directly:', consolidation.destination);
-    return consolidation.destination;
-  }
-  
-  // 2. কনসলিডেশনে shipments অ্যারে থাকলে
-  if (consolidation.shipments && Array.isArray(consolidation.shipments) && consolidation.shipments.length > 0) {
-    console.log('📦 Checking shipments array:', consolidation.shipments.length);
-    
-    // প্রথম শিপমেন্ট থেকে destination নিন
-    const firstShipment = consolidation.shipments[0];
-    
-    if (firstShipment.destination) {
-      console.log('✅ Found destination in first shipment:', firstShipment.destination);
-      return firstShipment.destination;
-    }
-    
-    if (firstShipment.to) {
-      console.log('✅ Found destination (to) in first shipment:', firstShipment.to);
-      return firstShipment.to;
-    }
-    
-    // সব শিপমেন্ট চেক করুন
-    for (const shipment of consolidation.shipments) {
-      if (shipment.destination) {
-        console.log('✅ Found destination in a shipment:', shipment.destination);
-        return shipment.destination;
-      }
-      if (shipment.to) {
-        console.log('✅ Found destination (to) in a shipment:', shipment.to);
-        return shipment.to;
-      }
-    }
-  }
-  
-  // 3. কনসলিডেশনে items অ্যারে থাকলে
-  if (consolidation.items && Array.isArray(consolidation.items) && consolidation.items.length > 0) {
-    console.log('📦 Checking items array:', consolidation.items.length);
-    
-    const firstItem = consolidation.items[0];
-    if (firstItem.destination) {
-      console.log('✅ Found destination in first item:', firstItem.destination);
-      return firstItem.destination;
-    }
-    if (firstItem.to) {
-      console.log('✅ Found destination (to) in first item:', firstItem.to);
-      return firstItem.to;
-    }
-  }
-  
-  // 4. কনসলিডেশনে route অবজেক্ট থাকলে
-  if (consolidation.route) {
-    if (consolidation.route.destination) {
-      console.log('✅ Found destination in route:', consolidation.route.destination);
-      return consolidation.route.destination;
-    }
-    if (consolidation.route.to) {
-      console.log('✅ Found destination (to) in route:', consolidation.route.to);
-      return consolidation.route.to;
-    }
-  }
-  
-  console.log('❌ No destination found in consolidation');
-  return 'N/A';
-};
-
-// অরিজিনের জন্যও একইভাবে আপডেট করুন
-const getConsolidationOrigin = (consolidation) => {
-  if (!consolidation) return 'N/A';
-  
-  console.log('🔍 Getting origin from consolidation:', consolidation._id);
-  
-  // 1. কনসলিডেশনে সরাসরি origin থাকলে
-  if (consolidation.origin) {
-    console.log('✅ Found origin directly:', consolidation.origin);
-    return consolidation.origin;
-  }
-  
-  // 2. কনসলিডেশনে shipments অ্যারে থাকলে
-  if (consolidation.shipments && Array.isArray(consolidation.shipments) && consolidation.shipments.length > 0) {
-    console.log('📦 Checking shipments array for origin');
-    
-    const firstShipment = consolidation.shipments[0];
-    if (firstShipment.origin) {
-      console.log('✅ Found origin in first shipment:', firstShipment.origin);
-      return firstShipment.origin;
-    }
-    if (firstShipment.from) {
-      console.log('✅ Found origin (from) in first shipment:', firstShipment.from);
-      return firstShipment.from;
-    }
-    
-    for (const shipment of consolidation.shipments) {
-      if (shipment.origin) {
-        return shipment.origin;
-      }
-      if (shipment.from) {
-        return shipment.from;
-      }
-    }
-  }
-  
-  // 3. কনসলিডেশনে items অ্যারে থাকলে
-  if (consolidation.items && Array.isArray(consolidation.items) && consolidation.items.length > 0) {
-    const firstItem = consolidation.items[0];
-    if (firstItem.origin) return firstItem.origin;
-    if (firstItem.from) return firstItem.from;
-  }
-  
-  // 4. কনসলিডেশনে route অবজেক্ট থাকলে
-  if (consolidation.route) {
-    if (consolidation.route.origin) return consolidation.route.origin;
-    if (consolidation.route.from) return consolidation.route.from;
-  }
-  
-  return 'N/A';
-};  
-
-/**
- * কনসলিডেশন থেকে শিপমেন্ট কাউন্ট বের করুন
- */
 const getShipmentCount = (consolidation) => {
   if (!consolidation) return 0;
-  
-  // বিভিন্ন সম্ভাব্য উৎস থেকে কাউন্ট বের করা
-  if (consolidation.shipmentCount) return consolidation.shipmentCount;
+  if (consolidation.totalShipments) return consolidation.totalShipments;
   if (consolidation.shipments?.length) return consolidation.shipments.length;
   if (consolidation.items?.length) return consolidation.items.length;
-  if (consolidation.shipmentIds?.length) return consolidation.shipmentIds.length;
-  
-  // শিপমেন্ট অবজেক্ট থেকে কাউন্ট বের করা
-  if (consolidation.shipments && typeof consolidation.shipments === 'object') {
-    return Object.keys(consolidation.shipments).length;
-  }
-  
   return 0;
 };
 
-/**
- * কনসলিডেশন থেকে টোটাল প্যাকেজ বের করুন
- */
 const getTotalPackages = (consolidation) => {
   if (!consolidation) return 0;
-  
-  // সরাসরি totalPackages থাকলে
   if (consolidation.totalPackages) return consolidation.totalPackages;
   
-  // শিপমেন্ট থেকে ক্যালকুলেট করা
   const shipments = consolidation.shipments || consolidation.items || [];
   if (shipments.length > 0) {
     return shipments.reduce((total, shipment) => {
-      // shipment এ totalPackages থাকলে
       if (shipment.totalPackages) return total + shipment.totalPackages;
-      
-      // shipment এ packages অ্যারে থাকলে
-      if (shipment.packages && Array.isArray(shipment.packages)) {
-        return total + shipment.packages.reduce((sum, pkg) => sum + (pkg.quantity || 1), 0);
-      }
-      
-      // shipment এ quantity থাকলে
       if (shipment.quantity) return total + shipment.quantity;
-      
-      // ডিফল্ট ১
       return total + 1;
     }, 0);
   }
-  
   return 0;
 };
 
-/**
- * কনসলিডেশন থেকে টোটাল ভলিউম বের করুন
- */
 const getTotalVolume = (consolidation) => {
   if (!consolidation) return 0;
-  
-  // সরাসরি totalVolume থাকলে
-  if (consolidation.totalVolume) return consolidation.totalVolume;
-  
-  // শিপমেন্ট থেকে ক্যালকুলেট করা
-  const shipments = consolidation.shipments || consolidation.items || [];
-  if (shipments.length > 0) {
-    return shipments.reduce((total, shipment) => {
-      if (shipment.totalVolume) return total + shipment.totalVolume;
-      if (shipment.volume) return total + shipment.volume;
-      
-      // প্যাকেজ থেকে ভলিউম ক্যালকুলেট
-      if (shipment.packages && Array.isArray(shipment.packages)) {
-        return total + shipment.packages.reduce((sum, pkg) => {
-          const volume = (pkg.length || 0) * (pkg.width || 0) * (pkg.height || 0) / 1000000;
-          return sum + (volume * (pkg.quantity || 1));
-        }, 0);
-      }
-      
-      return total;
-    }, 0);
-  }
-  
-  return 0;
+  return consolidation.totalVolume || 0;
 };
 
-/**
- * কনসলিডেশন থেকে টোটাল ওয়েট বের করুন
- */
 const getTotalWeight = (consolidation) => {
   if (!consolidation) return 0;
-  
-  // সরাসরি totalWeight থাকলে
-  if (consolidation.totalWeight) return consolidation.totalWeight;
-  
-  // শিপমেন্ট থেকে ক্যালকুলেট করা
-  const shipments = consolidation.shipments || consolidation.items || [];
-  if (shipments.length > 0) {
-    return shipments.reduce((total, shipment) => {
-      if (shipment.totalWeight) return total + shipment.totalWeight;
-      if (shipment.weight) return total + shipment.weight;
-      
-      // প্যাকেজ থেকে ওয়েট ক্যালকুলেট
-      if (shipment.packages && Array.isArray(shipment.packages)) {
-        return total + shipment.packages.reduce((sum, pkg) => {
-          return sum + ((pkg.weight || 0) * (pkg.quantity || 1));
-        }, 0);
-      }
-      
-      return total;
-    }, 0);
-  }
-  
-  return 0;
+  return consolidation.totalWeight || 0;
 };
 
-/**
- * কনসলিডেশন থেকে কন্টেইনার টাইপ বের করুন
- */
 const getContainerType = (consolidation) => {
   if (!consolidation) return 'N/A';
-  
-  return consolidation.containerType || 
-         consolidation.container?.type || 
-         'N/A';
+  return consolidation.containerType || 'N/A';
 };
 
-/**
- * কন্টেইনার নাম্বার বের করুন
- */
 const getContainerNumber = (consolidation) => {
   if (!consolidation) return 'N/A';
-  
-  return consolidation.containerNumber || 
-         consolidation.container?.number || 
-         'N/A';
+  return consolidation.containerNumber || 'N/A';
 };
 
-/**
- * সিল নাম্বার বের করুন
- */
 const getSealNumber = (consolidation) => {
   if (!consolidation) return 'N/A';
-  
-  return consolidation.sealNumber || 
-         consolidation.seal?.number || 
-         'N/A';
+  return consolidation.sealNumber || 'N/A';
 };
 
-/**
- * মেইন টাইপ বের করুন
- */
 const getMainType = (consolidation) => {
   if (!consolidation) return 'N/A';
-  
-  return consolidation.mainType || 
-         consolidation.type?.main || 
-         'N/A';
+  return consolidation.mainType || 'N/A';
 };
 
-/**
- * সাব টাইপ বের করুন
- */
 const getSubType = (consolidation) => {
   if (!consolidation) return 'N/A';
-  
-  return consolidation.subType || 
-         consolidation.type?.sub || 
-         'N/A';
+  return consolidation.subType || 'N/A';
 };
 
-// ==================== COMPONENTS ====================
+// ==================== LOADED MODAL ====================
 
-// Stat Card Component
-const StatCard = ({ title, value, icon: Icon, color = 'orange', trend, trendValue, subtitle }) => {
+const LoadedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    loadedDate: new Date().toISOString().split('T')[0],
+    loadedTime: new Date().toTimeString().slice(0, 5),
+    location: consolidation?.originWarehouse || 'Warehouse',
+    notes: ''
+  });
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const result = await updateConsolidationStatus(consolidation._id, {
+        status: 'loaded',
+        notes: `Container loaded at ${formData.location} on ${formData.loadedDate} ${formData.loadedTime}. ${formData.notes}`,
+        location: formData.location
+      });
+
+      if (result.success) {
+        toast.success('✅ Container marked as loaded');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to update status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-bold flex items-center">
+            <Package className="h-5 w-5 mr-2 text-[#E67E22]" />
+            Mark as Loaded
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Loaded Date
+              </label>
+              <input
+                type="date"
+                value={formData.loadedDate}
+                onChange={(e) => setFormData({...formData, loadedDate: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Loaded Time
+              </label>
+              <input
+                type="time"
+                value={formData.loadedTime}
+                onChange={(e) => setFormData({...formData, loadedTime: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Location
+            </label>
+            <input
+              type="text"
+              value={formData.location}
+              onChange={(e) => setFormData({...formData, location: e.target.value})}
+              placeholder="e.g., Warehouse A, Dock 3"
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes (Optional)
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={3}
+              placeholder="Any special instructions..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+            />
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              'Confirm Loaded'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== DETAILS VIEW MODAL ====================
+
+const ConsolidationDetailsModal = ({ 
+  isOpen, 
+  onClose, 
+  consolidation, 
+  onEdit, 
+  onDelete, 
+  onStatusChange, 
+  onDispatch,
+  onLoadedClick 
+}) => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [shipments, setShipments] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (consolidation && consolidation.shipments) {
+      setShipments(consolidation.shipments);
+    }
+  }, [consolidation]);
+
+  if (!isOpen || !consolidation) return null;
+
+  const handleDispatch = () => {
+    onDispatch(consolidation);
+    onClose();
+  };
+
+  const handleEdit = () => {
+    onEdit(consolidation._id);
+    onClose();
+  };
+
+  const handleDelete = () => {
+    if (confirm('Are you sure you want to delete this consolidation?')) {
+      onDelete(consolidation._id);
+      onClose();
+    }
+  };
+
+  const canBeDispatched = consolidation.status === 'consolidated' || consolidation.status === 'loaded' || consolidation.status === 'ready_for_dispatch';
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold flex items-center">
+              <Container className="h-5 w-5 mr-2 text-[#E67E22]" />
+              Consolidation Details
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {consolidation.consolidationNumber}
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            {getStatusBadge(consolidation.status)}
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b px-6">
+          <div className="flex space-x-4">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`py-3 px-2 border-b-2 font-medium text-sm ${
+                activeTab === 'overview'
+                  ? 'border-[#E67E22] text-[#E67E22]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              onClick={() => setActiveTab('shipments')}
+              className={`py-3 px-2 border-b-2 font-medium text-sm ${
+                activeTab === 'shipments'
+                  ? 'border-[#E67E22] text-[#E67E22]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Shipments ({getShipmentCount(consolidation)})
+            </button>
+            <button
+              onClick={() => setActiveTab('documents')}
+              className={`py-3 px-2 border-b-2 font-medium text-sm ${
+                activeTab === 'documents'
+                  ? 'border-[#E67E22] text-[#E67E22]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Documents
+            </button>
+            <button
+              onClick={() => setActiveTab('timeline')}
+              className={`py-3 px-2 border-b-2 font-medium text-sm ${
+                activeTab === 'timeline'
+                  ? 'border-[#E67E22] text-[#E67E22]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Timeline
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Consolidation Number</p>
+                  <p className="font-mono font-medium">{consolidation.consolidationNumber}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Type</p>
+                  <p className="font-medium">{getMainTypeName(consolidation.mainType)} - {getSubTypeName(consolidation.subType)}</p>
+                </div>
+              </div>
+
+              {/* Route */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-500 mb-2">Route</p>
+                <div className="flex items-center">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">From: {consolidation.originWarehouse || 'N/A'}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400 mx-4" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">To: {consolidation.destinationPort || 'N/A'}</p>
+                    {consolidation.destinationCountry && (
+                      <p className="text-xs text-gray-500">{consolidation.destinationCountry}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Container Info */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Container Type</p>
+                  <p className="font-medium">{consolidation.containerType || 'N/A'}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Container Number</p>
+                  <p className="font-mono font-medium">{consolidation.containerNumber || 'N/A'}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Seal Number</p>
+                  <p className="font-mono font-medium">{consolidation.sealNumber || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <Ship className="h-4 w-4 text-blue-600 mb-1" />
+                  <p className="text-xs text-gray-500">Shipments</p>
+                  <p className="text-xl font-bold">{getShipmentCount(consolidation)}</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <Package className="h-4 w-4 text-green-600 mb-1" />
+                  <p className="text-xs text-gray-500">Packages</p>
+                  <p className="text-xl font-bold">{getTotalPackages(consolidation)}</p>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <Box className="h-4 w-4 text-purple-600 mb-1" />
+                  <p className="text-xs text-gray-500">Volume/Weight</p>
+                  <p className="text-sm font-bold">{formatVolume(getTotalVolume(consolidation))}</p>
+                  <p className="text-xs text-gray-500">{formatWeight(getTotalWeight(consolidation))}</p>
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Created</p>
+                  <p className="font-medium">{formatDate(consolidation.createdAt)}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Estimated Departure</p>
+                  <p className="font-medium">{consolidation.estimatedDeparture ? formatDate(consolidation.estimatedDeparture) : 'N/A'}</p>
+                </div>
+                {consolidation.actualDeparture && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Actual Departure</p>
+                    <p className="font-medium">{formatDate(consolidation.actualDeparture)}</p>
+                  </div>
+                )}
+                {consolidation.estimatedArrival && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Estimated Arrival</p>
+                    <p className="font-medium">{formatDate(consolidation.estimatedArrival)}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Notes */}
+              {consolidation.notes && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Notes</p>
+                  <p className="text-sm">{consolidation.notes}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'shipments' && (
+            <div className="space-y-3">
+              {shipments.length > 0 ? (
+                shipments.map((shipment, index) => (
+                  <div key={shipment._id || index} className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Shipment #{shipment.shipmentNumber || shipment._id?.slice(-8)}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {shipment.origin} → {shipment.destination}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm">{shipment.packages || 0} packages</p>
+                        <p className="text-xs text-gray-500">{formatWeight(shipment.weight)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No shipments in this consolidation
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'documents' && (
+            <div className="space-y-3">
+              {consolidation.documents && consolidation.documents.length > 0 ? (
+                consolidation.documents.map((doc, index) => (
+                  <div key={index} className="bg-gray-50 p-4 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center flex-1">
+                      <FileText className="h-5 w-5 text-blue-600 mr-3" />
+                      <div className="flex-1">
+                        <div className="flex items-center">
+                          <p className="font-medium capitalize">
+                            {doc.type === 'packing_list' ? 'Packing List' : 
+                             doc.type === 'container_manifest' ? 'Container Manifest' : 
+                             doc.type}
+                          </p>
+                          {doc.autoGenerated && (
+                            <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-600 rounded-full text-xs">
+                              Auto-generated
+                            </span>
+                          )}
+                        </div>
+                        
+                        {doc.fileName && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            File: {doc.fileName}
+                          </p>
+                        )}
+                        
+                        <p className="text-xs text-gray-400">
+                          Uploaded: {new Date(doc.uploadedAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {doc.fileData && (
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => {
+                            const win = window.open();
+                            win.document.write(`
+                              <iframe src="${doc.fileData}" width="100%" height="100%" style="border: none;"></iframe>
+                            `);
+                          }}
+                          className="p-2 hover:bg-blue-100 rounded-lg text-blue-600"
+                          title="View Document"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = doc.fileData;
+                            link.download = doc.fileName || `${doc.type}.pdf`;
+                            link.click();
+                          }}
+                          className="p-2 hover:bg-green-100 rounded-lg text-green-600"
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 mb-2">No documents uploaded yet</p>
+                  <p className="text-sm text-gray-400">
+                    Documents will be auto-generated when you mark as ready for dispatch
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'timeline' && (
+            <div className="space-y-3">
+              {consolidation.timeline && consolidation.timeline.length > 0 ? (
+                consolidation.timeline.map((event, index) => (
+                  <div key={index} className="flex items-start space-x-3">
+                    <div className="w-2 h-2 mt-2 rounded-full bg-[#E67E22]"></div>
+                    <div className="flex-1 bg-gray-50 p-3 rounded-lg">
+                      <p className="font-medium">{event.status}</p>
+                      <p className="text-xs text-gray-500">{formatDate(event.timestamp)}</p>
+                      {event.description && (
+                        <p className="text-sm text-gray-600 mt-1">{event.description}</p>
+                      )}
+                      {event.location && (
+                        <p className="text-xs text-gray-400 mt-1">📍 {event.location}</p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No timeline events
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="sticky bottom-0 bg-white border-t p-6 flex justify-between items-center">
+          
+          {/* Left side - Document count */}
+          {consolidation.documents && consolidation.documents.length > 0 && (
+            <div className="flex items-center text-sm text-gray-600">
+              <FileText className="h-4 w-4 mr-2 text-blue-600" />
+              <span>{consolidation.documents.length} Document(s)</span>
+            </div>
+          )}
+          
+          {/* Right side - Action buttons based on status */}
+          <div className="flex space-x-3 ml-auto">
+            
+            {/* Edit/Delete buttons for draft/in_progress */}
+            {(consolidation.status === 'draft' || consolidation.status === 'in_progress') && (
+              <>
+                <button
+                  onClick={handleEdit}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => onStatusChange(consolidation._id)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Change Status
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-4 py-2 border rounded-lg hover:bg-red-50 text-red-600 flex items-center"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </button>
+              </>
+            )}
+            
+            {/* Status based action buttons */}
+            {consolidation.status === 'ready_for_dispatch' && (
+              <button
+                onClick={() => onLoadedClick(consolidation)}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+              >
+                <Package className="h-4 w-4 mr-2" />
+                Mark as Loaded
+              </button>
+            )}
+            
+            {consolidation.status === 'loaded' && (
+              <button
+                onClick={() => onDispatch(consolidation)}
+                className="px-6 py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400] flex items-center"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Dispatch Now
+              </button>
+            )}
+            
+            {/* Status display for completed states */}
+            {consolidation.status === 'dispatched' && (
+              <div className="flex items-center text-amber-600 bg-amber-50 px-4 py-2 rounded-lg">
+                <Send className="h-5 w-5 mr-2" />
+                <span className="font-medium">Dispatched</span>
+              </div>
+            )}
+            
+            {consolidation.status === 'in_transit' && (
+              <div className="flex items-center text-yellow-600 bg-yellow-50 px-4 py-2 rounded-lg">
+                <Truck className="h-5 w-5 mr-2" />
+                <span className="font-medium">In Transit</span>
+              </div>
+            )}
+            
+            {consolidation.status === 'arrived' && (
+              <div className="flex items-center text-green-600 bg-green-50 px-4 py-2 rounded-lg">
+                <CheckCircle className="h-5 w-5 mr-2" />
+                <span className="font-medium">Arrived</span>
+              </div>
+            )}
+            
+            {consolidation.status === 'completed' && (
+              <div className="flex items-center text-emerald-600 bg-emerald-50 px-4 py-2 rounded-lg">
+                <Check className="h-5 w-5 mr-2" />
+                <span className="font-medium">Completed</span>
+              </div>
+            )}
+            
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== DISPATCH MODAL ====================
+
+const DispatchModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    dispatchDate: new Date().toISOString().split('T')[0],
+    dispatchTime: new Date().toTimeString().slice(0, 5),
+    carrierName: '',
+    vehicleNumber: '',
+    driverName: '',
+    driverPhone: '',
+    notes: ''
+  });
+
+  const handleSubmit = async () => {
+    if (!formData.carrierName) {
+      toast.warning('Please enter carrier name');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Step 1: Update to dispatched
+      const dispatchResult = await updateConsolidationStatus(consolidation._id, {
+        status: 'dispatched',
+        notes: `Dispatched on ${formData.dispatchDate} at ${formData.dispatchTime} with ${formData.carrierName}. Vehicle: ${formData.vehicleNumber || 'N/A'}, Driver: ${formData.driverName || 'N/A'}. ${formData.notes}`
+      });
+
+      if (dispatchResult.success) {
+        // Update actual departure date
+        await updateConsolidation(consolidation._id, {
+          actualDeparture: new Date(formData.dispatchDate + 'T' + formData.dispatchTime)
+        });
+
+        toast.success('✅ Consolidation dispatched successfully');
+
+        // Step 2: Auto update to in transit (after 2 seconds)
+        setTimeout(async () => {
+          try {
+            await updateConsolidationStatus(consolidation._id, {
+              status: 'in_transit',
+              notes: `In transit with ${formData.carrierName} - Vehicle: ${formData.vehicleNumber || 'N/A'}`
+            });
+            toast.info('🚚 Consolidation is now in transit');
+            onSuccess(); // Refresh data
+          } catch (error) {
+            console.error('Auto transit update failed:', error);
+          }
+        }, 2000);
+
+        onClose();
+      } else {
+        toast.error(dispatchResult.message);
+      }
+    } catch (error) {
+      toast.error('Failed to dispatch consolidation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-bold flex items-center">
+            <Send className="h-5 w-5 mr-2 text-[#E67E22]" />
+            Dispatch Consolidation
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Dispatch Date
+              </label>
+              <input
+                type="date"
+                value={formData.dispatchDate}
+                onChange={(e) => setFormData({ ...formData, dispatchDate: e.target.value })}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Dispatch Time
+              </label>
+              <input
+                type="time"
+                value={formData.dispatchTime}
+                onChange={(e) => setFormData({ ...formData, dispatchTime: e.target.value })}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Carrier Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.carrierName}
+              onChange={(e) => setFormData({ ...formData, carrierName: e.target.value })}
+              placeholder="e.g., Maersk, FedEx, etc."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Vehicle/Truck Number
+            </label>
+            <input
+              type="text"
+              value={formData.vehicleNumber}
+              onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value })}
+              placeholder="e.g., TR-1234"
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Driver Name
+              </label>
+              <input
+                type="text"
+                value={formData.driverName}
+                onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
+                placeholder="Driver name"
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Driver Phone
+              </label>
+              <input
+                type="text"
+                value={formData.driverPhone}
+                onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })}
+                placeholder="Phone number"
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Dispatch Notes
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={3}
+              placeholder="Any special instructions..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+            />
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !formData.carrierName}
+            className={`px-4 py-2 rounded-lg flex items-center ${
+              !formData.carrierName
+                ? 'bg-gray-300 cursor-not-allowed'
+                : 'bg-[#E67E22] hover:bg-[#d35400] text-white'
+            }`}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Dispatching...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Confirm Dispatch
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== READY FOR DISPATCH MODAL ====================
+
+const ReadyForDispatchModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [validationResults, setValidationResults] = useState(null);
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (consolidation && isOpen) {
+      const shipmentCount = consolidation.shipments?.length || consolidation.totalShipments || 0;
+      
+      const missing = [];
+      const warnings = [];
+
+      // 1. Status check
+      if (consolidation.status !== 'consolidated') {
+        missing.push('Status must be "Consolidated"');
+      }
+
+      // 2. Container number check
+      if (!consolidation.containerNumber) {
+        missing.push('Container number is required');
+      }
+
+      // 3. Container type check
+      if (!consolidation.containerType) {
+        missing.push('Container type is required');
+      }
+
+      // 4. Origin warehouse check
+      if (!consolidation.originWarehouse) {
+        missing.push('Origin warehouse is required');
+      }
+
+      // 5. Destination port check
+      if (!consolidation.destinationPort) {
+        missing.push('Destination port is required');
+      }
+
+      // 6. Shipments check
+      if (shipmentCount === 0) {
+        missing.push('At least one shipment is required');
+      }
+
+      // 7. Weight check
+      if (!consolidation.totalWeight || consolidation.totalWeight === 0) {
+        warnings.push('Total weight is 0 kg - please verify');
+      }
+
+      // 8. Volume check
+      if (!consolidation.totalVolume || consolidation.totalVolume === 0) {
+        warnings.push('Total volume is 0 CBM - please verify');
+      }
+
+      setValidationResults({
+        ready: missing.length === 0,
+        missing,
+        warnings,
+        summary: {
+          totalChecks: 8,
+          passed: 8 - missing.length,
+          warnings: warnings.length
+        }
+      });
+    }
+  }, [consolidation, isOpen]);
+ 
+  const handleMarkAsReady = async () => {
+    setLoading(true);
+    try {
+      const result = await markAsReadyForDispatch(consolidation._id, consolidation);
+      
+      if (result.success) {
+        toast.success(
+          <div>
+            <div className="font-bold">✓ Ready for Dispatch</div>
+            <div className="text-xs mt-1">
+              Documents generated and uploaded automatically
+            </div>
+          </div>
+        );
+        onSuccess();
+        onClose();
+      }
+    } catch (error) {
+      const errorData = error.response?.data || error;
+      toast.error(errorData?.message || 'Failed to mark as ready for dispatch');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b p-6">
+          <h3 className="text-lg font-bold flex items-center">
+            <Send className="h-5 w-5 mr-2 text-[#E67E22]" />
+            Mark as Ready for Dispatch
+          </h3>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          {/* Consolidation Info */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-500">Consolidation #</p>
+                <p className="font-mono font-medium">{consolidation.consolidationNumber}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Status</p>
+                <p className="font-medium">{getStatusBadge(consolidation.status)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Origin</p>
+                <p className="font-medium">{consolidation.originWarehouse || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Destination</p>
+                <p className="font-medium">{consolidation.destinationPort || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Validation Results */}
+          {validationResults && (
+            <div className="space-y-4">
+              {/* Summary Card */}
+              <div className={`p-4 rounded-lg ${
+                validationResults.ready 
+                  ? 'bg-green-50 border border-green-200' 
+                  : 'bg-yellow-50 border border-yellow-200'
+              }`}>
+                <div className="flex items-start">
+                  {validationResults.ready ? (
+                    <CheckCircle className="h-5 w-5 text-green-600 mr-3 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-yellow-600 mr-3 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <p className={`font-medium ${
+                      validationResults.ready ? 'text-green-800' : 'text-yellow-800'
+                    }`}>
+                      {validationResults.ready 
+                        ? '✓ All checks passed! Ready for dispatch' 
+                        : '⚠ Some checks failed'}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {validationResults.summary.passed} of {validationResults.summary.totalChecks} checks passed
+                      {validationResults.warnings.length > 0 && 
+                        ` • ${validationResults.warnings.length} warning(s)`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Missing Items (Errors) */}
+              {validationResults.missing.length > 0 && (
+                <div className="border-l-4 border-red-500 bg-red-50 p-4 rounded">
+                  <p className="font-medium text-red-800 mb-2 flex items-center">
+                    <X className="h-4 w-4 mr-1" />
+                    Required items missing:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationResults.missing.map((item, index) => (
+                      <li key={index} className="text-sm text-red-700">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {validationResults.warnings.length > 0 && (
+                <div className="border-l-4 border-yellow-500 bg-yellow-50 p-4 rounded">
+                  <p className="font-medium text-yellow-800 mb-2 flex items-center">
+                    <AlertTriangle className="h-4 w-4 mr-1" />
+                    Warnings:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationResults.warnings.map((item, index) => (
+                      <li key={index} className="text-sm text-yellow-700">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Dispatch Notes (Optional)
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Add any special instructions or notes for dispatch..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+            />
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-white border-t p-6 flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleMarkAsReady}
+            disabled={loading || (validationResults && !validationResults.ready)}
+            className={`px-4 py-2 rounded-lg flex items-center ${
+              validationResults && !validationResults.ready
+                ? 'bg-gray-300 cursor-not-allowed'
+                : 'bg-[#E67E22] hover:bg-[#d35400] text-white'
+            }`}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Mark as Ready for Dispatch
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== STAT CARD ====================
+
+const StatCard = ({ title, value, icon: Icon, color = 'orange', subtitle }) => {
   const colorClasses = {
     orange: 'bg-orange-50 text-orange-600',
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
     purple: 'bg-purple-50 text-purple-600',
-    red: 'bg-red-50 text-red-600'
+    red: 'bg-red-50 text-red-600',
+    indigo: 'bg-indigo-50 text-indigo-600',
+    amber: 'bg-amber-50 text-amber-600',
+    yellow: 'bg-yellow-50 text-yellow-600',
+    emerald: 'bg-emerald-50 text-emerald-600'
   };
 
   return (
@@ -418,11 +1205,6 @@ const StatCard = ({ title, value, icon: Icon, color = 'orange', trend, trendValu
         <div>
           <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{title}</p>
           <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
-          {trend && (
-            <p className={`text-xs mt-2 flex items-center ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}% from last month
-            </p>
-          )}
           {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
         </div>
         <div className={`p-4 rounded-xl ${colorClasses[color]}`}>
@@ -433,13 +1215,13 @@ const StatCard = ({ title, value, icon: Icon, color = 'orange', trend, trendValu
   );
 };
 
-// Filter Bar Component
+// ==================== FILTER BAR ====================
+
 const FilterBar = ({ filters, onFilterChange, onClearFilters, totalCount }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
-      {/* Basic Filters */}
       <div className="flex items-center space-x-4">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -469,17 +1251,9 @@ const FilterBar = ({ filters, onFilterChange, onClearFilters, totalCount }) => {
         >
           <SlidersHorizontal className="h-4 w-4 mr-2" />
           Filters
-          {Object.keys(filters).length > 2 && (
-            <span className="ml-2 px-2 py-0.5 bg-[#E67E22] text-white text-xs rounded-full">
-              {Object.keys(filters).length - 2}
-            </span>
-          )}
         </button>
 
-        <button
-          onClick={onClearFilters}
-          className="px-4 py-2 text-gray-600 hover:text-gray-900"
-        >
+        <button onClick={onClearFilters} className="px-4 py-2 text-gray-600 hover:text-gray-900">
           Clear
         </button>
 
@@ -488,7 +1262,6 @@ const FilterBar = ({ filters, onFilterChange, onClearFilters, totalCount }) => {
         </div>
       </div>
 
-      {/* Advanced Filters */}
       {showAdvanced && (
         <div className="grid grid-cols-4 gap-4 pt-4 border-t">
           <div>
@@ -540,88 +1313,40 @@ const FilterBar = ({ filters, onFilterChange, onClearFilters, totalCount }) => {
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
             />
           </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Date From</label>
-            <input
-              type="date"
-              value={filters.dateFrom || ''}
-              onChange={(e) => onFilterChange('dateFrom', e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Date To</label>
-            <input
-              type="date"
-              value={filters.dateTo || ''}
-              onChange={(e) => onFilterChange('dateTo', e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Sort By</label>
-            <select
-              value={filters.sortBy || 'createdAt'}
-              onChange={(e) => onFilterChange('sortBy', e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
-            >
-              <option value="createdAt">Created Date</option>
-              <option value="estimatedDeparture">Departure Date</option>
-              <option value="totalVolume">Volume</option>
-              <option value="totalWeight">Weight</option>
-              <option value="shipmentCount">Shipment Count</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Sort Order</label>
-            <select
-              value={filters.sortOrder || 'desc'}
-              onChange={(e) => onFilterChange('sortOrder', e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
-            >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </select>
-          </div>
         </div>
       )}
     </div>
   );
 };
 
-// Consolidation Card Component (Grid View) - ফিক্সড ভার্সন
-// ConsolidationCard কম্পোনেন্ট - আপডেটেড ভার্সন
-const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) => {
+// ==================== CONSOLIDATION CARD ==================== 
+
+// ==================== CONSOLIDATION CARD ====================
+
+const ConsolidationCard = ({ 
+  consolidation, 
+  onView, 
+  onEdit, 
+  onStatusChange, 
+  onDelete, 
+  onReadyForDispatch, 
+  onLoadedClick,
+  onDispatch,
+  onArrivedClick            // ✅ এই LINE টা যোগ করুন
+}) => {
   const [showActions, setShowActions] = useState(false);
   
-  // আপনার ডেটা স্ট্রাকচার অনুযায়ী origin/destination নিন
   const origin = consolidation.originWarehouse || 'N/A';
   const destination = consolidation.destinationPort || 'N/A';
+  const shipmentCount = getShipmentCount(consolidation);
+  const totalPackages = getTotalPackages(consolidation);
+  const totalVolume = getTotalVolume(consolidation);
+  const totalWeight = getTotalWeight(consolidation);
+  const containerType = getContainerType(consolidation);
+  const mainType = getMainType(consolidation);
+  const subType = getSubType(consolidation);
   
-  // Shipments count
-  const shipmentCount = consolidation.shipments?.length || consolidation.totalShipments || 0;
-  
-  // Packages, Volume, Weight
-  const totalPackages = consolidation.totalPackages || 0;
-  const totalVolume = consolidation.totalVolume || 0;
-  const totalWeight = consolidation.totalWeight || 0;
-  
-  // Container info
-  const containerType = consolidation.containerType || 'N/A';
-  const containerNumber = consolidation.containerNumber || 'N/A';
-  const sealNumber = consolidation.sealNumber || 'N/A';
-  
-  // Main type & Sub type
-  const mainType = consolidation.mainType || 'N/A';
-  const subType = consolidation.subType || 'N/A';
-  
-  // Utilization calculations
-  const volumeUtilization = (totalVolume / 100) * 100;
-  const weightUtilization = (totalWeight / 28000) * 100;
+  const canBeReadyForDispatch = consolidation.status === 'consolidated';
 
   return (
     <div 
@@ -629,7 +1354,6 @@ const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDe
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* Header */}
       <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-amber-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -646,9 +1370,17 @@ const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDe
         </div>
       </div>
 
-      {/* Content */}
       <div className="p-4">
-        {/* Route - এখন দেখাবে! */}
+        {/* Documents indicator */}
+        {consolidation.documents && consolidation.documents.length > 0 && (
+          <div className="flex items-center space-x-2 mb-2 bg-green-50 p-2 rounded-lg">
+            <FileText className="h-4 w-4 text-green-600" />
+            <span className="text-xs text-green-600 font-medium">
+              {consolidation.documents.length} document(s)
+            </span>
+          </div>
+        )}
+
         <div className="bg-gray-50 p-3 rounded-lg mb-3">
           <div className="flex items-center justify-between">
             <div className="flex-1">
@@ -669,27 +1401,23 @@ const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDe
           </div>
         </div>
 
-        {/* Container Info */}
         <div className="bg-gray-50 rounded-lg p-3 mb-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-gray-500">Container</span>
-            <span className="text-sm font-semibold">
-              {formatContainerType(containerType)}
-            </span>
+            <span className="text-sm font-semibold">{containerType}</span>
           </div>
           <div className="text-xs text-gray-600">
             <div className="flex justify-between mb-1">
               <span>Number:</span>
-              <span className="font-mono">{containerNumber}</span>
+              <span className="font-mono">{consolidation.containerNumber || 'N/A'}</span>
             </div>
             <div className="flex justify-between">
               <span>Seal:</span>
-              <span className="font-mono">{sealNumber}</span>
+              <span className="font-mono">{consolidation.sealNumber || 'N/A'}</span>
             </div>
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-2 mb-3">
           <div className="bg-blue-50 rounded-lg p-2">
             <Ship className="h-3 w-3 text-blue-600 mb-1" />
@@ -703,18 +1431,11 @@ const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDe
           </div>
         </div>
 
-        {/* Volume & Weight */}
         <div className="space-y-2 mb-3">
           <div>
             <div className="flex justify-between text-xs mb-1">
               <span className="text-gray-500">Volume</span>
               <span className="font-medium">{formatVolume(totalVolume)}</span>
-            </div>
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-orange-500 rounded-full"
-                style={{ width: `${Math.min(volumeUtilization, 100)}%` }}
-              />
             </div>
           </div>
           <div>
@@ -722,16 +1443,9 @@ const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDe
               <span className="text-gray-500">Weight</span>
               <span className="font-medium">{formatWeight(totalWeight)}</span>
             </div>
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-500 rounded-full"
-                style={{ width: `${Math.min(weightUtilization, 100)}%` }}
-              />
-            </div>
           </div>
         </div>
 
-        {/* Dates */}
         <div className="text-xs text-gray-400 space-y-1">
           <div className="flex items-center">
             <Calendar className="h-3 w-3 mr-1" />
@@ -744,10 +1458,48 @@ const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDe
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Status based action buttons - সরাসরি কার্ডে */}
+      {consolidation.status === 'ready_for_dispatch' && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={() => onLoadedClick(consolidation)}
+            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Mark as Loaded
+          </button>
+        </div>
+      )}
+
+      {consolidation.status === 'loaded' && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={() => onDispatch(consolidation)}
+            className="w-full py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400] flex items-center justify-center"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Dispatch Now
+          </button>
+        </div>
+      )}
+
+      {/* ✅ In Transit → Arrived বাটন - কার্ডের বাইরে */}
+      {consolidation.status === 'in_transit' && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={() => onArrivedClick(consolidation)}
+            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
+          >
+            <Ship className="h-4 w-4 mr-2" />
+            Mark as Arrived
+          </button>
+        </div>
+      )}
+
+      {/* Actions Icons */}
       <div className={`p-3 bg-gray-50 border-t flex justify-end space-x-2 transition-opacity ${showActions ? 'opacity-100' : 'opacity-0'}`}>
         <button
-          onClick={() => onView(consolidation._id)}
+          onClick={() => onView(consolidation)}
           className="p-1.5 hover:bg-blue-100 rounded-lg text-blue-600"
           title="View Details"
         >
@@ -760,6 +1512,15 @@ const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDe
         >
           <Edit className="h-4 w-4" />
         </button>
+        {canBeReadyForDispatch && (
+          <button
+            onClick={() => onReadyForDispatch(consolidation)}
+            className="p-1.5 hover:bg-orange-100 rounded-lg text-orange-600"
+            title="Mark as Ready for Dispatch"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        )}
         <button
           onClick={() => onStatusChange(consolidation._id)}
           className="p-1.5 hover:bg-purple-100 rounded-lg text-purple-600"
@@ -778,19 +1539,229 @@ const ConsolidationCard = ({ consolidation, onView, onEdit, onStatusChange, onDe
     </div>
   );
 };
+// ==================== ARRIVED MODAL ====================
+ 
 
-// Table Row Component (Table View)
-const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) => {
-  const origin = getConsolidationOrigin(consolidation);
-  const destination = getConsolidationDestination(consolidation);
+// ==================== ARRIVED MODAL ====================
+
+const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [formData, setFormData] = useState({
+    arrivalDate: new Date().toISOString().split('T')[0],
+    arrivalTime: new Date().toTimeString().slice(0, 5),
+    portName: '',
+    vesselName: '',
+    notes: ''
+  });
+
+  // 🚀 Auto-fetch consolidation details when modal opens
+  useEffect(() => {
+    if (isOpen && consolidation) {
+      setFetching(true);
+      
+      // Auto-fill from consolidation data
+      setFormData(prev => ({
+        ...prev,
+        portName: consolidation.destinationPort || 'Destination Port',
+        vesselName: consolidation.carrier?.vesselNumber || 
+                    consolidation.carrier?.flightNumber || 
+                    'Not assigned'
+      }));
+      
+      setFetching(false);
+      
+      console.log('✅ Auto-fetched:', {
+        port: consolidation.destinationPort,
+        vessel: consolidation.carrier?.vesselNumber
+      });
+    }
+  }, [isOpen, consolidation]);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const result = await updateConsolidationStatus(consolidation._id, {
+        status: 'arrived',
+        notes: `Arrived at ${formData.portName} on ${formData.arrivalDate} ${formData.arrivalTime}. Vessel: ${formData.vesselName}. ${formData.notes}`,
+        location: formData.portName,
+        actualArrival: new Date(formData.arrivalDate + 'T' + formData.arrivalTime)
+      });
+
+      if (result.success) {
+        toast.success('✅ Shipment arrived at destination port');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to update status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-bold flex items-center">
+            <Ship className="h-5 w-5 mr-2 text-blue-600" />
+            Mark as Arrived
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          {fetching ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-600 mr-2" />
+              <span className="text-sm text-gray-500">Fetching vessel details...</span>
+            </div>
+          ) : (
+            <>
+              {/* Arrival Date & Time */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Arrival Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.arrivalDate}
+                    onChange={(e) => setFormData({...formData, arrivalDate: e.target.value})}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Arrival Time
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.arrivalTime}
+                    onChange={(e) => setFormData({...formData, arrivalTime: e.target.value})}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
+
+              {/* Port Name - Auto-filled */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Port Name
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.portName}
+                    onChange={(e) => setFormData({...formData, portName: e.target.value})}
+                    placeholder="Destination port"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600 pr-8"
+                  />
+                  <MapPin className="absolute right-2 top-2.5 h-4 w-4 text-gray-400" />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Auto-filled from consolidation
+                </p>
+              </div>
+
+              {/* Vessel/Flight - Auto-filled */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Vessel/Flight Number
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.vesselName}
+                    onChange={(e) => setFormData({...formData, vesselName: e.target.value})}
+                    placeholder="Vessel or flight number"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600 pr-8"
+                  />
+                  <Ship className="absolute right-2 top-2.5 h-4 w-4 text-gray-400" />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Auto-filled from carrier details
+                </p>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  rows={3}
+                  placeholder="Any arrival notes..."
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+                />
+              </div>
+
+              {/* Auto-fetch Info Banner */}
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <div className="flex items-start">
+                  <Info className="h-4 w-4 text-blue-600 mr-2 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-medium text-blue-800">Auto-filled Information</p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Port and vessel details automatically fetched from consolidation data. You can edit if needed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || fetching}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              'Confirm Arrival'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== TABLE ROW ====================
+
+const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onReadyForDispatch, onLoadedClick, onDispatch, onArrivedClick }) => {
+  const origin = consolidation.originWarehouse || 'N/A';
+  const destination = consolidation.destinationPort || 'N/A';
   const shipmentCount = getShipmentCount(consolidation);
   const totalPackages = getTotalPackages(consolidation);
   const totalVolume = getTotalVolume(consolidation);
   const totalWeight = getTotalWeight(consolidation);
   const containerType = getContainerType(consolidation);
-  const containerNumber = getContainerNumber(consolidation);
   const mainType = getMainType(consolidation);
-  const subType = getSubType(consolidation);
+  
+  const canBeReadyForDispatch = consolidation.status === 'consolidated';
 
   return (
     <tr className="hover:bg-gray-50 transition-colors">
@@ -809,32 +1780,19 @@ const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) =
       <td className="px-4 py-3">
         <div className="text-sm">
           <div className="font-medium">{getMainTypeName(mainType)}</div>
-          <div className="text-xs text-gray-500">{getSubTypeName(subType)}</div>
         </div>
       </td>
       <td className="px-4 py-3">
-        <div className="text-sm">
-          <div>{formatContainerType(containerType)}</div>
-          <div className="text-xs text-gray-500">{containerNumber}</div>
-        </div>
+        <div className="text-sm">{containerType}</div>
       </td>
       <td className="px-4 py-3">
         <div className="text-sm">
-          <div className="flex items-center">
-            <MapPin className="h-3 w-3 text-gray-400 mr-1" />
-            {origin}
-          </div>
-          <div className="flex items-center text-xs text-gray-500 mt-1">
-            <ChevronRight className="h-3 w-3" />
-            {destination}
-          </div>
+          <div>{origin}</div>
+          <div className="text-xs text-gray-500">→ {destination}</div>
         </div>
       </td>
       <td className="px-4 py-3">
-        <div className="text-sm">
-          <div>{shipmentCount}</div>
-          <div className="text-xs text-gray-500">{totalPackages} pkgs</div>
-        </div>
+        <div className="text-sm">{shipmentCount}</div>
       </td>
       <td className="px-4 py-3">
         <div className="text-sm">
@@ -843,15 +1801,9 @@ const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) =
         </div>
       </td>
       <td className="px-4 py-3">
-        <div className="text-sm">
-          <div>{formatDate(consolidation.estimatedDeparture)}</div>
-          <div className="text-xs text-gray-500">{formatDate(consolidation.createdAt)}</div>
-        </div>
-      </td>
-      <td className="px-4 py-3">
         <div className="flex items-center space-x-1">
           <button
-            onClick={() => onView(consolidation._id)}
+            onClick={() => onView(consolidation)}
             className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
             title="View"
           >
@@ -864,19 +1816,24 @@ const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) =
           >
             <Edit className="h-4 w-4" />
           </button>
+          {canBeReadyForDispatch && (
+            <button
+              onClick={() => onReadyForDispatch(consolidation)}
+              className="p-1 hover:bg-orange-100 rounded-lg text-orange-600"
+              title="Mark as Ready for Dispatch"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          )}
           <button
-            onClick={() => onStatusChange(consolidation._id, consolidation.status)}
+            onClick={() => onStatusChange(consolidation._id)}
             className="p-1 hover:bg-purple-100 rounded-lg text-purple-600"
             title="Change Status"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
           <button
-            onClick={() => {
-              if (confirm('Are you sure you want to delete this consolidation?')) {
-                onDelete(consolidation._id);
-              }
-            }}
+            onClick={() => onDelete(consolidation._id)}
             className="p-1 hover:bg-red-100 rounded-lg text-red-600"
             title="Delete"
           >
@@ -888,18 +1845,19 @@ const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) =
   );
 };
 
-// List Item Component (List View)
-const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) => {
-  const origin = getConsolidationOrigin(consolidation);
-  const destination = getConsolidationDestination(consolidation);
+// ==================== LIST ITEM ====================
+
+const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onReadyForDispatch, onDispatch,onArrivedClick    }) => {
+  const origin = consolidation.originWarehouse || 'N/A';
+  const destination = consolidation.destinationPort || 'N/A';
   const shipmentCount = getShipmentCount(consolidation);
   const totalPackages = getTotalPackages(consolidation);
   const totalVolume = getTotalVolume(consolidation);
   const totalWeight = getTotalWeight(consolidation);
   const containerType = getContainerType(consolidation);
-  const containerNumber = getContainerNumber(consolidation);
   const mainType = getMainType(consolidation);
-  const subType = getSubType(consolidation);
+  
+  const canBeReadyForDispatch = consolidation.status === 'consolidated';
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-lg transition-all">
@@ -916,15 +1874,15 @@ const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) =
               </span>
               {getStatusBadge(consolidation.status)}
               <span className="text-sm text-gray-500">
-                {getMainTypeName(mainType)} - {getSubTypeName(subType)}
+                {getMainTypeName(mainType)}
               </span>
             </div>
 
             <div className="grid grid-cols-4 gap-4">
               <div>
                 <p className="text-xs text-gray-500">Container</p>
-                <p className="text-sm font-medium">{formatContainerType(containerType)}</p>
-                <p className="text-xs text-gray-400">{containerNumber}</p>
+                <p className="text-sm font-medium">{containerType}</p>
+                <p className="text-xs text-gray-400">{consolidation.containerNumber || 'N/A'}</p>
               </div>
               
               <div>
@@ -945,23 +1903,12 @@ const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) =
                 <p className="text-xs text-gray-400">{formatWeight(totalWeight)}</p>
               </div>
             </div>
-
-            <div className="flex items-center space-x-4 mt-2 text-xs text-gray-400">
-              <span className="flex items-center">
-                <Calendar className="h-3 w-3 mr-1" />
-                Est: {formatDate(consolidation.estimatedDeparture)}
-              </span>
-              <span className="flex items-center">
-                <Clock className="h-3 w-3 mr-1" />
-                Created: {formatDate(consolidation.createdAt)}
-              </span>
-            </div>
           </div>
         </div>
 
         <div className="flex items-center space-x-1">
           <button
-            onClick={() => onView(consolidation._id)}
+            onClick={() => onView(consolidation)}
             className="p-2 hover:bg-blue-100 rounded-lg text-blue-600"
             title="View"
           >
@@ -974,19 +1921,24 @@ const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) =
           >
             <Edit className="h-4 w-4" />
           </button>
+          {canBeReadyForDispatch && (
+            <button
+              onClick={() => onReadyForDispatch(consolidation)}
+              className="p-2 hover:bg-orange-100 rounded-lg text-orange-600"
+              title="Mark as Ready for Dispatch"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          )}
           <button
-            onClick={() => onStatusChange(consolidation._id, consolidation.status)}
+            onClick={() => onStatusChange(consolidation._id)}
             className="p-2 hover:bg-purple-100 rounded-lg text-purple-600"
             title="Change Status"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
           <button
-            onClick={() => {
-              if (confirm('Are you sure you want to delete this consolidation?')) {
-                onDelete(consolidation._id);
-              }
-            }}
+            onClick={() => onDelete(consolidation._id)}
             className="p-2 hover:bg-red-100 rounded-lg text-red-600"
             title="Delete"
           >
@@ -998,11 +1950,21 @@ const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete }) =
   );
 };
 
-// Status Change Modal
+// ==================== STATUS CHANGE MODAL ==================== 
+
 const StatusChangeModal = ({ isOpen, onClose, consolidationId, currentStatus, onStatusUpdated }) => {
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // শুধুমাত্র draft, in_progress, consolidated দেখান
+  const availableStatuses = CONSOLIDATION_STATUSES.filter(status => 
+    ['draft', 'in_progress', 'consolidated'].includes(status.value)
+  );
+
+  useEffect(() => {
+    setSelectedStatus(currentStatus);
+  }, [currentStatus]);
 
   const handleSubmit = async () => {
     if (!selectedStatus) {
@@ -1050,12 +2012,15 @@ const StatusChangeModal = ({ isOpen, onClose, consolidationId, currentStatus, on
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
             >
-              {CONSOLIDATION_STATUSES.map(status => (
+              {availableStatuses.map(status => (
                 <option key={status.value} value={status.value}>
                   {status.label}
                 </option>
               ))}
             </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Only Draft, In Progress, and Consolidated statuses are available
+            </p>
           </div>
 
           <div>
@@ -1070,20 +2035,10 @@ const StatusChangeModal = ({ isOpen, onClose, consolidationId, currentStatus, on
               className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
             />
           </div>
-
-          <div className="bg-blue-50 p-3 rounded-lg">
-            <p className="text-xs text-blue-700">
-              <Info className="h-3 w-3 inline mr-1" />
-              Status changes will be recorded in the consolidation history
-            </p>
-          </div>
         </div>
 
         <div className="p-6 border-t flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-          >
+          <button onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
             Cancel
           </button>
           <button
@@ -1106,7 +2061,8 @@ const StatusChangeModal = ({ isOpen, onClose, consolidationId, currentStatus, on
   );
 };
 
-// Edit Consolidation Modal
+// ==================== EDIT MODAL ====================
+
 const EditConsolidationModal = ({ isOpen, onClose, consolidation, onUpdated }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -1152,8 +2108,8 @@ const EditConsolidationModal = ({ isOpen, onClose, consolidation, onUpdated }) =
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b p-6">
+      <div className="bg-white rounded-xl max-w-lg w-full">
+        <div className="p-6 border-b">
           <h3 className="text-lg font-bold">Edit Consolidation</h3>
         </div>
         
@@ -1210,7 +2166,6 @@ const EditConsolidationModal = ({ isOpen, onClose, consolidation, onUpdated }) =
               type="date"
               value={formData.estimatedDeparture}
               onChange={(e) => setFormData({ ...formData, estimatedDeparture: e.target.value })}
-              min={new Date().toISOString().split('T')[0]}
               className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
             />
           </div>
@@ -1229,11 +2184,8 @@ const EditConsolidationModal = ({ isOpen, onClose, consolidation, onUpdated }) =
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-white border-t p-6 flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-          >
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
             Cancel
           </button>
           <button
@@ -1256,7 +2208,8 @@ const EditConsolidationModal = ({ isOpen, onClose, consolidation, onUpdated }) =
   );
 };
 
-// Bulk Actions Bar
+// ==================== BULK ACTIONS BAR ====================
+
 const BulkActionsBar = ({ selectedCount, onClear, onBulkAction }) => {
   if (selectedCount === 0) return null;
 
@@ -1273,16 +2226,16 @@ const BulkActionsBar = ({ selectedCount, onClear, onBulkAction }) => {
         Change Status
       </button>
       <button
-        onClick={() => onBulkAction('export')}
-        className="px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+        onClick={() => onBulkAction('ready')}
+        className="px-3 py-1.5 text-sm bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100"
       >
-        Export Selected
+        Mark Ready
       </button>
       <button
-        onClick={() => onBulkAction('print')}
+        onClick={() => onBulkAction('dispatch')}
         className="px-3 py-1.5 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100"
       >
-        Print Labels
+        Dispatch
       </button>
       <button
         onClick={() => onBulkAction('delete')}
@@ -1291,21 +2244,17 @@ const BulkActionsBar = ({ selectedCount, onClear, onBulkAction }) => {
         Delete
       </button>
       <div className="h-4 w-px bg-gray-200" />
-      <button
-        onClick={onClear}
-        className="text-sm text-gray-500 hover:text-gray-700"
-      >
+      <button onClick={onClear} className="text-sm text-gray-500 hover:text-gray-700">
         Clear
       </button>
     </div>
   );
 };
 
-// Export Modal
+// ==================== EXPORT MODAL ====================
+
 const ExportModal = ({ isOpen, onClose, onExport }) => {
   const [format, setFormat] = useState('csv');
-  const [includeDetails, setIncludeDetails] = useState(true);
-  const [dateRange, setDateRange] = useState('all');
 
   if (!isOpen) return null;
 
@@ -1337,49 +2286,14 @@ const ExportModal = ({ isOpen, onClose, onExport }) => {
               ))}
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Date Range
-            </label>
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="quarter">This Quarter</option>
-              <option value="year">This Year</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
-
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="includeDetails"
-              checked={includeDetails}
-              onChange={(e) => setIncludeDetails(e.target.checked)}
-              className="rounded border-gray-300 text-[#E67E22] focus:ring-[#E67E22]"
-            />
-            <label htmlFor="includeDetails" className="ml-2 text-sm text-gray-700">
-              Include shipment details
-            </label>
-          </div>
         </div>
 
         <div className="p-6 border-t flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-          >
+          <button onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
             Cancel
           </button>
           <button
-            onClick={() => onExport({ format, includeDetails, dateRange })}
+            onClick={() => onExport({ format })}
             className="px-4 py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400]"
           >
             Export
@@ -1393,7 +2307,7 @@ const ExportModal = ({ isOpen, onClose, onExport }) => {
 // ==================== MAIN PAGE ====================
 
 export default function ConsolidationsPage() {
-  const router = useRouter();
+    const router = useRouter();
   
   // State
   const [loading, setLoading] = useState(true);
@@ -1419,63 +2333,44 @@ export default function ConsolidationsPage() {
 
   // Modal states
   const [selectedConsolidation, setSelectedConsolidation] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showReadyForDispatchModal, setShowReadyForDispatchModal] = useState(false);
+  const [showDispatchModal, setShowDispatchModal] = useState(false);
+  const [showLoadedModal, setShowLoadedModal] = useState(false);
+  const [showArrivedModal, setShowArrivedModal] = useState(false);  // ✅ এই LINE টা যোগ করুন
   const [selectedIds, setSelectedIds] = useState([]);
+  
+  // Handler for Arrived button
+  const handleArrivedClick = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowArrivedModal(true);
+  };
   
   // Load data
   useEffect(() => {
     loadConsolidations();
     loadStats();
-  }, [filters.page, filters.status, filters.mainType, filters.sortBy, filters.sortOrder]);
+  }, [filters]);
 
-  // loadConsolidations ফাংশন আপডেট করুন
-const loadConsolidations = async () => {
-  setLoading(true);
-  try {
-    const result = await getConsolidations(filters);
-    if (result.success) {
-      // ডেটা প্রসেস করে নিন
-      const processedData = result.data.map(cons => {
-        console.log('🔍 Processing consolidation:', cons._id, cons.consolidationNumber);
-        
-        // কনসলিডেশনে সরাসরি destination আছে কিনা দেখুন
-        if (cons.destination) {
-          console.log('✅ Found destination directly:', cons.destination);
-        } 
-        // shipments অ্যারে থেকে destination বের করুন
-        else if (cons.shipments && cons.shipments.length > 0) {
-          console.log('📦 First shipment:', cons.shipments[0]);
-          console.log('📦 Shipment destination:', cons.shipments[0]?.destination);
-          
-          // shipments থেকে destination নিয়ে cons-এ যোগ করুন
-          const firstShipment = cons.shipments[0];
-          if (firstShipment?.destination) {
-            cons.destination = firstShipment.destination;
-            console.log('✅ Added destination from shipment:', cons.destination);
-          }
-          if (firstShipment?.origin) {
-            cons.origin = firstShipment.origin;
-          }
-        }
-        
-        return cons;
-      });
-      
-      setConsolidations(processedData);
-      setPagination(result.pagination);
-      
-      console.log('📊 Processed Consolidations:', processedData);
-    } else {
-      toast.error(result.message);
+  const loadConsolidations = async () => {
+    setLoading(true);
+    try {
+      const result = await getConsolidations(filters);
+      if (result.success) {
+        setConsolidations(result.data);
+        setPagination(result.pagination);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to load consolidations');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    toast.error('Failed to load consolidations');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const loadStats = async () => {
     try {
@@ -1500,7 +2395,7 @@ const loadConsolidations = async () => {
     setFilters(prev => ({
       ...prev,
       [key]: value,
-      page: 1 // Reset to first page on filter change
+      page: 1
     }));
   };
 
@@ -1525,8 +2420,9 @@ const loadConsolidations = async () => {
     setFilters(prev => ({ ...prev, page: newPage }));
   };
 
-  const handleViewDetails = (id) => {
-    router.push(`/warehouse/consolidations/${id}`);
+  const handleViewDetails = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowDetailsModal(true);
   };
 
   const handleEdit = (id) => {
@@ -1535,13 +2431,30 @@ const loadConsolidations = async () => {
     setShowEditModal(true);
   };
 
-  const handleStatusChange = (id, currentStatus) => {
+  const handleStatusChange = (id) => {
     const consolidation = consolidations.find(c => c._id === id);
     setSelectedConsolidation(consolidation);
     setShowStatusModal(true);
   };
 
+  const handleReadyForDispatch = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowReadyForDispatchModal(true);
+  };
+
+  const handleDispatch = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowDispatchModal(true);
+  };
+
+  const handleLoadedClick = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowLoadedModal(true);
+  };
+
   const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this consolidation?')) return;
+    
     try {
       const result = await deleteConsolidation(id);
       if (result.success) {
@@ -1564,14 +2477,6 @@ const loadConsolidations = async () => {
     }
   };
 
-  const handleSelectOne = (id) => {
-    setSelectedIds(prev => 
-      prev.includes(id) 
-        ? prev.filter(i => i !== id)
-        : [...prev, id]
-    );
-  };
-
   const handleBulkAction = (action) => {
     if (selectedIds.length === 0) {
       toast.warning('No items selected');
@@ -1582,11 +2487,14 @@ const loadConsolidations = async () => {
       case 'status':
         toast.info(`Change status for ${selectedIds.length} consolidations`);
         break;
+      case 'ready':
+        toast.info(`Mark ${selectedIds.length} consolidations as ready for dispatch`);
+        break;
+      case 'dispatch':
+        toast.info(`Dispatch ${selectedIds.length} consolidations`);
+        break;
       case 'export':
         setShowExportModal(true);
-        break;
-      case 'print':
-        toast.info('Printing labels...');
         break;
       case 'delete':
         if (confirm(`Delete ${selectedIds.length} consolidations?`)) {
@@ -1596,8 +2504,9 @@ const loadConsolidations = async () => {
     }
   };
 
-  // Calculate stats for display
-  const groupedByStatus = groupConsolidationsByStatus(consolidations);
+  const readyForDispatchCount = consolidations.filter(c => 
+    c.status === 'consolidated'
+  ).length;
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1670,13 +2579,12 @@ const loadConsolidations = async () => {
                 value={stats.byStatus?.in_progress || 0} 
                 icon={Play} 
                 color="blue"
-                subtitle={`${((stats.byStatus?.in_progress / stats.totalConsolidations) * 100 || 0).toFixed(1)}% of total`}
               />
               <StatCard 
-                title="Completed" 
-                value={stats.byStatus?.completed || 0} 
-                icon={CheckCircle} 
-                color="green"
+                title="Ready for Dispatch" 
+                value={readyForDispatchCount} 
+                icon={Send} 
+                color="orange"
               />
               <StatCard 
                 title="Total Volume" 
@@ -1721,7 +2629,6 @@ const loadConsolidations = async () => {
             ))}
           </div>
 
-          {/* Results info */}
           <div className="text-sm text-gray-500">
             Showing {consolidations.length} of {pagination?.total || 0} consolidations
           </div>
@@ -1739,7 +2646,7 @@ const loadConsolidations = async () => {
               <Package className="h-10 w-10 text-[#E67E22]" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No consolidations found</h3>
-            <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+            <p className="text-sm text-gray-500 mb-6">
               {filters.search || filters.status || filters.mainType 
                 ? 'Try adjusting your filters'
                 : 'Create your first consolidation from the queue'}
@@ -1754,7 +2661,6 @@ const loadConsolidations = async () => {
           </div>
         ) : (
           <>
-            {/* Grid View */}
             {viewMode === 'grid' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {consolidations.map(consolidation => (
@@ -1765,12 +2671,15 @@ const loadConsolidations = async () => {
                     onEdit={handleEdit}
                     onStatusChange={handleStatusChange}
                     onDelete={handleDelete}
+                    onReadyForDispatch={handleReadyForDispatch}
+                    onLoadedClick={handleLoadedClick}  // ✅ এই লাইন যোগ করুন
+                    onDispatch={handleDispatch} 
+                    onArrivedClick={handleArrivedClick} 
                   />
                 ))}
               </div>
             )}
 
-            {/* List View */}
             {viewMode === 'list' && (
               <div className="space-y-3">
                 {consolidations.map(consolidation => (
@@ -1781,12 +2690,15 @@ const loadConsolidations = async () => {
                     onEdit={handleEdit}
                     onStatusChange={handleStatusChange}
                     onDelete={handleDelete}
+                    onReadyForDispatch={handleReadyForDispatch}
+                    onLoadedClick={handleLoadedClick}  // ✅ এই লাইন যোগ করুন
+                    onDispatch={handleDispatch}
+                    onArrivedClick={handleArrivedClick} 
                   />
                 ))}
               </div>
             )}
 
-            {/* Table View */}
             {viewMode === 'table' && (
               <div className="bg-white rounded-xl border overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -1822,9 +2734,6 @@ const loadConsolidations = async () => {
                         Volume/Weight
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Dates
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -1838,6 +2747,10 @@ const loadConsolidations = async () => {
                         onEdit={handleEdit}
                         onStatusChange={handleStatusChange}
                         onDelete={handleDelete}
+                        onReadyForDispatch={handleReadyForDispatch}
+                        onLoadedClick={handleLoadedClick}  // ✅ এই লাইন যোগ করুন
+                        onDispatch={handleDispatch}
+                        onArrivedClick={handleArrivedClick} 
                       />
                     ))}
                   </tbody>
@@ -1859,32 +2772,6 @@ const loadConsolidations = async () => {
                   >
                     Previous
                   </button>
-                  {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
-                    let pageNum;
-                    if (pagination.pages <= 5) {
-                      pageNum = i + 1;
-                    } else if (pagination.page <= 3) {
-                      pageNum = i + 1;
-                    } else if (pagination.page >= pagination.pages - 2) {
-                      pageNum = pagination.pages - 4 + i;
-                    } else {
-                      pageNum = pagination.page - 2 + i;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`px-3 py-1 rounded-lg ${
-                          pagination.page === pageNum
-                            ? 'bg-[#E67E22] text-white'
-                            : 'border hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
                   <button
                     onClick={() => handlePageChange(pagination.page + 1)}
                     disabled={pagination.page === pagination.pages}
@@ -1900,6 +2787,20 @@ const loadConsolidations = async () => {
       </div>
 
       {/* Modals */}
+      <ConsolidationDetailsModal
+        isOpen={showDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onStatusChange={handleStatusChange}
+        onDispatch={handleDispatch}
+        onLoadedClick={handleLoadedClick}
+      />
+
       <StatusChangeModal
         isOpen={showStatusModal}
         onClose={() => {
@@ -1927,6 +2828,45 @@ const loadConsolidations = async () => {
         }}
       />
 
+      <ReadyForDispatchModal
+        isOpen={showReadyForDispatchModal}
+        onClose={() => {
+          setShowReadyForDispatchModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
+      <LoadedModal
+        isOpen={showLoadedModal}
+        onClose={() => {
+          setShowLoadedModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
+      <DispatchModal
+        isOpen={showDispatchModal}
+        onClose={() => {
+          setShowDispatchModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
       <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
@@ -1936,12 +2876,23 @@ const loadConsolidations = async () => {
         }}
       />
 
-      {/* Bulk Actions */}
       <BulkActionsBar
         selectedCount={selectedIds.length}
         onClear={() => setSelectedIds([])}
         onBulkAction={handleBulkAction}
       />
+      <ArrivedModal
+  isOpen={showArrivedModal}
+  onClose={() => {
+    setShowArrivedModal(false);
+    setSelectedConsolidation(null);
+  }}
+  consolidation={selectedConsolidation}
+  onSuccess={() => {
+    loadConsolidations();
+    loadStats();
+  }}
+/>
     </div>
   );
 }

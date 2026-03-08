@@ -128,11 +128,11 @@ const menuItems = [
         path: '/warehouse/all-consolidation',
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
-      {
-        title: 'ready for dispatch',
-        path: '/warehouse/dispatch',
-        icon: <HiOutlineDownload className="w-4 h-4" />,
-      },
+      // {
+      //   title: 'ready for dispatch',
+      //   path: '/warehouse/dispatch',
+      //   icon: <HiOutlineDownload className="w-4 h-4" />,
+      // },
       { 
         title: 'Containers',
         path: '/admin/warehouse/containers',
