@@ -117,7 +117,30 @@ const Input = ({
 };
 
 export default function LoginPage() {
-  const router = useRouter();
+    const router = useRouter();
+   
+  React.useEffect(() => { 
+    const sidebar = document.querySelector('.sidebar-class'); 
+    const topbar = document.querySelector('.topbar-class');  
+    
+    if (sidebar) sidebar.style.display = 'none';
+    if (topbar) topbar.style.display = 'none';
+     
+    return () => {
+      if (sidebar) sidebar.style.display = '';
+      if (topbar) topbar.style.display = '';
+    };
+  }, []);
+   
+  React.useEffect(() => {
+    const token = getAuthToken();
+    const user = getUserDetails();
+    
+    if (token && user) {
+      router.replace('/dashboard'); 
+    }
+  }, [router]);
+   
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -161,8 +184,7 @@ export default function LoginPage() {
     const validationErrors = validateForm();
     setErrors(validationErrors);
   };
-
- // LoginPage component e login function call er por
+ 
 
 const handleSubmit = async (e) => {
   e.preventDefault();
@@ -480,16 +502,7 @@ const handleSubmit = async (e) => {
                   </svg>
                   LinkedIn
                 </button>
-              </div>
-
-              {/* Demo Credentials */}
-              <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm font-medium text-blue-800 mb-2">Demo Credentials:</p>
-                <div className="text-xs text-blue-600 space-y-1">
-                  <p>📧 Email: demo@logiswift.com</p>
-                  <p>🔑 Password: demo123</p>
-                </div>
-              </div>
+              </div> 
 
               {/* Help Link */}
               <p className="text-center text-sm text-gray-500">

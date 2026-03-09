@@ -3,9 +3,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation'; 
+import { usePathname, useRouter } from 'next/navigation'; 
 import { HiChartBar, HiCog, HiCube, HiCurrencyDollar, HiHome, HiOutlineArchive, HiOutlineChartBar, HiOutlineChevronDown, HiOutlineChevronLeft, HiOutlineChevronRight, HiOutlineChevronUp, HiOutlineClipboardList, HiOutlineClock, HiOutlineCog, HiOutlineCube, HiOutlineCurrencyDollar, HiOutlineDocumentReport, HiOutlineDocumentText, HiOutlineDownload, HiOutlineGlobeAlt, HiOutlineHome, HiOutlineLogout, HiOutlineOfficeBuilding, HiOutlinePlus, HiOutlineQuestionMarkCircle, HiOutlineSearch, HiOutlineShieldCheck, HiOutlineTemplate, HiOutlineTruck, HiOutlineUserGroup, HiOutlineUsers, HiTruck, HiUsers } from 'react-icons/hi';
 import Image from 'next/image'; 
+import { logout as authLogout } from '@/helper/SessionHelper';
 
 // Logo Component
 const Logo = ({ collapsed }) => (
@@ -70,7 +71,7 @@ const menuItems = [
         title: 'All Shipping',
         path: '/shippings/all_shipping',
         icon: <HiOutlineClipboardList className="w-4 h-4" />,
-      }
+      },
     ],
   },
   {
@@ -89,7 +90,8 @@ const menuItems = [
         title: 'Create Staff',
         path: '/users/create_staff',
         icon: <HiOutlinePlus className="w-4 h-4" />,
-      }, 
+      },
+       
     ],
   },
   {
@@ -128,11 +130,6 @@ const menuItems = [
         path: '/warehouse/all-consolidation',
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
-      // {
-      //   title: 'ready for dispatch',
-      //   path: '/warehouse/dispatch',
-      //   icon: <HiOutlineDownload className="w-4 h-4" />,
-      // },
       { 
         title: 'Containers',
         path: '/admin/warehouse/containers',
@@ -151,10 +148,15 @@ const menuItems = [
     icon: <HiOutlineCurrencyDollar className="w-5 h-5" />,
     activeIcon: <HiCurrencyDollar className="w-5 h-5" />, 
     badgeColor: '#10B981',
-    children: [
+    children: [ 
       {
-        title: 'All Invoices',
-        path: '/admin/finance/invoices',
+        title: 'Invoice Numbers',
+        path: '/shippings/invoice',
+        icon: <HiOutlineDocumentText className="w-4 h-4" />,
+      },
+      {
+        title: 'Tracking Numbers',
+        path: '/all-tracking',
         icon: <HiOutlineDocumentText className="w-4 h-4" />,
       },
       {
@@ -164,32 +166,9 @@ const menuItems = [
       },
       {
         title: 'Pending Payments',
-        path: '/admin/finance/pending',
+        path: '/admin/finance/pending', 
         icon: <HiOutlineClock className="w-4 h-4" />,
         badge: 3,
-      },
-    ],
-  },
-  {
-    title: 'Reports',
-    path: '/admin/reports',
-    icon: <HiOutlineChartBar className="w-5 h-5" />,
-    activeIcon: <HiChartBar className="w-5 h-5" />,
-    children: [
-      {
-        title: 'Shipment Reports',
-        path: '/admin/reports/Bookings',
-        icon: <HiOutlineDocumentReport className="w-4 h-4" />,
-      },
-      {
-        title: 'Customer Reports',
-        path: '/admin/reports/customers',
-        icon: <HiOutlineUsers className="w-4 h-4" />,
-      },
-      {
-        title: 'Financial Reports',
-        path: '/admin/reports/financial',
-        icon: <HiOutlineCurrencyDollar className="w-4 h-4" />,
       },
     ],
   },
@@ -427,8 +406,40 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
 };
 
 // User Profile Component
-const UserProfile = ({ collapsed }) => {
+const UserProfile = ({ collapsed, user, onLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
+
+  const getInitials = () => {
+    if (user?.name) {
+      return user.name.charAt(0).toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return 'U';
+  };
+
+  const getDisplayName = () => {
+    if (user?.name) {
+      return user.name;
+    }
+    if (user?.email) {
+      // If email exists but no name, use the part before @ as name
+      return user.email.split('@')[0];
+    }
+    return 'Admin User';
+  };
+
+  const handleLogout = () => {
+    onLogout();
+    setIsOpen(false);
+  };
+
+  const handleNavigation = (path) => {
+    router.push(path);
+    setIsOpen(false);
+  };
 
   return (
     <div className={`mt-auto border-t border-gray-200 pt-4 ${collapsed ? 'px-2' : 'px-4'}`}>
@@ -439,12 +450,12 @@ const UserProfile = ({ collapsed }) => {
         >
           <div className="relative">
             <div 
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg"
               style={{ 
                 background: 'linear-gradient(135deg, #E67E22 0%, #3C719D 100%)'
               }}
             >
-              A
+              {getInitials()}
             </div>
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
           </div>
@@ -452,8 +463,8 @@ const UserProfile = ({ collapsed }) => {
           {!collapsed && (
             <>
               <div className="flex-1 text-left">
-                <p className="text-sm font-semibold text-gray-800">Admin User</p>
-                <p className="text-xs text-gray-500">admin@logitrack.com</p>
+                <p className="text-sm font-semibold text-gray-800">{getDisplayName()}</p>
+                <p className="text-xs text-gray-500">{user?.email || 'No email'}</p>
               </div>
               <HiOutlineChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </>
@@ -461,13 +472,17 @@ const UserProfile = ({ collapsed }) => {
 
           {collapsed && (
             <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-              Admin User
+              {getDisplayName()}
             </div>
           )}
         </button>
 
         {!collapsed && isOpen && (
           <div className="absolute bottom-full left-0 w-full mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="text-sm font-semibold text-gray-800">{getDisplayName()}</p>
+              <p className="text-xs text-gray-500">{user?.email}</p>
+            </div>
             <Link 
               href="/admin/profile" 
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -486,9 +501,7 @@ const UserProfile = ({ collapsed }) => {
             </Link>
             <button 
               className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
-              onClick={() => {
-                setIsOpen(false);
-              }}
+              onClick={handleLogout}
             >
               <HiOutlineLogout className="w-4 h-4 mr-2" />
               Logout
@@ -500,12 +513,13 @@ const UserProfile = ({ collapsed }) => {
   );
 };
 
-export default function Sidebar() {
+export default function Sidebar({ user = null }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [openMenuKey, setOpenMenuKey] = useState(null);
+  const router = useRouter();
 
   useEffect(() => {
     const checkMobile = () => {
@@ -529,6 +543,11 @@ export default function Sidebar() {
     if (isMobile) {
       setMobileOpen(false);
     }
+  };
+
+  const handleLogout = () => {
+    authLogout(); // This will clear localStorage and redirect to login
+    router.push('/');
   };
 
   return (
@@ -626,7 +645,7 @@ export default function Sidebar() {
             </div>
           )}
 
-          <UserProfile collapsed={collapsed} />
+          <UserProfile collapsed={collapsed} user={user} onLogout={handleLogout} />
         </div>
       </aside>
 
