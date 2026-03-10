@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation'; 
 import { HiChartBar, HiCog, HiCube, HiCurrencyDollar, HiHome, HiOutlineArchive, HiOutlineChartBar, HiOutlineChevronDown, HiOutlineChevronLeft, HiOutlineChevronRight, HiOutlineChevronUp, HiOutlineClipboardList, HiOutlineClock, HiOutlineCog, HiOutlineCube, HiOutlineCurrencyDollar, HiOutlineDocumentReport, HiOutlineDocumentText, HiOutlineDownload, HiOutlineGlobeAlt, HiOutlineHome, HiOutlineLogout, HiOutlineOfficeBuilding, HiOutlinePlus, HiOutlineQuestionMarkCircle, HiOutlineSearch, HiOutlineShieldCheck, HiOutlineTemplate, HiOutlineTruck, HiOutlineUserGroup, HiOutlineUsers, HiTruck, HiUsers } from 'react-icons/hi';
 import Image from 'next/image'; 
-import { logout as authLogout } from '@/helper/SessionHelper';
+import { logout as authLogout, getAuthToken, getUserDetails } from '@/helper/SessionHelper';
 
 // Logo Component
 const Logo = ({ collapsed }) => (
@@ -33,7 +33,7 @@ const Logo = ({ collapsed }) => (
   </div>
 );
 
-// Menu Items Configuration
+// Menu Items Configuration (আগের মতই থাকবে)
 const menuItems = [
   {
     title: 'Dashboard',
@@ -207,11 +207,10 @@ const menuItems = [
   },
 ];
 
-// Menu Item Component
+// Menu Item Component (আগের মতই থাকবে)
 const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, openMenuKey, setOpenMenuKey }) => {
   const pathname = usePathname();
   
-  // Create a unique key for this menu item
   const menuKey = item.title;
   const isOpen = openMenuKey === menuKey;
   
@@ -219,20 +218,17 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
   const isActive = pathname === item.path || 
     (item.children && item.children.some(child => pathname === child.path));
 
-  // Check if item matches search
   const matchesSearch = searchTerm ? 
     item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.children && item.children.some(child => 
       child.title.toLowerCase().includes(searchTerm.toLowerCase())
     )) : true;
 
-  // Check if any child matches search
   const hasMatchingChild = searchTerm && item.children ? 
     item.children.some(child => 
       child.title.toLowerCase().includes(searchTerm.toLowerCase())
     ) : false;
 
-  // Auto-open if has active child or matches search
   useEffect(() => {
     if (hasChildren && !collapsed) {
       const hasActiveChild = item.children.some(child => pathname === child.path);
@@ -242,7 +238,6 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
     }
   }, [pathname, hasChildren, item.children, collapsed, hasMatchingChild, menuKey, setOpenMenuKey]);
 
-  // Don't render if doesn't match search and no children match
   if (searchTerm && !matchesSearch && !hasMatchingChild) {
     return null;
   }
@@ -253,22 +248,19 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
       e.stopPropagation();
       
       if (collapsed) {
-        // In collapsed state, toggle the menu
         if (isOpen) {
-          setOpenMenuKey(null); // Close if already open
+          setOpenMenuKey(null);
         } else {
-          setOpenMenuKey(menuKey); // Open this menu
+          setOpenMenuKey(menuKey);
         }
       } else {
-        // In expanded state, close other menus and toggle this one
         if (isOpen) {
-          setOpenMenuKey(null); // Close if already open
+          setOpenMenuKey(null);
         } else {
-          setOpenMenuKey(menuKey); // Open this menu, closing others
+          setOpenMenuKey(menuKey);
         }
       }
     } else {
-      // For items without children, navigate and close any open menus
       setOpenMenuKey(null);
       onMenuClick?.();
     }
@@ -284,14 +276,12 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
     e.stopPropagation();
     
     if (collapsed) {
-      // In collapsed state, toggle the menu
       if (isOpen) {
         setOpenMenuKey(null);
       } else {
         setOpenMenuKey(menuKey);
       }
     } else {
-      // In expanded state, close other menus and toggle this one
       if (isOpen) {
         setOpenMenuKey(null);
       } else {
@@ -353,7 +343,6 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
 
         {collapsed && (
           <>
-            {/* Tooltip */}
             <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
               {item.title}
               {item.badge && (
@@ -366,7 +355,6 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
         )}
       </Link>
 
-      {/* Children menu - show when open */}
       {hasChildren && isOpen && (
         <div className={`
           ${collapsed ? 'absolute left-full top-0 ml-2 bg-white rounded-lg shadow-xl border border-gray-200 min-w-[200px] z-50' : 'mt-1'}
@@ -388,7 +376,6 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
         </div>
       )}
 
-      {/* Dropdown indicator for collapsed state - separate clickable area */}
       {collapsed && hasChildren && (
         <button
           onClick={handleToggleClick}
@@ -411,6 +398,9 @@ const UserProfile = ({ collapsed, user, onLogout }) => {
   const router = useRouter();
 
   const getInitials = () => {
+    if (user?.firstName) {
+      return user.firstName.charAt(0).toUpperCase();
+    }
     if (user?.name) {
       return user.name.charAt(0).toUpperCase();
     }
@@ -421,11 +411,13 @@ const UserProfile = ({ collapsed, user, onLogout }) => {
   };
 
   const getDisplayName = () => {
+    if (user?.firstName) {
+      return user.firstName + (user?.lastName ? ' ' + user.lastName : '');
+    }
     if (user?.name) {
       return user.name;
     }
     if (user?.email) {
-      // If email exists but no name, use the part before @ as name
       return user.email.split('@')[0];
     }
     return 'Admin User';
@@ -433,11 +425,6 @@ const UserProfile = ({ collapsed, user, onLogout }) => {
 
   const handleLogout = () => {
     onLogout();
-    setIsOpen(false);
-  };
-
-  const handleNavigation = (path) => {
-    router.push(path);
     setIsOpen(false);
   };
 
@@ -464,7 +451,7 @@ const UserProfile = ({ collapsed, user, onLogout }) => {
             <>
               <div className="flex-1 text-left">
                 <p className="text-sm font-semibold text-gray-800">{getDisplayName()}</p>
-                <p className="text-xs text-gray-500">{user?.email || 'No email'}</p>
+                <p className="text-xs text-gray-500">{user?.email || ''}</p>
               </div>
               <HiOutlineChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </>
@@ -513,13 +500,35 @@ const UserProfile = ({ collapsed, user, onLogout }) => {
   );
 };
 
-export default function Sidebar({ user = null }) {
+export default function Sidebar({ user: propUser = null }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [openMenuKey, setOpenMenuKey] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(propUser);
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Check if user is logged in
+  useEffect(() => {
+    const token = getAuthToken();
+    const userData = getUserDetails();
+    
+    if (token && userData) {
+      setIsLoggedIn(true);
+      setUser(userData);
+    } else {
+      setIsLoggedIn(false);
+      setUser(null);
+    }
+  }, [pathname]); // Re-check when route changes
+
+  // Don't render sidebar if not logged in
+  if (!isLoggedIn) {
+    return null;
+  }
 
   useEffect(() => {
     const checkMobile = () => {
@@ -546,8 +555,8 @@ export default function Sidebar({ user = null }) {
   };
 
   const handleLogout = () => {
-    authLogout(); // This will clear localStorage and redirect to login
-    router.push('/');
+    authLogout();
+    router.push('/login');
   };
 
   return (

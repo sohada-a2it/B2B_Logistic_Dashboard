@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { forgotPassword, verifyOTP, resetPassword } from '@/Api/Authentication';
+import { forgotPassword, verifyResetOTP, resetPassword } from '@/Api/Authentication';
 
 const Button = ({
   children,
@@ -268,7 +268,7 @@ export default function ForgotPasswordPage() {
       try {
         const otpString = otp.join('');
         // Verify OTP first
-        await verifyOTP(email, otpString);
+        await verifyResetOTP(email, otpString);
         
         toast.success('OTP verified successfully!', {
           position: 'top-right',
@@ -422,7 +422,7 @@ export default function ForgotPasswordPage() {
         theme="colored"
       />
       
-      <div className="min-h-screen bg-[#fffaf6] flex flex-col lg:flex-row">
+      <div className="h-[550px] bg-[#fffaf6] flex flex-col lg:flex-row">
         {/* Left Side - Branding/Info */}
         <div className="lg:w-1/2 bg-[#122652] p-8 lg:p-12 flex flex-col justify-between relative overflow-hidden">
           {/* Background Pattern */}
@@ -434,16 +434,11 @@ export default function ForgotPasswordPage() {
 
           {/* Content */}
           <div className="relative z-10">
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-[#E67E22] rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+            <div className="w-20 h-auto">
+                <img src="/logo.png" alt="LogiSwift Logo" />
               </div>
-              <span className="text-2xl font-bold text-white">Logi<span className="text-[#E67E22]">Swift</span></span>
-            </div>
 
-            <div className="mt-16 lg:mt-24">
+            <div className="mt-6">
               <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight">
                 Reset Your
                 <span className="text-[#E67E22] block">Password</span>
@@ -454,7 +449,7 @@ export default function ForgotPasswordPage() {
             </div>
 
             {/* Progress Steps */}
-            <div className="mt-12">
+            <div className="mt-6">
               <div className="flex items-center space-x-4">
                 {[1, 2, 3].map((step) => (
                   <div key={step} className="flex items-center">
@@ -543,25 +538,7 @@ export default function ForgotPasswordPage() {
                 </>
               )}
             </div>
-          </div>
-
-          {/* Testimonial */}
-          <div className="relative z-10 mt-12 lg:mt-0">
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <p className="text-white italic">
-                "The password reset process was quick and secure. I was back in my account in minutes!"
-              </p>
-              <div className="mt-4 flex items-center">
-                <div className="w-10 h-10 bg-[#E67E22] rounded-full flex items-center justify-center text-white font-bold">
-                  RJ
-                </div>
-                <div className="ml-3">
-                  <p className="text-white font-semibold">Robert Johnson</p>
-                  <p className="text-gray-300 text-sm">Verified User</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          </div> 
         </div>
 
         {/* Right Side - Form */}
@@ -620,7 +597,7 @@ export default function ForgotPasswordPage() {
                   </Button>
 
                   <Link
-                    href="/auth/login"
+                    href="/"
                     className="block text-center text-sm text-gray-600 hover:text-[#E67E22] transition-colors"
                   >
                     ← Back to Login

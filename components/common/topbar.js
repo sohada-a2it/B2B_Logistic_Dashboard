@@ -1,8 +1,9 @@
 // components/common/Topbar.jsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   HiOutlineBell,
   HiOutlineMail,
@@ -13,16 +14,54 @@ import {
   HiOutlineSearch,
   HiOutlineRefresh,
 } from 'react-icons/hi';
+import { getAuthToken, getUserDetails } from '@/helper/SessionHelper';
 
 export default function Topbar() {
   const [isDark, setIsDark] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(null);
   const [notifications] = useState([
     { id: 1, text: 'New shipment booking', time: '5 min ago' },
     { id: 2, text: 'Payment received', time: '1 hour ago' },
   ]);
+  
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Check if user is logged in
+  useEffect(() => {
+    const token = getAuthToken();
+    const userData = getUserDetails();
+    
+    if (token && userData) {
+      setIsLoggedIn(true);
+      setUser(userData);
+    } else {
+      setIsLoggedIn(false);
+      setUser(null);
+    }
+  }, [pathname]); // Re-check when route changes
+
+  // Don't render topbar if not logged in
+  if (!isLoggedIn) {
+    return null;
+  }
+
+  const getInitials = () => {
+    if (user?.firstName) {
+      return user.firstName.charAt(0).toUpperCase();
+    }
+    if (user?.name) {
+      return user.name.charAt(0).toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return 'A';
+  };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200  top-0 z-30">
+    <header className="topbar bg-white shadow-sm border-b border-gray-200 top-0 z-30">
       <div className="flex items-center justify-between px-6 py-3">
         {/* Left Section - Page Title/Breadcrumbs */}
         <div className="flex items-center space-x-3">
@@ -106,7 +145,7 @@ export default function Topbar() {
                 background: 'linear-gradient(135deg, #E67E22 0%, #3C719D 100%)'
               }}
             >
-              A
+              {getInitials()}
             </div>
           </div>
         </div>

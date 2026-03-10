@@ -17,17 +17,25 @@ const getOTP = ()=>{
     return localStorage.getItem("otp");
 }
 export function clearAllSessions (){
-    localStorage.clear();
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("email");
+    localStorage.removeItem("otp");
+    localStorage.removeItem("userDetails");
+
     window.location.href="/login";
 }
 const setUserDetails = (user)=>{
     localStorage.setItem("userDetails",JSON.stringify(user));
 }
-const getUserDetails = ()=>{
-    return JSON.parse( localStorage.getItem("userDetails"));
+const getUserDetails = () => {
+    const data = localStorage.getItem("userDetails");
+    return data ? JSON.parse(data) : null;
 }
 const logout = ()=>{
-    localStorage.clear();
-    window.location.href = "/"
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("email");
+    localStorage.removeItem("userDetails");
+
+    window.location.href = "/";
 }
 export { setAuthToken,getAuthToken,setEmail,getEmail,setOTP,getOTP,setUserDetails,getUserDetails,logout}

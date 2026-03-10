@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { verifyOTP, resendOTP } from '@/Api/Authentication';
+import { verifyResetOTP, resendOTP } from '@/Api/Authentication';
 
 const Button = ({
   children,
@@ -106,7 +106,7 @@ const Input = ({
   );
 };
 
-export default function VerifyOTPPage() {
+export default function verifyResetOTPPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email');
@@ -183,7 +183,7 @@ export default function VerifyOTPPage() {
 
     setLoading(true);
     try {
-      const response = await verifyOTP(email, otpString);
+      const response = await verifyResetOTP(email, otpString);
       
       if (response.success) {
         toast.success('Email verified successfully! Redirecting to dashboard...', {
@@ -207,7 +207,7 @@ export default function VerifyOTPPage() {
     }
   };
 
-  const handleResendOTP = async () => {
+  const handleresendOTP = async () => {
     if (!canResend) return;
     
     setResendLoading(true);
@@ -346,7 +346,7 @@ export default function VerifyOTPPage() {
               <p className="text-gray-600 text-sm mt-1">
                 Didn't receive the code?{' '}
                 <button
-                  onClick={handleResendOTP}
+                  onClick={handleresendOTP}
                   disabled={!canResend || resendLoading}
                   className={'font-semibold text-sm ' + (canResend && !resendLoading ? 'text-[#E67E22] hover:underline' : 'text-gray-400 cursor-not-allowed')}
                 >

@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { login } from '@/Api/Authentication';
+import { Router } from 'lucide-react';
 
 const Button = ({
   children,
@@ -117,29 +118,32 @@ const Input = ({
 };
 
 export default function LoginPage() {
-    const router = useRouter();
-   
-  React.useEffect(() => { 
-    const sidebar = document.querySelector('.sidebar-class'); 
-    const topbar = document.querySelector('.topbar-class');  
-    
-    if (sidebar) sidebar.style.display = 'none';
-    if (topbar) topbar.style.display = 'none';
-     
-    return () => {
-      if (sidebar) sidebar.style.display = '';
-      if (topbar) topbar.style.display = '';
-    };
-  }, []);
+React.useEffect(() => {
+  // সবকিছু hide করার চেষ্টা করুন
+  const elements = document.querySelectorAll('aside, .topbar, header');
+  elements.forEach(el => {
+    if (el.tagName === 'ASIDE' || el.classList.contains('topbar')) {
+      el.style.display = 'none';
+    }
+  });
+  
+  return () => {
+    elements.forEach(el => {
+      if (el.tagName === 'ASIDE' || el.classList.contains('topbar')) {
+        el.style.display = '';
+      }
+    });
+  };
+}, []);
    
   React.useEffect(() => {
     const token = getAuthToken();
     const user = getUserDetails();
     
     if (token && user) {
-      router.replace('/dashboard'); 
+      Router.replace('/dashboard'); 
     }
-  }, [router]);
+  }, [Router]);
    
   const [formData, setFormData] = useState({
     email: '',
@@ -203,35 +207,79 @@ const handleSubmit = async (e) => {
       const response = await login(formData.email, formData.password);
       
       if (response.success) {
-        // ============ IMPORTANT PART ============
-        // Save to localStorage using your utility functions
-        if (response.token) {
-          setAuthToken(response.token);
+        // Extract user data and token from response
+        const token = response.token || response.data?.token;
+        const userData = response.user || response.data?.user || response.data;
+        
+        console.log('👤 User Data:', userData);
+        console.log('👤 User Role:', userData?.role);
+        
+        // 🚫 CHECK USER ROLE - BLOCK CUSTOMERS
+        const allowedRoles = ['admin', 'employee', 'manager', 'superadmin']; // Add all allowed roles here
+        
+        if (userData?.role === 'customer') {
+          // Customer-specific denial message
+          toast.error(
+            <div>
+              <strong>⚠️ Customer Access Denied</strong>
+              <p className="text-sm mt-1">This portal is for employees and administrators only.</p>
+              <p className="text-xs mt-1">Please use the customer tracking portal to manage your shipments.</p>
+            </div>, 
+            {
+              position: 'top-right',
+              autoClose: 7000,
+              className: 'bg-red-50 border-l-4 border-red-500',
+            }
+          );
+          setLoading(false);
+          return; // Stop execution
         }
         
-        if (response.user) {
-          setUserDetails(response.user);
+        // Check if user has any of the allowed roles
+        if (!allowedRoles.includes(userData?.role)) {
+          toast.error(`Access Denied: Role "${userData?.role}" does not have permission to access this portal.`, {
+            position: 'top-right',
+            autoClose: 5000,
+          });
+          setLoading(false);
+          return;
         }
         
-        // If you want to save email separately
+        // ✅ Save to localStorage
+        if (token) {
+          setAuthToken(token);
+        }
+        
+        if (userData) {
+          setUserDetails(userData);
+        }
+        
         setEmail(formData.email);
         
-        // ========================================
-        
-        toast.success('Login successful! Redirecting to dashboard...', {
-          position: 'top-right',
-          autoClose: 2000,
-        });
-        
-        // Optional: Check if token saved correctly
-        console.log('Token saved:', getAuthToken());
-        console.log('User details saved:', getUserDetails());
+        // Show success message with role info
+        toast.success(
+          <div>
+            <strong>Login Successful!</strong>
+            <p className="text-sm mt-1">Welcome back, {userData?.firstName || userData?.name || 'User'}!</p>
+            <p className="text-xs mt-1">Role: {userData?.role}</p>
+          </div>, 
+          {
+            position: 'top-right',
+            autoClose: 3000,
+          }
+        );
         
         setTimeout(() => {
-          router.push('/dashboard');
-        }, 2000);
+          Router.push('/dashboard');
+        }, 3000);
+      } else {
+        toast.error(response.message || 'Invalid email or password', {
+          position: 'top-right',
+          autoClose: 5000,
+        });
       }
     } catch (error) {
+      console.error('❌ Login error:', error);
       toast.error(error.message || 'Invalid email or password', {
         position: 'top-right',
         autoClose: 5000,
@@ -276,7 +324,7 @@ const handleSubmit = async (e) => {
         theme="colored"
       />
       
-      <div className="min-h-screen bg-[#fffaf6] flex flex-col lg:flex-row">
+      <div className="h-[550px] bg-[#fffaf6] flex flex-col lg:flex-row">
         {/* Left Side - Branding/Info */}
         <div className="lg:w-1/2 bg-[#122652] p-8 lg:p-12 flex flex-col justify-between relative overflow-hidden">
           {/* Background Pattern */}
@@ -287,17 +335,14 @@ const handleSubmit = async (e) => {
           </div>
 
           {/* Content */}
-          <div className="relative z-10">
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-[#E67E22] rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+          <div className="relative z-10 mt-4">
+            <div className="flex items-center space-x-2"> 
+              <div className="w-20 h-auto">
+                <img src="/logo.png" alt="LogiSwift Logo" />
               </div>
-              <span className="text-2xl font-bold text-white">Logi<span className="text-[#E67E22]">Swift</span></span>
             </div>
 
-            <div className="mt-16 lg:mt-24">
+            <div className="mt-6">
               <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight">
                 Welcome Back to
                 <span className="text-[#E67E22] block">Your Logistics Hub</span>
@@ -305,30 +350,10 @@ const handleSubmit = async (e) => {
               <p className="mt-6 text-gray-300 text-lg max-w-md">
                 Access your dashboard, track shipments, and manage your global logistics operations.
               </p>
-            </div>
-
-            {/* Stats */}
-            <div className="mt-12 grid grid-cols-2 gap-6">
-              <div>
-                <p className="text-3xl font-bold text-white">10K+</p>
-                <p className="text-gray-300 text-sm">Active Users</p>
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-white">50K+</p>
-                <p className="text-gray-300 text-sm">Shipments</p>
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-white">100+</p>
-                <p className="text-gray-300 text-sm">Countries</p>
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-white">24/7</p>
-                <p className="text-gray-300 text-sm">Support</p>
-              </div>
-            </div>
+            </div> 
 
             {/* Features */}
-            <div className="mt-12 space-y-4">
+            <div className="mt-6 space-y-4">
               {[
                 'Real-time shipment tracking',
                 'Digital documentation',
@@ -347,25 +372,7 @@ const handleSubmit = async (e) => {
                 );
               })}
             </div>
-          </div>
-
-          {/* Testimonial */}
-          <div className="relative z-10 mt-12 lg:mt-0">
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <p className="text-white italic">
-                "The dashboard gives me complete visibility over my entire supply chain. Absolutely essential for our business."
-              </p>
-              <div className="mt-4 flex items-center">
-                <div className="w-10 h-10 bg-[#E67E22] rounded-full flex items-center justify-center text-white font-bold">
-                  MA
-                </div>
-                <div className="ml-3">
-                  <p className="text-white font-semibold">Mohamed Al-Fayed</p>
-                  <p className="text-gray-300 text-sm">Supply Chain Director</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          </div> 
         </div>
 
         {/* Right Side - Login Form */}
