@@ -19,7 +19,8 @@ import {
   Phone, Mail, Building2, CalendarClock, WeightIcon,
   Ruler, PackageOpen, QrCode, Barcode, Shield,
   Sparkles, Settings, MoreVertical, ExternalLink,
-  Archive, RotateCcw, Ban, Play, Pause, Send
+  Archive, RotateCcw, Ban, Play, Pause, Send,
+  Flag, Award
 } from 'lucide-react';
 import { formatDate } from '@/Api/booking';
 import {
@@ -58,10 +59,14 @@ const CONSOLIDATION_STATUSES = [
   { value: 'loaded', label: 'Loaded', color: 'indigo', icon: Package },
   { value: 'dispatched', label: 'Dispatched', color: 'amber', icon: Send },
   { value: 'in_transit', label: 'In Transit', color: 'yellow', icon: Truck },
-  { value: 'departed', label: 'Departed', color: 'orange', icon: Ship },
   { value: 'arrived', label: 'Arrived', color: 'green', icon: CheckCircle },
-  { value: 'completed', label: 'Completed', color: 'emerald', icon: Check },
-  { value: 'cancelled', label: 'Cancelled', color: 'red', icon: Ban }
+  { value: 'customs_cleared', label: 'Customs Cleared', color: 'emerald', icon: Shield },
+  { value: 'out_for_delivery', label: 'Out for Delivery', color: 'blue', icon: Truck },
+  { value: 'delivered', label: 'Delivered', color: 'emerald', icon: CheckCircle },
+   { value: 'completed', label: 'Completed', color: 'green', icon: Award },
+  { value: 'on_hold', label: 'On Hold', color: 'orange', icon: Pause },
+  { value: 'cancelled', label: 'Cancelled', color: 'red', icon: Ban },
+  { value: 'returned', label: 'Returned', color: 'red', icon: RotateCcw }
 ];
 
 const CONTAINER_TYPES = [
@@ -166,6 +171,781 @@ const getMainType = (consolidation) => {
 const getSubType = (consolidation) => {
   if (!consolidation) return 'N/A';
   return consolidation.subType || 'N/A';
+};
+
+// ==================== CUSTOMS CLEARED MODAL ====================
+
+const CustomsClearedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    clearanceDate: new Date().toISOString().split('T')[0],
+    clearanceTime: new Date().toTimeString().slice(0, 5),
+    customsReference: '',
+    notes: ''
+  });
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const result = await updateConsolidationStatus(consolidation._id, {
+        status: 'customs_cleared',
+        notes: `Customs cleared on ${formData.clearanceDate} ${formData.clearanceTime}. Reference: ${formData.customsReference}. ${formData.notes}`
+      });
+
+      if (result.success) {
+        toast.success('✅ Customs clearance completed');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to update status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-bold flex items-center">
+            <Shield className="h-5 w-5 mr-2 text-emerald-600" />
+            Customs Clearance
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Clearance Date
+              </label>
+              <input
+                type="date"
+                value={formData.clearanceDate}
+                onChange={(e) => setFormData({...formData, clearanceDate: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-600"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Clearance Time
+              </label>
+              <input
+                type="time"
+                value={formData.clearanceTime}
+                onChange={(e) => setFormData({...formData, clearanceTime: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-600"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Customs Reference
+            </label>
+            <input
+              type="text"
+              value={formData.customsReference}
+              onChange={(e) => setFormData({...formData, customsReference: e.target.value})}
+              placeholder="e.g., CUS-2025-001"
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-600"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes (Optional)
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={3}
+              placeholder="Any customs notes..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-600"
+            />
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              'Confirm Customs Clearance'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== OUT FOR DELIVERY MODAL ====================
+
+const OutForDeliveryModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    deliveryDate: new Date().toISOString().split('T')[0],
+    deliveryTime: new Date().toTimeString().slice(0, 5),
+    carrierName: '',
+    vehicleNumber: '',
+    driverName: '',
+    driverPhone: '',
+    notes: ''
+  });
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const result = await updateConsolidationStatus(consolidation._id, {
+        status: 'out_for_delivery',
+        notes: `Out for delivery on ${formData.deliveryDate} ${formData.deliveryTime}. Carrier: ${formData.carrierName}, Vehicle: ${formData.vehicleNumber}, Driver: ${formData.driverName}. ${formData.notes}`
+      });
+
+      if (result.success) {
+        toast.success('✅ Shipment is out for delivery');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to update status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-bold flex items-center">
+            <Truck className="h-5 w-5 mr-2 text-blue-600" />
+            Out for Delivery
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Delivery Date
+              </label>
+              <input
+                type="date"
+                value={formData.deliveryDate}
+                onChange={(e) => setFormData({...formData, deliveryDate: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Delivery Time
+              </label>
+              <input
+                type="time"
+                value={formData.deliveryTime}
+                onChange={(e) => setFormData({...formData, deliveryTime: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Carrier Name
+            </label>
+            <input
+              type="text"
+              value={formData.carrierName}
+              onChange={(e) => setFormData({...formData, carrierName: e.target.value})}
+              placeholder="e.g., DHL, FedEx"
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Vehicle Number
+            </label>
+            <input
+              type="text"
+              value={formData.vehicleNumber}
+              onChange={(e) => setFormData({...formData, vehicleNumber: e.target.value})}
+              placeholder="e.g., DL-01-AB-1234"
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Driver Name
+              </label>
+              <input
+                type="text"
+                value={formData.driverName}
+                onChange={(e) => setFormData({...formData, driverName: e.target.value})}
+                placeholder="Driver name"
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Driver Phone
+              </label>
+              <input
+                type="text"
+                value={formData.driverPhone}
+                onChange={(e) => setFormData({...formData, driverPhone: e.target.value})}
+                placeholder="Phone number"
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes (Optional)
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={3}
+              placeholder="Any delivery notes..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+            />
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              'Confirm Out for Delivery'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== DELIVERED MODAL ====================
+
+const DeliveredModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    deliveredDate: new Date().toISOString().split('T')[0],
+    deliveredTime: new Date().toTimeString().slice(0, 5),
+    receivedBy: '',
+    signature: false,
+    notes: ''
+  });
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const result = await updateConsolidationStatus(consolidation._id, {
+        status: 'delivered',
+        notes: `Delivered on ${formData.deliveredDate} ${formData.deliveredTime}. Received by: ${formData.receivedBy}. ${formData.notes}`
+      });
+
+      if (result.success) {
+        toast.success('✅ Shipment delivered successfully');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to update status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-bold flex items-center">
+            <CheckCircle className="h-5 w-5 mr-2 text-green-600" />
+            Mark as Delivered
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Delivery Date
+              </label>
+              <input
+                type="date"
+                value={formData.deliveredDate}
+                onChange={(e) => setFormData({...formData, deliveredDate: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Delivery Time
+              </label>
+              <input
+                type="time"
+                value={formData.deliveredTime}
+                onChange={(e) => setFormData({...formData, deliveredTime: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Received By
+            </label>
+            <input
+              type="text"
+              value={formData.receivedBy}
+              onChange={(e) => setFormData({...formData, receivedBy: e.target.value})}
+              placeholder="Recipient name"
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600"
+            />
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              checked={formData.signature}
+              onChange={(e) => setFormData({...formData, signature: e.target.checked})}
+              className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+            />
+            <label className="ml-2 block text-sm text-gray-700">
+              Signature obtained
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Delivery Notes
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={3}
+              placeholder="Any delivery notes..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600"
+            />
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              'Confirm Delivery'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== START CONSOLIDATION MODAL ====================
+
+const StartConsolidationModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    notes: ''
+  });
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const result = await updateConsolidationStatus(consolidation._id, {
+        status: 'in_progress',
+        notes: `Consolidation started. ${formData.notes}`
+      });
+
+      if (result.success) {
+        toast.success('✅ Consolidation started successfully');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to start consolidation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-bold flex items-center">
+            <Play className="h-5 w-5 mr-2 text-blue-600" />
+            Start Consolidation
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes (Optional)
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={3}
+              placeholder="Any notes about starting this consolidation..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+            />
+          </div>
+
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <div className="flex items-start">
+              <Info className="h-4 w-4 text-blue-600 mr-2 mt-0.5" />
+              <p className="text-xs text-blue-700">
+                This will move the consolidation from Draft to In Progress status.
+                You can now start adding shipments to this consolidation.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Starting...
+              </>
+            ) : (
+              'Start Consolidation'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== COMPLETE CONSOLIDATION MODAL ====================
+
+const CompleteConsolidationModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [validationResults, setValidationResults] = useState(null);
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (consolidation && isOpen) {
+      const shipmentCount = consolidation.shipments?.length || consolidation.totalShipments || 0;
+      
+      const missing = [];
+      const warnings = [];
+
+      // 1. Shipments check
+      if (shipmentCount === 0) {
+        missing.push('At least one shipment is required');
+      }
+
+      // 2. Container type check
+      if (!consolidation.containerType) {
+        missing.push('Container type is required');
+      }
+
+      // 3. Container number check
+      if (!consolidation.containerNumber) {
+        missing.push('Container number is required');
+      }
+
+      // 4. Origin warehouse check
+      if (!consolidation.originWarehouse) {
+        missing.push('Origin warehouse is required');
+      }
+
+      // 5. Destination port check
+      if (!consolidation.destinationPort) {
+        missing.push('Destination port is required');
+      }
+
+      // 6. Weight check
+      if (!consolidation.totalWeight || consolidation.totalWeight === 0) {
+        warnings.push('Total weight is 0 kg - please verify');
+      }
+
+      // 7. Volume check
+      if (!consolidation.totalVolume || consolidation.totalVolume === 0) {
+        warnings.push('Total volume is 0 CBM - please verify');
+      }
+
+      setValidationResults({
+        ready: missing.length === 0,
+        missing,
+        warnings,
+        summary: {
+          totalChecks: 7,
+          passed: 7 - missing.length,
+          warnings: warnings.length
+        }
+      });
+    }
+  }, [consolidation, isOpen]);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const result = await updateConsolidationStatus(consolidation._id, {
+        status: 'consolidated',
+        notes: `Consolidation completed. ${notes}`
+      });
+
+      if (result.success) {
+        toast.success('✅ Consolidation completed successfully');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to complete consolidation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b p-6">
+          <h3 className="text-lg font-bold flex items-center">
+            <Package className="h-5 w-5 mr-2 text-purple-600" />
+            Complete Consolidation
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          {/* Consolidation Info */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-500">Shipments</p>
+                <p className="font-medium">{consolidation.shipments?.length || 0}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Container Type</p>
+                <p className="font-medium">{consolidation.containerType || 'Not set'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Origin</p>
+                <p className="font-medium">{consolidation.originWarehouse || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Destination</p>
+                <p className="font-medium">{consolidation.destinationPort || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Validation Results */}
+          {validationResults && (
+            <div className="space-y-4">
+              {/* Summary Card */}
+              <div className={`p-4 rounded-lg ${
+                validationResults.ready 
+                  ? 'bg-green-50 border border-green-200' 
+                  : 'bg-yellow-50 border border-yellow-200'
+              }`}>
+                <div className="flex items-start">
+                  {validationResults.ready ? (
+                    <CheckCircle className="h-5 w-5 text-green-600 mr-3 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-yellow-600 mr-3 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <p className={`font-medium ${
+                      validationResults.ready ? 'text-green-800' : 'text-yellow-800'
+                    }`}>
+                      {validationResults.ready 
+                        ? '✓ All checks passed! Ready to complete' 
+                        : '⚠ Some checks failed'}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {validationResults.summary.passed} of {validationResults.summary.totalChecks} checks passed
+                      {validationResults.warnings.length > 0 && 
+                        ` • ${validationResults.warnings.length} warning(s)`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Missing Items (Errors) */}
+              {validationResults.missing.length > 0 && (
+                <div className="border-l-4 border-red-500 bg-red-50 p-4 rounded">
+                  <p className="font-medium text-red-800 mb-2 flex items-center">
+                    <X className="h-4 w-4 mr-1" />
+                    Required items missing:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationResults.missing.map((item, index) => (
+                      <li key={index} className="text-sm text-red-700">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {validationResults.warnings.length > 0 && (
+                <div className="border-l-4 border-yellow-500 bg-yellow-50 p-4 rounded">
+                  <p className="font-medium text-yellow-800 mb-2 flex items-center">
+                    <AlertTriangle className="h-4 w-4 mr-1" />
+                    Warnings:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationResults.warnings.map((item, index) => (
+                      <li key={index} className="text-sm text-yellow-700">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Completion Notes (Optional)
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Add any notes about this consolidation..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-600"
+            />
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-white border-t p-6 flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || (validationResults && !validationResults.ready)}
+            className={`px-4 py-2 rounded-lg flex items-center ${
+              validationResults && !validationResults.ready
+                ? 'bg-gray-300 cursor-not-allowed'
+                : 'bg-purple-600 hover:bg-purple-700 text-white'
+            }`}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Package className="h-4 w-4 mr-2" />
+                Complete Consolidation
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // ==================== LOADED MODAL ====================
@@ -306,9 +1086,16 @@ const ConsolidationDetailsModal = ({
   consolidation, 
   onEdit, 
   onDelete, 
-  onStatusChange, 
+  onStartConsolidation,
+  onCompleteConsolidation,
+  onReadyForDispatch,
+  onLoadedClick,
   onDispatch,
-  onLoadedClick 
+  onArrivedClick,
+  onCustomsCleared,
+  onOutForDelivery,
+  onDelivered,
+  onComplete
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [shipments, setShipments] = useState([]);
@@ -322,11 +1109,6 @@ const ConsolidationDetailsModal = ({
 
   if (!isOpen || !consolidation) return null;
 
-  const handleDispatch = () => {
-    onDispatch(consolidation);
-    onClose();
-  };
-
   const handleEdit = () => {
     onEdit(consolidation._id);
     onClose();
@@ -339,7 +1121,152 @@ const ConsolidationDetailsModal = ({
     }
   };
 
-  const canBeDispatched = consolidation.status === 'consolidated' || consolidation.status === 'loaded' || consolidation.status === 'ready_for_dispatch';
+  const getActionButton = () => {
+    switch(consolidation.status) {
+      case 'draft':
+        return (
+          <button
+            onClick={() => {
+              onStartConsolidation(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+          >
+            <Play className="h-4 w-4 mr-2" />
+            Start Consolidation
+          </button>
+        );
+      
+      case 'in_progress':
+        return (
+          <button
+            onClick={() => {
+              onCompleteConsolidation(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Complete Consolidation
+          </button>
+        );
+      
+      case 'consolidated':
+        return (
+          <button
+            onClick={() => {
+              onReadyForDispatch(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Ready for Dispatch
+          </button>
+        );
+      
+      case 'ready_for_dispatch':
+        return (
+          <button
+            onClick={() => {
+              onLoadedClick(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Mark as Loaded
+          </button>
+        );
+      
+      case 'loaded':
+        return (
+          <button
+            onClick={() => {
+              onDispatch(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Dispatch Now
+          </button>
+        );
+      
+      case 'in_transit':
+        return (
+          <button
+            onClick={() => {
+              onArrivedClick(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Mark as Arrived
+          </button>
+        );
+      
+      case 'arrived':
+        return (
+          <button
+            onClick={() => {
+              onCustomsCleared(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center"
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            Customs Clearance
+          </button>
+        );
+
+      case 'customs_cleared':
+        return (
+          <button
+            onClick={() => {
+              onOutForDelivery(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+          >
+            <Truck className="h-4 w-4 mr-2" />
+            Out for Delivery
+          </button>
+        );
+
+      case 'out_for_delivery':
+        return (
+          <button
+            onClick={() => {
+              onDelivered(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Mark as Delivered
+          </button>
+        );
+
+      case 'delivered':
+        return (
+          <button
+            onClick={() => {
+              onComplete(consolidation);
+              onClose();
+            }}
+            className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center"
+          >
+            <Award className="h-4 w-4 mr-2" />
+            Complete
+          </button>
+        );
+      
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -666,13 +1593,6 @@ const ConsolidationDetailsModal = ({
                   Edit
                 </button>
                 <button
-                  onClick={() => onStatusChange(consolidation._id)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Change Status
-                </button>
-                <button
                   onClick={handleDelete}
                   className="px-4 py-2 border rounded-lg hover:bg-red-50 text-red-600 flex items-center"
                 >
@@ -682,55 +1602,8 @@ const ConsolidationDetailsModal = ({
               </>
             )}
             
-            {/* Status based action buttons */}
-            {consolidation.status === 'ready_for_dispatch' && (
-              <button
-                onClick={() => onLoadedClick(consolidation)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-              >
-                <Package className="h-4 w-4 mr-2" />
-                Mark as Loaded
-              </button>
-            )}
-            
-            {consolidation.status === 'loaded' && (
-              <button
-                onClick={() => onDispatch(consolidation)}
-                className="px-6 py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400] flex items-center"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Dispatch Now
-              </button>
-            )}
-            
-            {/* Status display for completed states */}
-            {consolidation.status === 'dispatched' && (
-              <div className="flex items-center text-amber-600 bg-amber-50 px-4 py-2 rounded-lg">
-                <Send className="h-5 w-5 mr-2" />
-                <span className="font-medium">Dispatched</span>
-              </div>
-            )}
-            
-            {consolidation.status === 'in_transit' && (
-              <div className="flex items-center text-yellow-600 bg-yellow-50 px-4 py-2 rounded-lg">
-                <Truck className="h-5 w-5 mr-2" />
-                <span className="font-medium">In Transit</span>
-              </div>
-            )}
-            
-            {consolidation.status === 'arrived' && (
-              <div className="flex items-center text-green-600 bg-green-50 px-4 py-2 rounded-lg">
-                <CheckCircle className="h-5 w-5 mr-2" />
-                <span className="font-medium">Arrived</span>
-              </div>
-            )}
-            
-            {consolidation.status === 'completed' && (
-              <div className="flex items-center text-emerald-600 bg-emerald-50 px-4 py-2 rounded-lg">
-                <Check className="h-5 w-5 mr-2" />
-                <span className="font-medium">Completed</span>
-              </div>
-            )}
+            {/* Main action button based on status */}
+            {getActionButton()}
             
           </div>
         </div>
@@ -1184,6 +2057,130 @@ const ReadyForDispatchModal = ({ isOpen, onClose, consolidation, onSuccess }) =>
   );
 };
 
+// ==================== COMPLETED MODAL ====================
+
+const CompletedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    completionDate: new Date().toISOString().split('T')[0],
+    completionTime: new Date().toTimeString().slice(0, 5),
+    notes: ''
+  });
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const result = await updateConsolidationStatus(consolidation._id, {
+        status: 'completed',
+        notes: `Consolidation completed on ${formData.completionDate} ${formData.completionTime}. ${formData.notes}`
+      });
+
+      if (result.success) {
+        toast.success('✅ Consolidation marked as completed');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Failed to update status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-bold flex items-center">
+            <Award className="h-5 w-5 mr-2 text-emerald-600" />
+            Mark as Completed
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {consolidation?.consolidationNumber}
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Completion Date
+              </label>
+              <input
+                type="date"
+                value={formData.completionDate}
+                onChange={(e) => setFormData({...formData, completionDate: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-600"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Completion Time
+              </label>
+              <input
+                type="time"
+                value={formData.completionTime}
+                onChange={(e) => setFormData({...formData, completionTime: e.target.value})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-600"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes (Optional)
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={3}
+              placeholder="Any completion notes..."
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-600"
+            />
+          </div>
+
+          <div className="bg-emerald-50 p-3 rounded-lg">
+            <div className="flex items-start">
+              <Info className="h-4 w-4 text-emerald-600 mr-2 mt-0.5" />
+              <p className="text-xs text-emerald-700">
+                This will mark the consolidation as completed. All shipments are delivered and documents are finalized.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              'Confirm Completion'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ==================== STAT CARD ====================
 
 const StatCard = ({ title, value, icon: Icon, color = 'orange', subtitle }) => {
@@ -1319,20 +2316,23 @@ const FilterBar = ({ filters, onFilterChange, onClearFilters, totalCount }) => {
   );
 };
 
-// ==================== CONSOLIDATION CARD ==================== 
-
 // ==================== CONSOLIDATION CARD ====================
 
 const ConsolidationCard = ({ 
   consolidation, 
   onView, 
   onEdit, 
-  onStatusChange, 
   onDelete, 
+  onStartConsolidation,
+  onCompleteConsolidation,
   onReadyForDispatch, 
   onLoadedClick,
   onDispatch,
-  onArrivedClick            // ✅ এই LINE টা যোগ করুন
+  onArrivedClick,
+  onCustomsCleared,
+  onOutForDelivery,
+  onDelivered,
+  onComplete
 }) => {
   const [showActions, setShowActions] = useState(false);
   
@@ -1345,8 +2345,123 @@ const ConsolidationCard = ({
   const containerType = getContainerType(consolidation);
   const mainType = getMainType(consolidation);
   const subType = getSubType(consolidation);
-  
-  const canBeReadyForDispatch = consolidation.status === 'consolidated';
+
+  const getActionButton = () => {
+    switch(consolidation.status) {
+      case 'draft':
+        return (
+          <button
+            onClick={() => onStartConsolidation(consolidation)}
+            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
+          >
+            <Play className="h-4 w-4 mr-2" />
+            Start Consolidation
+          </button>
+        );
+      
+      case 'in_progress':
+        return (
+          <button
+            onClick={() => onCompleteConsolidation(consolidation)}
+            className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Complete Consolidation
+          </button>
+        );
+      
+      case 'consolidated':
+        return (
+          <button
+            onClick={() => onReadyForDispatch(consolidation)}
+            className="w-full py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center justify-center"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Ready for Dispatch
+          </button>
+        );
+      
+      case 'ready_for_dispatch':
+        return (
+          <button
+            onClick={() => onLoadedClick(consolidation)}
+            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Mark as Loaded
+          </button>
+        );
+      
+      case 'loaded':
+        return (
+          <button
+            onClick={() => onDispatch(consolidation)}
+            className="w-full py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center justify-center"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Dispatch Now
+          </button>
+        );
+      
+      case 'in_transit':
+        return (
+          <button
+            onClick={() => onArrivedClick(consolidation)}
+            className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Mark as Arrived
+          </button>
+        );
+      
+      case 'arrived':
+        return (
+          <button
+            onClick={() => onCustomsCleared(consolidation)}
+            className="w-full py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center justify-center"
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            Customs Clearance
+          </button>
+        );
+      
+      case 'customs_cleared':
+        return (
+          <button
+            onClick={() => onOutForDelivery(consolidation)}
+            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
+          >
+            <Truck className="h-4 w-4 mr-2" />
+            Out for Delivery
+          </button>
+        );
+      
+      case 'out_for_delivery':
+        return (
+          <button
+            onClick={() => onDelivered(consolidation)}
+            className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Mark as Delivered
+          </button>
+        );
+      
+      case 'delivered':
+        return (
+          <button
+            onClick={() => onComplete(consolidation)}
+            className="w-full py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center justify-center"
+          >
+            <Award className="h-4 w-4 mr-2" />
+            Complete
+          </button>
+        );
+      
+      default:
+        return null;
+    }
+  };
 
   return (
     <div 
@@ -1458,43 +2573,10 @@ const ConsolidationCard = ({
         </div>
       </div>
 
-      {/* Status based action buttons - সরাসরি কার্ডে */}
-      {consolidation.status === 'ready_for_dispatch' && (
-        <div className="px-4 pb-4">
-          <button
-            onClick={() => onLoadedClick(consolidation)}
-            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
-          >
-            <Package className="h-4 w-4 mr-2" />
-            Mark as Loaded
-          </button>
-        </div>
-      )}
-
-      {consolidation.status === 'loaded' && (
-        <div className="px-4 pb-4">
-          <button
-            onClick={() => onDispatch(consolidation)}
-            className="w-full py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400] flex items-center justify-center"
-          >
-            <Send className="h-4 w-4 mr-2" />
-            Dispatch Now
-          </button>
-        </div>
-      )}
-
-      {/* ✅ In Transit → Arrived বাটন - কার্ডের বাইরে */}
-      {consolidation.status === 'in_transit' && (
-        <div className="px-4 pb-4">
-          <button
-            onClick={() => onArrivedClick(consolidation)}
-            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
-          >
-            <Ship className="h-4 w-4 mr-2" />
-            Mark as Arrived
-          </button>
-        </div>
-      )}
+      {/* Status based action button */}
+      <div className="px-4 pb-4">
+        {getActionButton()}
+      </div>
 
       {/* Actions Icons */}
       <div className={`p-3 bg-gray-50 border-t flex justify-end space-x-2 transition-opacity ${showActions ? 'opacity-100' : 'opacity-0'}`}>
@@ -1505,42 +2587,28 @@ const ConsolidationCard = ({
         >
           <Eye className="h-4 w-4" />
         </button>
-        <button
-          onClick={() => onEdit(consolidation._id)}
-          className="p-1.5 hover:bg-green-100 rounded-lg text-green-600"
-          title="Edit"
-        >
-          <Edit className="h-4 w-4" />
-        </button>
-        {canBeReadyForDispatch && (
+        {(consolidation.status === 'draft' || consolidation.status === 'in_progress') && (
           <button
-            onClick={() => onReadyForDispatch(consolidation)}
-            className="p-1.5 hover:bg-orange-100 rounded-lg text-orange-600"
-            title="Mark as Ready for Dispatch"
+            onClick={() => onEdit(consolidation._id)}
+            className="p-1.5 hover:bg-green-100 rounded-lg text-green-600"
+            title="Edit"
           >
-            <Send className="h-4 w-4" />
+            <Edit className="h-4 w-4" />
           </button>
         )}
-        <button
-          onClick={() => onStatusChange(consolidation._id)}
-          className="p-1.5 hover:bg-purple-100 rounded-lg text-purple-600"
-          title="Change Status"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => onDelete(consolidation._id)}
-          className="p-1.5 hover:bg-red-100 rounded-lg text-red-600"
-          title="Delete"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {(consolidation.status === 'draft' || consolidation.status === 'in_progress' || consolidation.status === 'cancelled') && (
+          <button
+            onClick={() => onDelete(consolidation._id)}
+            className="p-1.5 hover:bg-red-100 rounded-lg text-red-600"
+            title="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
 };
-// ==================== ARRIVED MODAL ====================
- 
 
 // ==================== ARRIVED MODAL ====================
 
@@ -1555,12 +2623,10 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
     notes: ''
   });
 
-  // 🚀 Auto-fetch consolidation details when modal opens
   useEffect(() => {
     if (isOpen && consolidation) {
       setFetching(true);
       
-      // Auto-fill from consolidation data
       setFormData(prev => ({
         ...prev,
         portName: consolidation.destinationPort || 'Destination Port',
@@ -1570,11 +2636,6 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
       }));
       
       setFetching(false);
-      
-      console.log('✅ Auto-fetched:', {
-        port: consolidation.destinationPort,
-        vessel: consolidation.carrier?.vesselNumber
-      });
     }
   }, [isOpen, consolidation]);
 
@@ -1609,7 +2670,7 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
       <div className="bg-white rounded-xl max-w-md w-full">
         <div className="p-6 border-b">
           <h3 className="text-lg font-bold flex items-center">
-            <Ship className="h-5 w-5 mr-2 text-blue-600" />
+            <Ship className="h-5 w-5 mr-2 text-green-600" />
             Mark as Arrived
           </h3>
           <p className="text-sm text-gray-500 mt-1">
@@ -1620,12 +2681,11 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
         <div className="p-6 space-y-4">
           {fetching ? (
             <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-600 mr-2" />
+              <Loader2 className="h-5 w-5 animate-spin text-green-600 mr-2" />
               <span className="text-sm text-gray-500">Fetching vessel details...</span>
             </div>
           ) : (
             <>
-              {/* Arrival Date & Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1635,7 +2695,7 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
                     type="date"
                     value={formData.arrivalDate}
                     onChange={(e) => setFormData({...formData, arrivalDate: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600"
                     required
                   />
                 </div>
@@ -1647,12 +2707,11 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
                     type="time"
                     value={formData.arrivalTime}
                     onChange={(e) => setFormData({...formData, arrivalTime: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600"
                   />
                 </div>
               </div>
 
-              {/* Port Name - Auto-filled */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Port Name
@@ -1663,16 +2722,12 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
                     value={formData.portName}
                     onChange={(e) => setFormData({...formData, portName: e.target.value})}
                     placeholder="Destination port"
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600 pr-8"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600 pr-8"
                   />
                   <MapPin className="absolute right-2 top-2.5 h-4 w-4 text-gray-400" />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Auto-filled from consolidation
-                </p>
               </div>
 
-              {/* Vessel/Flight - Auto-filled */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Vessel/Flight Number
@@ -1683,16 +2738,12 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
                     value={formData.vesselName}
                     onChange={(e) => setFormData({...formData, vesselName: e.target.value})}
                     placeholder="Vessel or flight number"
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600 pr-8"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600 pr-8"
                   />
                   <Ship className="absolute right-2 top-2.5 h-4 w-4 text-gray-400" />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Auto-filled from carrier details
-                </p>
               </div>
 
-              {/* Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Notes (Optional)
@@ -1702,21 +2753,8 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
                   onChange={(e) => setFormData({...formData, notes: e.target.value})}
                   rows={3}
                   placeholder="Any arrival notes..."
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-600"
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-green-600"
                 />
-              </div>
-
-              {/* Auto-fetch Info Banner */}
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <div className="flex items-start">
-                  <Info className="h-4 w-4 text-blue-600 mr-2 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-medium text-blue-800">Auto-filled Information</p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      Port and vessel details automatically fetched from consolidation data. You can edit if needed.
-                    </p>
-                  </div>
-                </div>
               </div>
             </>
           )}
@@ -1732,7 +2770,7 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
           <button
             onClick={handleSubmit}
             disabled={loading || fetching}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 flex items-center"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 flex items-center"
           >
             {loading ? (
               <>
@@ -1751,7 +2789,22 @@ const ArrivedModal = ({ isOpen, onClose, consolidation, onSuccess }) => {
 
 // ==================== TABLE ROW ====================
 
-const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onReadyForDispatch, onLoadedClick, onDispatch, onArrivedClick }) => {
+const TableRow = ({ 
+  consolidation, 
+  onView, 
+  onEdit, 
+  onDelete, 
+  onStartConsolidation,
+  onCompleteConsolidation,
+  onReadyForDispatch,
+  onLoadedClick,
+  onDispatch,
+  onArrivedClick,
+  onCustomsCleared,
+  onOutForDelivery,
+  onDelivered,
+  onComplete 
+}) => {
   const origin = consolidation.originWarehouse || 'N/A';
   const destination = consolidation.destinationPort || 'N/A';
   const shipmentCount = getShipmentCount(consolidation);
@@ -1760,8 +2813,183 @@ const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onR
   const totalWeight = getTotalWeight(consolidation);
   const containerType = getContainerType(consolidation);
   const mainType = getMainType(consolidation);
-  
-  const canBeReadyForDispatch = consolidation.status === 'consolidated';
+
+  const getActionButtons = () => {
+    const buttons = [];
+    
+    // Always show view
+    buttons.push(
+      <button
+        key="view"
+        onClick={() => onView(consolidation)}
+        className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
+        title="View"
+      >
+        <Eye className="h-4 w-4" />
+      </button>
+    );
+
+    // Edit only for draft/in_progress
+    if (consolidation.status === 'draft' || consolidation.status === 'in_progress') {
+      buttons.push(
+        <button
+          key="edit"
+          onClick={() => onEdit(consolidation._id)}
+          className="p-1 hover:bg-green-100 rounded-lg text-green-600"
+          title="Edit"
+        >
+          <Edit className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    // Status-specific action buttons
+    if (consolidation.status === 'draft') {
+      buttons.push(
+        <button
+          key="start"
+          onClick={() => onStartConsolidation(consolidation)}
+          className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
+          title="Start Consolidation"
+        >
+          <Play className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'in_progress') {
+      buttons.push(
+        <button
+          key="complete"
+          onClick={() => onCompleteConsolidation(consolidation)}
+          className="p-1 hover:bg-purple-100 rounded-lg text-purple-600"
+          title="Complete Consolidation"
+        >
+          <Package className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'consolidated') {
+      buttons.push(
+        <button
+          key="ready"
+          onClick={() => onReadyForDispatch(consolidation)}
+          className="p-1 hover:bg-orange-100 rounded-lg text-orange-600"
+          title="Ready for Dispatch"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'ready_for_dispatch') {
+      buttons.push(
+        <button
+          key="loaded"
+          onClick={() => onLoadedClick(consolidation)}
+          className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
+          title="Mark as Loaded"
+        >
+          <Package className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'loaded') {
+      buttons.push(
+        <button
+          key="dispatch"
+          onClick={() => onDispatch(consolidation)}
+          className="p-1 hover:bg-amber-100 rounded-lg text-amber-600"
+          title="Dispatch Now"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'in_transit') {
+      buttons.push(
+        <button
+          key="arrived"
+          onClick={() => onArrivedClick(consolidation)}
+          className="p-1 hover:bg-green-100 rounded-lg text-green-600"
+          title="Mark as Arrived"
+        >
+          <CheckCircle className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'arrived') {
+      buttons.push(
+        <button
+          key="customs"
+          onClick={() => onCustomsCleared(consolidation)}
+          className="p-1 hover:bg-emerald-100 rounded-lg text-emerald-600"
+          title="Mark Customs Cleared"
+        >
+          <Shield className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'customs_cleared') {
+      buttons.push(
+        <button
+          key="outForDelivery"
+          onClick={() => onOutForDelivery(consolidation)}
+          className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
+          title="Out for Delivery"
+        >
+          <Truck className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'out_for_delivery') {
+      buttons.push(
+        <button
+          key="delivered"
+          onClick={() => onDelivered(consolidation)}
+          className="p-1 hover:bg-green-100 rounded-lg text-green-600"
+          title="Mark as Delivered"
+        >
+          <CheckCircle className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'delivered') {
+      buttons.push(
+        <button
+          key="complete"
+          onClick={() => onComplete(consolidation)}
+          className="p-1 hover:bg-emerald-100 rounded-lg text-emerald-600"
+          title="Complete"
+        >
+          <Award className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    // Delete only for draft/in_progress/cancelled
+    if (consolidation.status === 'draft' || consolidation.status === 'in_progress' || consolidation.status === 'cancelled') {
+      buttons.push(
+        <button
+          key="delete"
+          onClick={() => onDelete(consolidation._id)}
+          className="p-1 hover:bg-red-100 rounded-lg text-red-600"
+          title="Delete"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    return buttons;
+  };
 
   return (
     <tr className="hover:bg-gray-50 transition-colors">
@@ -1802,43 +3030,7 @@ const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onR
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center space-x-1">
-          <button
-            onClick={() => onView(consolidation)}
-            className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
-            title="View"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onEdit(consolidation._id)}
-            className="p-1 hover:bg-green-100 rounded-lg text-green-600"
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          {canBeReadyForDispatch && (
-            <button
-              onClick={() => onReadyForDispatch(consolidation)}
-              className="p-1 hover:bg-orange-100 rounded-lg text-orange-600"
-              title="Mark as Ready for Dispatch"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          )}
-          <button
-            onClick={() => onStatusChange(consolidation._id)}
-            className="p-1 hover:bg-purple-100 rounded-lg text-purple-600"
-            title="Change Status"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onDelete(consolidation._id)}
-            className="p-1 hover:bg-red-100 rounded-lg text-red-600"
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {getActionButtons()}
         </div>
       </td>
     </tr>
@@ -1847,7 +3039,22 @@ const TableRow = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onR
 
 // ==================== LIST ITEM ====================
 
-const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onReadyForDispatch, onDispatch,onArrivedClick    }) => {
+const ListItem = ({ 
+  consolidation, 
+  onView, 
+  onEdit, 
+  onDelete, 
+  onStartConsolidation,
+  onCompleteConsolidation,
+  onReadyForDispatch,
+  onLoadedClick,
+  onDispatch,
+  onArrivedClick,
+  onCustomsCleared,
+  onOutForDelivery,
+  onDelivered,
+  onComplete 
+}) => {
   const origin = consolidation.originWarehouse || 'N/A';
   const destination = consolidation.destinationPort || 'N/A';
   const shipmentCount = getShipmentCount(consolidation);
@@ -1856,8 +3063,183 @@ const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onR
   const totalWeight = getTotalWeight(consolidation);
   const containerType = getContainerType(consolidation);
   const mainType = getMainType(consolidation);
-  
-  const canBeReadyForDispatch = consolidation.status === 'consolidated';
+
+  const getActionButtons = () => {
+    const buttons = [];
+    
+    // Always show view
+    buttons.push(
+      <button
+        key="view"
+        onClick={() => onView(consolidation)}
+        className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
+        title="View"
+      >
+        <Eye className="h-4 w-4" />
+      </button>
+    );
+
+    // Edit only for draft/in_progress
+    if (consolidation.status === 'draft' || consolidation.status === 'in_progress') {
+      buttons.push(
+        <button
+          key="edit"
+          onClick={() => onEdit(consolidation._id)}
+          className="p-1 hover:bg-green-100 rounded-lg text-green-600"
+          title="Edit"
+        >
+          <Edit className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    // Status-specific action buttons
+    if (consolidation.status === 'draft') {
+      buttons.push(
+        <button
+          key="start"
+          onClick={() => onStartConsolidation(consolidation)}
+          className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
+          title="Start Consolidation"
+        >
+          <Play className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'in_progress') {
+      buttons.push(
+        <button
+          key="complete"
+          onClick={() => onCompleteConsolidation(consolidation)}
+          className="p-1 hover:bg-purple-100 rounded-lg text-purple-600"
+          title="Complete Consolidation"
+        >
+          <Package className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'consolidated') {
+      buttons.push(
+        <button
+          key="ready"
+          onClick={() => onReadyForDispatch(consolidation)}
+          className="p-1 hover:bg-orange-100 rounded-lg text-orange-600"
+          title="Ready for Dispatch"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'ready_for_dispatch') {
+      buttons.push(
+        <button
+          key="loaded"
+          onClick={() => onLoadedClick(consolidation)}
+          className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
+          title="Mark as Loaded"
+        >
+          <Package className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'loaded') {
+      buttons.push(
+        <button
+          key="dispatch"
+          onClick={() => onDispatch(consolidation)}
+          className="p-1 hover:bg-amber-100 rounded-lg text-amber-600"
+          title="Dispatch Now"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'in_transit') {
+      buttons.push(
+        <button
+          key="arrived"
+          onClick={() => onArrivedClick(consolidation)}
+          className="p-1 hover:bg-green-100 rounded-lg text-green-600"
+          title="Mark as Arrived"
+        >
+          <CheckCircle className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'arrived') {
+      buttons.push(
+        <button
+          key="customs"
+          onClick={() => onCustomsCleared(consolidation)}
+          className="p-1 hover:bg-emerald-100 rounded-lg text-emerald-600"
+          title="Mark Customs Cleared"
+        >
+          <Shield className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'customs_cleared') {
+      buttons.push(
+        <button
+          key="outForDelivery"
+          onClick={() => onOutForDelivery(consolidation)}
+          className="p-1 hover:bg-blue-100 rounded-lg text-blue-600"
+          title="Out for Delivery"
+        >
+          <Truck className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'out_for_delivery') {
+      buttons.push(
+        <button
+          key="delivered"
+          onClick={() => onDelivered(consolidation)}
+          className="p-1 hover:bg-green-100 rounded-lg text-green-600"
+          title="Mark as Delivered"
+        >
+          <CheckCircle className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    if (consolidation.status === 'delivered') {
+      buttons.push(
+        <button
+          key="complete"
+          onClick={() => onComplete(consolidation)}
+          className="p-1 hover:bg-emerald-100 rounded-lg text-emerald-600"
+          title="Complete"
+        >
+          <Award className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    // Delete only for draft/in_progress/cancelled
+    if (consolidation.status === 'draft' || consolidation.status === 'in_progress' || consolidation.status === 'cancelled') {
+      buttons.push(
+        <button
+          key="delete"
+          onClick={() => onDelete(consolidation._id)}
+          className="p-1 hover:bg-red-100 rounded-lg text-red-600"
+          title="Delete"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    return buttons;
+  };
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-lg transition-all">
@@ -1907,154 +3289,7 @@ const ListItem = ({ consolidation, onView, onEdit, onStatusChange, onDelete, onR
         </div>
 
         <div className="flex items-center space-x-1">
-          <button
-            onClick={() => onView(consolidation)}
-            className="p-2 hover:bg-blue-100 rounded-lg text-blue-600"
-            title="View"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onEdit(consolidation._id)}
-            className="p-2 hover:bg-green-100 rounded-lg text-green-600"
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          {canBeReadyForDispatch && (
-            <button
-              onClick={() => onReadyForDispatch(consolidation)}
-              className="p-2 hover:bg-orange-100 rounded-lg text-orange-600"
-              title="Mark as Ready for Dispatch"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          )}
-          <button
-            onClick={() => onStatusChange(consolidation._id)}
-            className="p-2 hover:bg-purple-100 rounded-lg text-purple-600"
-            title="Change Status"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onDelete(consolidation._id)}
-            className="p-2 hover:bg-red-100 rounded-lg text-red-600"
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ==================== STATUS CHANGE MODAL ==================== 
-
-const StatusChangeModal = ({ isOpen, onClose, consolidationId, currentStatus, onStatusUpdated }) => {
-  const [selectedStatus, setSelectedStatus] = useState(currentStatus);
-  const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // শুধুমাত্র draft, in_progress, consolidated দেখান
-  const availableStatuses = CONSOLIDATION_STATUSES.filter(status => 
-    ['draft', 'in_progress', 'consolidated'].includes(status.value)
-  );
-
-  useEffect(() => {
-    setSelectedStatus(currentStatus);
-  }, [currentStatus]);
-
-  const handleSubmit = async () => {
-    if (!selectedStatus) {
-      toast.warning('Please select a status');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await updateConsolidationStatus(consolidationId, {
-        status: selectedStatus,
-        notes: notes
-      });
-
-      if (result.success) {
-        toast.success('Status updated successfully');
-        onStatusUpdated();
-        onClose();
-      } else {
-        toast.error(result.message);
-      }
-    } catch (error) {
-      toast.error('Failed to update status');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl max-w-md w-full">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-bold">Update Consolidation Status</h3>
-        </div>
-        
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              New Status
-            </label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
-            >
-              {availableStatuses.map(status => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">
-              Only Draft, In Progress, and Consolidated statuses are available
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Notes (Optional)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Add any notes about this status change..."
-              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
-            />
-          </div>
-        </div>
-
-        <div className="p-6 border-t flex justify-end space-x-3">
-          <button onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="px-4 py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400] disabled:bg-gray-300 flex items-center"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              'Update Status'
-            )}
-          </button>
+          {getActionButtons()}
         </div>
       </div>
     </div>
@@ -2220,12 +3455,6 @@ const BulkActionsBar = ({ selectedCount, onClear, onBulkAction }) => {
       </span>
       <div className="h-4 w-px bg-gray-200" />
       <button
-        onClick={() => onBulkAction('status')}
-        className="px-3 py-1.5 text-sm bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100"
-      >
-        Change Status
-      </button>
-      <button
         onClick={() => onBulkAction('ready')}
         className="px-3 py-1.5 text-sm bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100"
       >
@@ -2307,7 +3536,7 @@ const ExportModal = ({ isOpen, onClose, onExport }) => {
 // ==================== MAIN PAGE ====================
 
 export default function ConsolidationsPage() {
-    const router = useRouter();
+  const router = useRouter();
   
   // State
   const [loading, setLoading] = useState(true);
@@ -2334,20 +3563,19 @@ export default function ConsolidationsPage() {
   // Modal states
   const [selectedConsolidation, setSelectedConsolidation] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showStartConsolidationModal, setShowStartConsolidationModal] = useState(false);
+  const [showCompleteConsolidationModal, setShowCompleteConsolidationModal] = useState(false);
   const [showReadyForDispatchModal, setShowReadyForDispatchModal] = useState(false);
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [showLoadedModal, setShowLoadedModal] = useState(false);
-  const [showArrivedModal, setShowArrivedModal] = useState(false);  // ✅ এই LINE টা যোগ করুন
+  const [showArrivedModal, setShowArrivedModal] = useState(false);
+  const [showCustomsClearedModal, setShowCustomsClearedModal] = useState(false);
+  const [showOutForDeliveryModal, setShowOutForDeliveryModal] = useState(false);
+  const [showDeliveredModal, setShowDeliveredModal] = useState(false);
+  const [showCompletedModal, setShowCompletedModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  
-  // Handler for Arrived button
-  const handleArrivedClick = (consolidation) => {
-    setSelectedConsolidation(consolidation);
-    setShowArrivedModal(true);
-  };
   
   // Load data
   useEffect(() => {
@@ -2431,10 +3659,15 @@ export default function ConsolidationsPage() {
     setShowEditModal(true);
   };
 
-  const handleStatusChange = (id) => {
-    const consolidation = consolidations.find(c => c._id === id);
+  // Status progression handlers
+  const handleStartConsolidation = (consolidation) => {
     setSelectedConsolidation(consolidation);
-    setShowStatusModal(true);
+    setShowStartConsolidationModal(true);
+  };
+
+  const handleCompleteConsolidation = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowCompleteConsolidationModal(true);
   };
 
   const handleReadyForDispatch = (consolidation) => {
@@ -2442,14 +3675,39 @@ export default function ConsolidationsPage() {
     setShowReadyForDispatchModal(true);
   };
 
+  const handleLoadedClick = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowLoadedModal(true);
+  };
+
   const handleDispatch = (consolidation) => {
     setSelectedConsolidation(consolidation);
     setShowDispatchModal(true);
   };
 
-  const handleLoadedClick = (consolidation) => {
+  const handleArrivedClick = (consolidation) => {
     setSelectedConsolidation(consolidation);
-    setShowLoadedModal(true);
+    setShowArrivedModal(true);
+  };
+
+  const handleCustomsCleared = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowCustomsClearedModal(true);
+  };
+
+  const handleOutForDelivery = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowOutForDeliveryModal(true);
+  };
+
+  const handleDelivered = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowDeliveredModal(true);
+  };
+
+  const handleComplete = (consolidation) => {
+    setSelectedConsolidation(consolidation);
+    setShowCompletedModal(true);
   };
 
   const handleDelete = async (id) => {
@@ -2484,9 +3742,6 @@ export default function ConsolidationsPage() {
     }
 
     switch (action) {
-      case 'status':
-        toast.info(`Change status for ${selectedIds.length} consolidations`);
-        break;
       case 'ready':
         toast.info(`Mark ${selectedIds.length} consolidations as ready for dispatch`);
         break;
@@ -2669,12 +3924,17 @@ export default function ConsolidationsPage() {
                     consolidation={consolidation}
                     onView={handleViewDetails}
                     onEdit={handleEdit}
-                    onStatusChange={handleStatusChange}
                     onDelete={handleDelete}
+                    onStartConsolidation={handleStartConsolidation}
+                    onCompleteConsolidation={handleCompleteConsolidation}
                     onReadyForDispatch={handleReadyForDispatch}
-                    onLoadedClick={handleLoadedClick}  // ✅ এই লাইন যোগ করুন
-                    onDispatch={handleDispatch} 
-                    onArrivedClick={handleArrivedClick} 
+                    onLoadedClick={handleLoadedClick}
+                    onDispatch={handleDispatch}
+                    onArrivedClick={handleArrivedClick}
+                    onCustomsCleared={handleCustomsCleared}
+                    onOutForDelivery={handleOutForDelivery}
+                    onDelivered={handleDelivered}
+                    onComplete={handleComplete}
                   />
                 ))}
               </div>
@@ -2688,12 +3948,17 @@ export default function ConsolidationsPage() {
                     consolidation={consolidation}
                     onView={handleViewDetails}
                     onEdit={handleEdit}
-                    onStatusChange={handleStatusChange}
                     onDelete={handleDelete}
+                    onStartConsolidation={handleStartConsolidation}
+                    onCompleteConsolidation={handleCompleteConsolidation}
                     onReadyForDispatch={handleReadyForDispatch}
-                    onLoadedClick={handleLoadedClick}  // ✅ এই লাইন যোগ করুন
+                    onLoadedClick={handleLoadedClick}
                     onDispatch={handleDispatch}
-                    onArrivedClick={handleArrivedClick} 
+                    onArrivedClick={handleArrivedClick}
+                    onCustomsCleared={handleCustomsCleared}
+                    onOutForDelivery={handleOutForDelivery}
+                    onDelivered={handleDelivered}
+                    onComplete={handleComplete}
                   />
                 ))}
               </div>
@@ -2745,12 +4010,17 @@ export default function ConsolidationsPage() {
                         consolidation={consolidation}
                         onView={handleViewDetails}
                         onEdit={handleEdit}
-                        onStatusChange={handleStatusChange}
                         onDelete={handleDelete}
+                        onStartConsolidation={handleStartConsolidation}
+                        onCompleteConsolidation={handleCompleteConsolidation}
                         onReadyForDispatch={handleReadyForDispatch}
-                        onLoadedClick={handleLoadedClick}  // ✅ এই লাইন যোগ করুন
+                        onLoadedClick={handleLoadedClick}
                         onDispatch={handleDispatch}
-                        onArrivedClick={handleArrivedClick} 
+                        onArrivedClick={handleArrivedClick}
+                        onCustomsCleared={handleCustomsCleared}
+                        onOutForDelivery={handleOutForDelivery}
+                        onDelivered={handleDelivered}
+                        onComplete={handleComplete}
                       />
                     ))}
                   </tbody>
@@ -2796,23 +4066,16 @@ export default function ConsolidationsPage() {
         consolidation={selectedConsolidation}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        onStatusChange={handleStatusChange}
-        onDispatch={handleDispatch}
+        onStartConsolidation={handleStartConsolidation}
+        onCompleteConsolidation={handleCompleteConsolidation}
+        onReadyForDispatch={handleReadyForDispatch}
         onLoadedClick={handleLoadedClick}
-      />
-
-      <StatusChangeModal
-        isOpen={showStatusModal}
-        onClose={() => {
-          setShowStatusModal(false);
-          setSelectedConsolidation(null);
-        }}
-        consolidationId={selectedConsolidation?._id}
-        currentStatus={selectedConsolidation?.status}
-        onStatusUpdated={() => {
-          loadConsolidations();
-          loadStats();
-        }}
+        onDispatch={handleDispatch}
+        onArrivedClick={handleArrivedClick}
+        onCustomsCleared={handleCustomsCleared}
+        onOutForDelivery={handleOutForDelivery}
+        onDelivered={handleDelivered}
+        onComplete={handleComplete}
       />
 
       <EditConsolidationModal
@@ -2823,6 +4086,32 @@ export default function ConsolidationsPage() {
         }}
         consolidation={selectedConsolidation}
         onUpdated={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
+      <StartConsolidationModal
+        isOpen={showStartConsolidationModal}
+        onClose={() => {
+          setShowStartConsolidationModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
+      <CompleteConsolidationModal
+        isOpen={showCompleteConsolidationModal}
+        onClose={() => {
+          setShowCompleteConsolidationModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
           loadConsolidations();
           loadStats();
         }}
@@ -2867,6 +4156,71 @@ export default function ConsolidationsPage() {
         }}
       />
 
+      <ArrivedModal
+        isOpen={showArrivedModal}
+        onClose={() => {
+          setShowArrivedModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
+      <CustomsClearedModal
+        isOpen={showCustomsClearedModal}
+        onClose={() => {
+          setShowCustomsClearedModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
+      <OutForDeliveryModal
+        isOpen={showOutForDeliveryModal}
+        onClose={() => {
+          setShowOutForDeliveryModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
+      <DeliveredModal
+        isOpen={showDeliveredModal}
+        onClose={() => {
+          setShowDeliveredModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
+      <CompletedModal
+        isOpen={showCompletedModal}
+        onClose={() => {
+          setShowCompletedModal(false);
+          setSelectedConsolidation(null);
+        }}
+        consolidation={selectedConsolidation}
+        onSuccess={() => {
+          loadConsolidations();
+          loadStats();
+        }}
+      />
+
       <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
@@ -2881,18 +4235,6 @@ export default function ConsolidationsPage() {
         onClear={() => setSelectedIds([])}
         onBulkAction={handleBulkAction}
       />
-      <ArrivedModal
-  isOpen={showArrivedModal}
-  onClose={() => {
-    setShowArrivedModal(false);
-    setSelectedConsolidation(null);
-  }}
-  consolidation={selectedConsolidation}
-  onSuccess={() => {
-    loadConsolidations();
-    loadStats();
-  }}
-/>
     </div>
   );
 }

@@ -11,8 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { login } from '@/Api/Authentication';
-import { Router } from 'lucide-react';
+import { login } from '@/Api/Authentication'; 
 
 const Button = ({
   children,
@@ -118,6 +117,7 @@ const Input = ({
 };
 
 export default function LoginPage() {
+  const router = useRouter();
 React.useEffect(() => {
   // সবকিছু hide করার চেষ্টা করুন
   const elements = document.querySelectorAll('aside, .topbar, header');
@@ -141,9 +141,9 @@ React.useEffect(() => {
     const user = getUserDetails();
     
     if (token && user) {
-      Router.replace('/dashboard'); 
+      router.replace('/dashboard'); 
     }
-  }, [Router]);
+  }, [router]);
    
   const [formData, setFormData] = useState({
     email: '',
@@ -215,7 +215,7 @@ const handleSubmit = async (e) => {
         console.log('👤 User Role:', userData?.role);
         
         // 🚫 CHECK USER ROLE - BLOCK CUSTOMERS
-        const allowedRoles = ['admin', 'employee', 'manager', 'superadmin']; // Add all allowed roles here
+        const allowedRoles = ['admin', 'employee', 'manager', 'superadmin','warehouse']; // Add all allowed roles here
         
         if (userData?.role === 'customer') {
           // Customer-specific denial message
@@ -270,7 +270,7 @@ const handleSubmit = async (e) => {
         );
         
         setTimeout(() => {
-          Router.push('/dashboard');
+          router.push('/dashboard');
         }, 3000);
       } else {
         toast.error(response.message || 'Invalid email or password', {

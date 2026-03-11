@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation'; 
-import { HiChartBar, HiCog, HiCube, HiCurrencyDollar, HiHome, HiOutlineArchive, HiOutlineChartBar, HiOutlineChevronDown, HiOutlineChevronLeft, HiOutlineChevronRight, HiOutlineChevronUp, HiOutlineClipboardList, HiOutlineClock, HiOutlineCog, HiOutlineCube, HiOutlineCurrencyDollar, HiOutlineDocumentReport, HiOutlineDocumentText, HiOutlineDownload, HiOutlineGlobeAlt, HiOutlineHome, HiOutlineLogout, HiOutlineOfficeBuilding, HiOutlinePlus, HiOutlineQuestionMarkCircle, HiOutlineSearch, HiOutlineShieldCheck, HiOutlineTemplate, HiOutlineTruck, HiOutlineUserGroup, HiOutlineUsers, HiTruck, HiUsers } from 'react-icons/hi';
+import { HiCog, HiCube, HiCurrencyDollar, HiHome, HiOutlineArchive, HiOutlineChevronDown, HiOutlineChevronLeft, HiOutlineChevronRight, HiOutlineChevronUp, HiOutlineClipboardList, HiOutlineClock, HiOutlineCog, HiOutlineCube, HiOutlineCurrencyDollar, HiOutlineDocumentText, HiOutlineDownload, HiOutlineGlobeAlt, HiOutlineHome, HiOutlineLogout, HiOutlineOfficeBuilding, HiOutlinePlus, HiOutlineQuestionMarkCircle, HiOutlineSearch, HiOutlineShieldCheck, HiOutlineTemplate, HiOutlineTruck, HiOutlineUserGroup, HiOutlineUsers, HiTruck, HiUsers } from 'react-icons/hi';
 import Image from 'next/image'; 
 import { logout as authLogout, getAuthToken, getUserDetails } from '@/helper/SessionHelper';
 
@@ -33,7 +33,7 @@ const Logo = ({ collapsed }) => (
   </div>
 );
 
-// Menu Items Configuration (আগের মতই থাকবে)
+// Menu Items Configuration
 const menuItems = [
   {
     title: 'Dashboard',
@@ -81,6 +81,11 @@ const menuItems = [
     activeIcon: <HiUsers className="w-5 h-5" />, 
     badgeColor: '#3C719D',
     children: [
+      // {
+      //   title: 'All Users',
+      //   path: '/users',
+      //   icon: <HiOutlineUserGroup className="w-4 h-4" />,
+      // },
       {
         title: 'All Users',
         path: '/users/customers',
@@ -91,7 +96,6 @@ const menuItems = [
         path: '/users/create_staff',
         icon: <HiOutlinePlus className="w-4 h-4" />,
       },
-       
     ],
   },
   {
@@ -100,11 +104,11 @@ const menuItems = [
     icon: <HiOutlineCube className="w-5 h-5" />,
     activeIcon: <HiCube className="w-5 h-5" />,
     children: [
-      {
-        title: 'Dashboard',
-        path: '/admin/warehouse',
-        icon: <HiOutlineHome className="w-4 h-4" />,
-      },
+      // {
+      //   title: 'Dashboard',
+      //   path: '/admin/warehouse',
+      //   icon: <HiOutlineHome className="w-4 h-4" />,
+      // },
       {
         title: 'Expected Shipments',
         path: '/warehouse',
@@ -130,16 +134,16 @@ const menuItems = [
         path: '/warehouse/all-consolidation',
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
-      { 
-        title: 'Containers',
-        path: '/admin/warehouse/containers',
-        icon: <HiOutlineDownload className="w-4 h-4" />,
-      },
-      {
-        title: 'Consolidation',
-        path: '/admin/warehouse/consolidation',
-        icon: <HiOutlineArchive className="w-4 h-4" />,
-      },
+      // { 
+      //   title: 'Containers',
+      //   path: '/admin/warehouse/containers',
+      //   icon: <HiOutlineDownload className="w-4 h-4" />,
+      // },
+      // {
+      //   title: 'Consolidation',
+      //   path: '/admin/warehouse/consolidation',
+      //   icon: <HiOutlineArchive className="w-4 h-4" />,
+      // },
     ],
   },
   {
@@ -159,55 +163,55 @@ const menuItems = [
         path: '/all-tracking',
         icon: <HiOutlineDocumentText className="w-4 h-4" />,
       },
-      {
-        title: 'Create Invoice',
-        path: '/admin/finance/invoices/create',
-        icon: <HiOutlinePlus className="w-4 h-4" />,
-      },
-      {
-        title: 'Pending Payments',
-        path: '/admin/finance/pending', 
-        icon: <HiOutlineClock className="w-4 h-4" />,
-        badge: 3,
-      },
+      // {
+      //   title: 'Create Invoice',
+      //   path: '/admin/finance/invoices/create',
+      //   icon: <HiOutlinePlus className="w-4 h-4" />,
+      // },
+      // {
+      //   title: 'Pending Payments',
+      //   path: '/admin/finance/pending', 
+      //   icon: <HiOutlineClock className="w-4 h-4" />,
+      //   badge: 3,
+      // },
     ],
   },
-  {
-    title: 'Settings',
-    path: '/admin/settings',
-    icon: <HiOutlineCog className="w-5 h-5" />,
-    activeIcon: <HiCog className="w-5 h-5" />,
-    children: [
-      {
-        title: 'Company Profile',
-        path: '/admin/settings/company',
-        icon: <HiOutlineOfficeBuilding className="w-4 h-4" />,
-      },
-      {
-        title: 'User Management',
-        path: '/admin/settings/users',
-        icon: <HiOutlineUserGroup className="w-4 h-4" />,
-      },
-      {
-        title: 'Role & Permissions',
-        path: '/admin/settings/roles',
-        icon: <HiOutlineShieldCheck className="w-4 h-4" />,
-      },
-      {
-        title: 'Multi-Country',
-        path: '/admin/settings/countries',
-        icon: <HiOutlineGlobeAlt className="w-4 h-4" />,
-      },
-      {
-        title: 'Templates',
-        path: '/admin/settings/templates',
-        icon: <HiOutlineTemplate className="w-4 h-4" />,
-      },
-    ],
-  },
+  // {
+  //   title: 'Settings',
+  //   path: '/admin/settings',
+  //   icon: <HiOutlineCog className="w-5 h-5" />,
+  //   activeIcon: <HiCog className="w-5 h-5" />,
+  //   children: [
+  //     {
+  //       title: 'Company Profile',
+  //       path: '/admin/settings/company',
+  //       icon: <HiOutlineOfficeBuilding className="w-4 h-4" />,
+  //     },
+  //     {
+  //       title: 'User Management',
+  //       path: '/admin/settings/users',
+  //       icon: <HiOutlineUserGroup className="w-4 h-4" />,
+  //     },
+  //     {
+  //       title: 'Role & Permissions',
+  //       path: '/admin/settings/roles',
+  //       icon: <HiOutlineShieldCheck className="w-4 h-4" />,
+  //     },
+  //     {
+  //       title: 'Multi-Country',
+  //       path: '/admin/settings/countries',
+  //       icon: <HiOutlineGlobeAlt className="w-4 h-4" />,
+  //     },
+  //     {
+  //       title: 'Templates',
+  //       path: '/admin/settings/templates',
+  //       icon: <HiOutlineTemplate className="w-4 h-4" />,
+  //     },
+  //   ],
+  // },
 ];
 
-// Menu Item Component (আগের মতই থাকবে)
+// Menu Item Component - FIXED VERSION
 const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, openMenuKey, setOpenMenuKey }) => {
   const pathname = usePathname();
   
@@ -218,17 +222,19 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
   const isActive = pathname === item.path || 
     (item.children && item.children.some(child => pathname === child.path));
 
-  const matchesSearch = searchTerm ? 
+  // FIX: Calculate these after all hooks
+  const matchesSearch = !searchTerm || 
     item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.children && item.children.some(child => 
       child.title.toLowerCase().includes(searchTerm.toLowerCase())
-    )) : true;
+    ));
 
   const hasMatchingChild = searchTerm && item.children ? 
     item.children.some(child => 
       child.title.toLowerCase().includes(searchTerm.toLowerCase())
     ) : false;
 
+  // FIX: Always call useEffect (not conditional)
   useEffect(() => {
     if (hasChildren && !collapsed) {
       const hasActiveChild = item.children.some(child => pathname === child.path);
@@ -238,6 +244,8 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
     }
   }, [pathname, hasChildren, item.children, collapsed, hasMatchingChild, menuKey, setOpenMenuKey]);
 
+  // FIX: Don't return early before hooks
+  // Now we can check if we should render
   if (searchTerm && !matchesSearch && !hasMatchingChild) {
     return null;
   }
@@ -247,18 +255,10 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
       e.preventDefault();
       e.stopPropagation();
       
-      if (collapsed) {
-        if (isOpen) {
-          setOpenMenuKey(null);
-        } else {
-          setOpenMenuKey(menuKey);
-        }
+      if (isOpen) {
+        setOpenMenuKey(null);
       } else {
-        if (isOpen) {
-          setOpenMenuKey(null);
-        } else {
-          setOpenMenuKey(menuKey);
-        }
+        setOpenMenuKey(menuKey);
       }
     } else {
       setOpenMenuKey(null);
@@ -275,18 +275,10 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
     e.preventDefault();
     e.stopPropagation();
     
-    if (collapsed) {
-      if (isOpen) {
-        setOpenMenuKey(null);
-      } else {
-        setOpenMenuKey(menuKey);
-      }
+    if (isOpen) {
+      setOpenMenuKey(null);
     } else {
-      if (isOpen) {
-        setOpenMenuKey(null);
-      } else {
-        setOpenMenuKey(menuKey);
-      }
+      setOpenMenuKey(menuKey);
     }
   };
 
@@ -308,7 +300,6 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
         `}
         style={{
           backgroundColor: isActive ? '#E67E22' : 'transparent',
-          boxShadow: isActive ? '0 4px 12px rgba(230, 126, 34, 0.3)' : 'none',
         }}
       >
         <span className={isActive ? 'text-white' : 'text-gray-500 group-hover:text-[#3C719D]'}>
@@ -342,16 +333,14 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
         )}
 
         {collapsed && (
-          <>
-            <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-              {item.title}
-              {item.badge && (
-                <span className="ml-2 px-1.5 py-0.5 bg-[#E67E22] rounded-full text-xs">
-                  {item.badge}
-                </span>
-              )}
-            </div>
-          </>
+          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
+            {item.title}
+            {item.badge && (
+              <span className="ml-2 px-1.5 py-0.5 bg-[#E67E22] rounded-full text-xs">
+                {item.badge}
+              </span>
+            )}
+          </div>
         )}
       </Link>
 
@@ -374,19 +363,6 @@ const MenuItem = ({ item, collapsed, depth = 0, searchTerm = '', onMenuClick, op
               />
             ))}
         </div>
-      )}
-
-      {collapsed && hasChildren && (
-        <button
-          onClick={handleToggleClick}
-          className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-[#E67E22] focus:outline-none"
-        >
-          {isOpen ? (
-            <HiOutlineChevronUp className="w-4 h-4" />
-          ) : (
-            <HiOutlineChevronDown className="w-4 h-4" />
-          )}
-        </button>
       )}
     </div>
   );
@@ -523,13 +499,9 @@ export default function Sidebar({ user: propUser = null }) {
       setIsLoggedIn(false);
       setUser(null);
     }
-  }, [pathname]); // Re-check when route changes
+  }, [pathname]);
 
-  // Don't render sidebar if not logged in
-  if (!isLoggedIn) {
-    return null;
-  }
-
+  // Mobile check effect
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -544,6 +516,11 @@ export default function Sidebar({ user: propUser = null }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Don't render sidebar if not logged in (after all hooks)
+  if (!isLoggedIn) {
+    return null;
+  }
+
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
   };
@@ -556,7 +533,7 @@ export default function Sidebar({ user: propUser = null }) {
 
   const handleLogout = () => {
     authLogout();
-    router.push('/login');
+    router.push('/');
   };
 
   return (
@@ -584,10 +561,8 @@ export default function Sidebar({ user: propUser = null }) {
         style={{ 
           width: collapsed ? 80 : 280,
           transform: isMobile && !mobileOpen ? 'translateX(-280px)' : 'translateX(0)',
-          boxShadow: '4px 0 20px rgba(0, 0, 0, 0.08)',
-          transition: 'all 0.3s ease-in-out',
         }}
-        className="fixed left-0 top-0 h-full bg-white z-50 overflow-hidden"
+        className="fixed left-0 top-0 h-full bg-white z-50 overflow-hidden transition-all duration-300"
       >
         <div className="flex flex-col h-full relative">
           <Logo collapsed={collapsed} />
@@ -617,17 +592,6 @@ export default function Sidebar({ user: propUser = null }) {
                   className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#E67E22] focus:ring-1 focus:ring-[#E67E22] transition-colors"
                 />
               </div>
-            </div>
-          )}
-
-          {collapsed && (
-            <div className="px-2 mb-4">
-              <button 
-                className="w-full p-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400] transition-colors"
-                onClick={() => {/* Handle create new */}}
-              >
-                <HiOutlinePlus className="w-5 h-5 mx-auto" />
-              </button>
             </div>
           )}
 

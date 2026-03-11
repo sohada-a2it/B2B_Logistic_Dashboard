@@ -25,7 +25,7 @@ export default function RootLayout({ children }) {
         <div style={{ display: "flex", height: "calc(100vh - 60px)" }}> 
           <Sidebar /> 
           <main style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-              <Topbar />
+              {/* <Topbar /> */}
             {children}
           </main>
         </div>
