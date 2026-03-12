@@ -545,9 +545,12 @@ export const updateWarehouse = async (warehouseId, updateData) => {
   }
 };
 
-// 17. INSPECT RECEIVED SHIPMENT
+// 17. INSPECT RECEIVED SHIPMENT 
+
 export const inspectShipment = async (receiptId, inspectionData) => {
   try {
+    console.log('🔍 Sending inspection data:', inspectionData);
+    
     const response = await axiosInstance.post(`/inspect/${receiptId}`, inspectionData);
     
     if (response.data.success) {
@@ -558,14 +561,13 @@ export const inspectShipment = async (receiptId, inspectionData) => {
       };
     }
     
-    throw new Error(response.data.message || 'Failed to inspect shipment');
+    throw new Error(response.data.message || 'Inspection failed');
     
   } catch (error) {
-    console.error('Inspect shipment error:', error);
+    console.error('❌ Inspect shipment error:', error);
     return {
       success: false,
-      message: error.response?.data?.error || error.message || 'Failed to inspect shipment',
-      error: error.response?.data
+      message: error.response?.data?.error || error.message || 'Failed to complete inspection'
     };
   }
 };

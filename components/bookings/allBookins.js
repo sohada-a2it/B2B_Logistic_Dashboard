@@ -1,7 +1,7 @@
-// components/bookings/allBookings.js (নাম ঠিক করেছেন? ফাইল নাম হবে allBookings.js)
+// components/bookings/allBookings.js
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import {
@@ -14,7 +14,7 @@ import {
   getMyBookings,
   getMyBookingById,
   getMyBookingTimeline,
-  getMyBookingInvoice,        // Singular - invoice
+  getMyBookingInvoice,
   getMyBookingQuote,
   getMyBookingsSummary,
   downloadBookingDocument,
@@ -24,10 +24,10 @@ import {
   getStatusDisplayText,
   getPricingStatusDisplayText,
   getShipmentTypeDisplay,
-  getCourierCompanyDisplay,    // নতুন
-  getSenderName,               // নতুন
-  getReceiverName,             // নতুন
-  formatAddress,               // নতুন
+  getCourierCompanyDisplay,
+  getSenderName,
+  getReceiverName,
+  formatAddress,
   formatDate,
   formatCurrency,
   isQuoteValid,
@@ -35,8 +35,8 @@ import {
   canCancelBooking,
   canQuoteBooking,
   canRespondToQuote,
-  calculatePackageTotals,      // পরিবর্তিত
-  formatPackageDetails,        // পরিবর্তিত
+  calculatePackageTotals,
+  formatPackageDetails,
   exportBookingsToCSV,
   useBooking,
   useCustomerBookings
@@ -60,7 +60,8 @@ import {
   Maximize2, Minimize2, Grid, List,
   AlertTriangle, Info, CheckCircle as CheckCircleSolid,
   XCircle as XCircleSolid, Clock as ClockSolid,
-  Receipt, FileSpreadsheet, CreditCard, UserPlus, Building, Ruler
+  Receipt, FileSpreadsheet, CreditCard, UserPlus, Building, Ruler,
+  Scale, ChevronUp
 } from 'lucide-react';
 
 // ==================== COLOR CONSTANTS ====================
@@ -223,7 +224,7 @@ const SHIPMENT_TYPE_COLORS = {
 
 // ==================== COMPONENTS ====================
 
-// Button Component (same as before)
+// Button Component
 const Button = ({ children, type = 'button', variant = 'primary', size = 'md', isLoading = false, disabled = false, onClick, className = '', icon = null, iconPosition = 'left', fullWidth = false }) => {
   const baseClasses = 'rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center';
   
@@ -268,7 +269,7 @@ const Button = ({ children, type = 'button', variant = 'primary', size = 'md', i
   );
 };
 
-// Input Component (same as before)
+// Input Component
 const Input = ({ type = 'text', name, value, onChange, placeholder, label, error, icon: Icon, required = false, disabled = false, className = '', ...props }) => {
   return (
     <div className="space-y-1">
@@ -306,7 +307,7 @@ const Input = ({ type = 'text', name, value, onChange, placeholder, label, error
   );
 };
 
-// Select Component (same as before)
+// Select Component
 const Select = ({ name, value, onChange, options, placeholder = 'Select option', label, error, icon: Icon, required = false, disabled = false, className = '' }) => {
   return (
     <div className="space-y-1">
@@ -352,7 +353,7 @@ const Select = ({ name, value, onChange, options, placeholder = 'Select option',
   );
 };
 
-// TextArea Component (same as before)
+// TextArea Component
 const TextArea = ({ name, value, onChange, placeholder, label, error, rows = 3, required = false, disabled = false, className = '' }) => {
   return (
     <div className="space-y-1">
@@ -440,7 +441,7 @@ const ShipmentTypeBadge = ({ type }) => {
   );
 };
 
-// Courier Badge (New)
+// Courier Badge
 const CourierBadge = ({ company, serviceType }) => {
   return (
     <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
@@ -450,10 +451,10 @@ const CourierBadge = ({ company, serviceType }) => {
   );
 };
 
-// Action Menu Component - Updated with correct schema fields
+// Action Menu Component
 const ActionMenu = ({ booking, onAction }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const menuRef = React.useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -487,7 +488,7 @@ const ActionMenu = ({ booking, onAction }) => {
     { 
       label: 'View Invoice', 
       icon: Receipt, 
-      action: 'invoice',      // Changed from 'invoices' to 'invoice'
+      action: 'invoice',
       color: 'text-green-600',
       show: true
     },
@@ -545,8 +546,11 @@ const ActionMenu = ({ booking, onAction }) => {
   return (
     <div className="relative" ref={menuRef}>
       <button
-        onClick={() => setShowMenu(!showMenu)}
-        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowMenu(!showMenu);
+        }}
+        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
       >
         <MoreVertical className="h-4 w-4 text-gray-500" />
       </button>
@@ -665,7 +669,7 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   );
 };
 
-// Price Quote Modal - Updated with schema fields
+// Price Quote Modal
 const PriceQuoteModal = ({ isOpen, onClose, booking, onSave }) => {
   const [formData, setFormData] = useState({
     amount: '',
@@ -686,7 +690,6 @@ const PriceQuoteModal = ({ isOpen, onClose, booking, onSave }) => {
 
   useEffect(() => {
     if (booking) {
-      // Set default valid until date (7 days from now)
       const defaultValidUntil = new Date();
       defaultValidUntil.setDate(defaultValidUntil.getDate() + 7);
       
@@ -765,7 +768,6 @@ const PriceQuoteModal = ({ isOpen, onClose, booking, onSave }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Update Price Quote" size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Amount and Currency row */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Amount <span className="text-red-500">*</span>
@@ -802,7 +804,6 @@ const PriceQuoteModal = ({ isOpen, onClose, booking, onSave }) => {
           </div>
         </div>
 
-        {/* Valid Until */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Valid Until <span className="text-red-500">*</span>
@@ -817,7 +818,6 @@ const PriceQuoteModal = ({ isOpen, onClose, booking, onSave }) => {
           />
         </div>
 
-        {/* Price Breakdown Section - Updated */}
         <div className="border rounded-lg p-4 bg-gray-50">
           <h4 className="text-sm font-medium text-gray-700 mb-3">Price Breakdown</h4>
           <div className="grid grid-cols-2 gap-3">
@@ -894,7 +894,6 @@ const PriceQuoteModal = ({ isOpen, onClose, booking, onSave }) => {
           </div>
         </div>
 
-        {/* Notes */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Notes (Optional)
@@ -909,7 +908,6 @@ const PriceQuoteModal = ({ isOpen, onClose, booking, onSave }) => {
           />
         </div>
 
-        {/* Action buttons */}
         <div className="flex justify-end space-x-3 pt-4 border-t">
           <button
             type="button"
@@ -1097,7 +1095,7 @@ const CancelModal = ({ isOpen, onClose, booking, onCancel }) => {
   );
 };
 
-// Booking Details Modal - Updated with schema
+// Booking Details Modal
 const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
   const [activeTab, setActiveTab] = useState('details');
   
@@ -1110,7 +1108,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Booking Details" size="xl">
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h4 className="text-lg font-semibold text-gray-900">
@@ -1126,7 +1123,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
           </div>
         </div>
 
-        {/* Courier Info - New Section */}
         {booking.courier && (
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
             <div className="flex items-center">
@@ -1138,7 +1134,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
           </div>
         )}
 
-        {/* Tabs */}
         <div className="border-b border-gray-200">
           <nav className="flex space-x-4">
             {[
@@ -1163,11 +1158,9 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
           </nav>
         </div>
 
-        {/* Tab Content */}
         <div className="min-h-[300px]">
           {activeTab === 'details' && (
             <div className="space-y-4">
-              {/* Sender Info */}
               <div className="border rounded-lg p-4">
                 <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                   <User className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
@@ -1197,7 +1190,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                 </div>
               </div>
 
-              {/* Receiver Info */}
               <div className="border rounded-lg p-4">
                 <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                   <UserPlus className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
@@ -1227,7 +1219,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                 </div>
               </div>
 
-              {/* Shipment Details */}
               <div className="border rounded-lg p-4">
                 <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                   <Package className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
@@ -1253,7 +1244,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                 </div>
               </div>
 
-              {/* Dates */}
               <div className="border rounded-lg p-4">
                 <h5 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                   <Calendar className="h-4 w-4 mr-2" style={{ color: COLORS.primary }} />
@@ -1287,7 +1277,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
 
           {activeTab === 'package' && (
             <div className="space-y-4">
-              {/* Package Summary */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-gray-50 p-4 rounded-lg text-center">
                   <p className="text-xs text-gray-500">Total Packages</p>
@@ -1309,7 +1298,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                 </div>
               </div>
 
-              {/* Package Details Table */}
               {booking.shipmentDetails?.packageDetails && booking.shipmentDetails.packageDetails.length > 0 ? (
                 <div className="border rounded-lg overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-200">
@@ -1371,7 +1359,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                     </div>
                   </div>
 
-                  {/* Breakdown */}
                   {booking.quotedPrice.breakdown && (
                     <div className="border rounded-lg p-4">
                       <h5 className="text-sm font-medium text-gray-700 mb-3">Breakdown</h5>
@@ -1438,7 +1425,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                     </div>
                   </div>
 
-                  {/* Current Location */}
                   {booking.currentLocation && (
                     <div className="border rounded-lg p-4">
                       <p className="text-xs text-gray-500 mb-1">Current Location</p>
@@ -1456,7 +1442,6 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
           )}
         </div>
 
-        {/* Special Instructions */}
         {booking.shipmentDetails?.specialInstructions && (
           <div className="border rounded-lg p-4">
             <h5 className="text-sm font-medium text-gray-700 mb-2">Special Instructions</h5>
@@ -1540,7 +1525,7 @@ const TimelineModal = ({ isOpen, onClose, bookingId }) => {
   );
 };
 
-// Invoice Modal - Updated (Singular)
+// Invoice Modal
 const InvoiceModal = ({ isOpen, onClose, bookingId }) => {
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1587,7 +1572,6 @@ const InvoiceModal = ({ isOpen, onClose, bookingId }) => {
         </div>
       ) : invoice ? (
         <div className="space-y-4">
-          {/* Invoice Header */}
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex justify-between items-start">
               <div>
@@ -1598,7 +1582,6 @@ const InvoiceModal = ({ isOpen, onClose, bookingId }) => {
             </div>
           </div>
 
-          {/* Amount */}
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <p className="text-xs text-green-600 mb-1">Total Amount</p>
             <p className="text-2xl font-bold text-green-700">
@@ -1606,7 +1589,6 @@ const InvoiceModal = ({ isOpen, onClose, bookingId }) => {
             </p>
           </div>
 
-          {/* Charges */}
           {invoice.charges && invoice.charges.length > 0 && (
             <div className="border rounded-lg p-4">
               <h5 className="text-sm font-medium text-gray-700 mb-3">Charges</h5>
@@ -1624,7 +1606,6 @@ const InvoiceModal = ({ isOpen, onClose, bookingId }) => {
             </div>
           )}
 
-          {/* Download Button */}
           {invoice._id && (
             <div className="flex justify-end">
               <Button
@@ -1731,6 +1712,193 @@ const QuoteDetailsModal = ({ isOpen, onClose, bookingId }) => {
   );
 };
 
+// Collapsible Booking Card Component
+const CollapsibleBookingCard = ({ booking, selectedBookings, setSelectedBookings, onViewDetails, onAction }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const packageTotals = calculatePackageTotals(booking.shipmentDetails?.packageDetails || []);
+  const quoteValid = booking.quotedPrice ? isQuoteValid(booking.quotedPrice) : false;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+      {/* Card Header - Always Visible */}
+      <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              checked={selectedBookings.includes(booking._id)}
+              onChange={(e) => {
+                e.stopPropagation();
+                if (selectedBookings.includes(booking._id)) {
+                  setSelectedBookings(selectedBookings.filter(id => id !== booking._id));
+                } else {
+                  setSelectedBookings([...selectedBookings, booking._id]);
+                }
+              }}
+              className="h-4 w-4 rounded border-gray-300 focus:ring-[#E67E22]"
+              style={{ accentColor: '#E67E22' }}
+            />
+            <div 
+              className="text-sm font-semibold cursor-pointer hover:underline text-[#E67E22]"
+              onClick={() => onViewDetails(booking)}
+            >
+              #{booking.bookingNumber || booking._id?.slice(-8).toUpperCase()}
+            </div>
+            <StatusBadge status={booking.status} size="sm" />
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => onViewDetails(booking)}
+              className="p-1.5 text-gray-400 hover:text-[#E67E22] rounded-lg hover:bg-white transition-colors"
+              title="View Details"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+            <ActionMenu booking={booking} onAction={onAction} />
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-1.5 text-gray-400 hover:text-[#E67E22] rounded-lg hover:bg-white transition-colors"
+              title={isExpanded ? "Collapse" : "Expand"}
+            >
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+        
+        {booking.trackingNumber && (
+          <div className="mt-1 flex items-center text-xs text-gray-500">
+            <Hash className="h-3 w-3 mr-1" />
+            {booking.trackingNumber}
+          </div>
+        )}
+      </div>
+
+      {/* Compact View - Always Visible Basic Info */}
+      <div className="px-4 py-2 bg-gray-50/50">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center">
+              <MapPin className="h-3 w-3 text-gray-400 mr-1" />
+              <span className="text-gray-600">{booking.shipmentDetails?.origin || 'N/A'}</span>
+              <ChevronRight className="h-3 w-3 mx-1 text-gray-400" />
+              <span className="text-gray-600">{booking.shipmentDetails?.destination || 'N/A'}</span>
+            </div>
+            <div className="flex items-center">
+              <Package className="h-3 w-3 text-gray-400 mr-1" />
+              <span className="text-gray-600">{packageTotals.totalPackages} pkg</span>
+            </div>
+            <div className="flex items-center">
+              <Scale className="h-3 w-3 text-gray-400 mr-1" />
+              <span className="text-gray-600">{packageTotals.totalWeight.toFixed(1)} kg</span>
+            </div>
+          </div>
+          <PricingStatusBadge status={booking.pricingStatus} />
+        </div>
+      </div>
+
+      {/* Expanded View - Additional Details */}
+      {isExpanded && (
+        <div className="p-4 border-t border-gray-100 space-y-4">
+          {/* Sender & Receiver */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-gray-500 flex items-center">
+                <User className="h-3 w-3 mr-1" /> Sender
+              </p>
+              <p className="text-sm font-medium text-gray-900">{getSenderName(booking.sender)}</p>
+              {booking.sender?.email && (
+                <p className="text-xs text-gray-500 flex items-center">
+                  <Mail className="h-3 w-3 mr-1" /> {booking.sender.email}
+                </p>
+              )}
+              {booking.sender?.phone && (
+                <p className="text-xs text-gray-500 flex items-center">
+                  <Phone className="h-3 w-3 mr-1" /> {booking.sender.phone}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-gray-500 flex items-center">
+                <UserPlus className="h-3 w-3 mr-1" /> Receiver
+              </p>
+              <p className="text-sm font-medium text-gray-900">{getReceiverName(booking.receiver)}</p>
+              {booking.receiver?.email && (
+                <p className="text-xs text-gray-500 flex items-center">
+                  <Mail className="h-3 w-3 mr-1" /> {booking.receiver.email}
+                </p>
+              )}
+              {booking.receiver?.phone && (
+                <p className="text-xs text-gray-500 flex items-center">
+                  <Phone className="h-3 w-3 mr-1" /> {booking.receiver.phone}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Shipment Details */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Shipment Type</p>
+              <ShipmentTypeBadge type={booking.shipmentDetails?.shipmentType} />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Created</p>
+              <p className="text-sm text-gray-900">{formatDate(booking.createdAt, 'short')}</p>
+            </div>
+          </div>
+
+          {/* Courier Info */}
+          {booking.courier && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Courier</p>
+              <CourierBadge company={booking.courier.company} serviceType={booking.courier.serviceType} />
+            </div>
+          )}
+
+          {/* Quote Info */}
+          {booking.pricingStatus === 'quoted' && booking.quotedPrice && (
+            <div className="bg-orange-50 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-orange-600">Quoted Amount</p>
+                  <p className="text-sm font-semibold text-orange-700">
+                    {formatCurrency(booking.quotedPrice.amount, booking.quotedPrice.currency)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-orange-600">Valid Until</p>
+                  <p className="text-xs text-orange-700">
+                    {formatDate(booking.quotedPrice.validUntil)}
+                  </p>
+                  {quoteValid ? (
+                    <p className="text-xs text-green-600 mt-1">
+                      {getQuoteDaysRemaining(booking.quotedPrice.validUntil)} days left
+                    </p>
+                  ) : (
+                    <p className="text-xs text-red-600 mt-1">Expired</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Special Instructions */}
+          {booking.shipmentDetails?.specialInstructions && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Special Instructions</p>
+              <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-2">
+                {booking.shipmentDetails.specialInstructions}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ==================== MAIN COMPONENT ====================
 export default function BookingsPage() {
   const router = useRouter();
@@ -1768,7 +1936,7 @@ export default function BookingsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showTimelineModal, setShowTimelineModal] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);      // Changed from showInvoicesModal
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
 
   // Stats
@@ -1788,11 +1956,27 @@ export default function BookingsPage() {
     label: config.label
   }));
 
-  // Fetch Bookings
-  const fetchBookings = async () => {
+  // Fetch Bookings - FIXED: Now depends on filters
+  const fetchBookings = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await getAllBookings(filters);
+      // Prepare query parameters
+      const queryParams = {
+        page: filters.page,
+        limit: filters.limit,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder
+      };
+      
+      // Add filters only if they have values
+      if (filters.status) queryParams.status = filters.status;
+      if (filters.search) queryParams.search = filters.search;
+      if (filters.startDate) queryParams.startDate = filters.startDate;
+      if (filters.endDate) queryParams.endDate = filters.endDate;
+      
+      console.log('Fetching with params:', queryParams); // Debug log
+      
+      const response = await getAllBookings(queryParams);
       if (response.success) {
         setBookings(response.data || []);
         setFilteredBookings(response.data || []);
@@ -1831,30 +2015,37 @@ export default function BookingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]); // Important: depends on filters
 
   useEffect(() => {
     fetchBookings();
-  }, [filters.page, filters.limit, filters.sortBy, filters.sortOrder]);
+  }, [fetchBookings]); // Runs when filters change
 
-  // Handle Filter Change
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value, page: 1 }));
+  // Handle Filter Change - FIXED: Properly updates filters
+  const handleFilterChange = (name, value) => {
+    console.log(`Filter changed: ${name} = ${value}`); // Debug log
+    setFilters(prev => {
+      const newFilters = { ...prev, [name]: value, page: 1 };
+      console.log('New filters:', newFilters); // Debug log
+      return newFilters;
+    });
+    
     if (name === 'status' && value) {
       setActiveStat('all');
     }
   };
 
-  // Handle Search
-  const handleSearch = (e) => {
-    setFilters(prev => ({ ...prev, search: e.target.value, page: 1 }));
+  // Handle Input Change
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    handleFilterChange(name, value);
   };
 
   // Handle Sort
   const handleSort = (field) => {
     const sortOrder = filters.sortBy === field && filters.sortOrder === 'asc' ? 'desc' : 'asc';
-    setFilters(prev => ({ ...prev, sortBy: field, sortOrder }));
+    handleFilterChange('sortBy', field);
+    handleFilterChange('sortOrder', sortOrder);
   };
 
   // Clear Filters
@@ -1885,7 +2076,7 @@ export default function BookingsPage() {
       case 'timeline':
         setShowTimelineModal(true);
         break;
-      case 'invoice':           // Changed from 'invoices' to 'invoice'
+      case 'invoice':
         setShowInvoiceModal(true);
         break;
       case 'quote':
@@ -1905,7 +2096,6 @@ export default function BookingsPage() {
         break;
       case 'download':
         try {
-          // Download all documents for this booking
           if (booking.documents && booking.documents.length > 0) {
             for (const doc of booking.documents) {
               await downloadBookingDocument(booking._id, doc._id);
@@ -1930,6 +2120,12 @@ export default function BookingsPage() {
       default:
         break;
     }
+  };
+
+  // Handle View Details
+  const handleViewDetails = (booking) => {
+    setSelectedBooking(booking);
+    setShowDetailsModal(true);
   };
 
   // Handle Save Price Quote
@@ -2014,7 +2210,7 @@ export default function BookingsPage() {
   // Filter by status
   const filterByStatus = (status) => {
     setActiveStat(status);
-    setFilters(prev => ({ ...prev, page: 1, status: status === 'all' ? '' : status }));
+    handleFilterChange('status', status === 'all' ? '' : status);
   };
 
   // Get visible stats
@@ -2031,7 +2227,7 @@ export default function BookingsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
@@ -2095,9 +2291,10 @@ export default function BookingsPage() {
               <div className="flex-1">
                 <Input
                   type="text"
+                  name="search"
                   placeholder="Search by booking number, customer name, tracking number..."
                   value={filters.search}
-                  onChange={handleSearch}
+                  onChange={handleInputChange}
                   icon={Search}
                 />
               </div>
@@ -2138,7 +2335,7 @@ export default function BookingsPage() {
                 <Select
                   name="status"
                   value={filters.status}
-                  onChange={handleFilterChange}
+                  onChange={handleInputChange}
                   options={statusOptions}
                   placeholder="All Statuses"
                   label="Status"
@@ -2149,7 +2346,7 @@ export default function BookingsPage() {
                   type="date"
                   name="startDate"
                   value={filters.startDate}
-                  onChange={handleFilterChange}
+                  onChange={handleInputChange}
                   label="From Date"
                   icon={Calendar}
                 />
@@ -2158,7 +2355,7 @@ export default function BookingsPage() {
                   type="date"
                   name="endDate"
                   value={filters.endDate}
-                  onChange={handleFilterChange}
+                  onChange={handleInputChange}
                   label="To Date"
                   icon={Calendar}
                 />
@@ -2188,281 +2385,107 @@ export default function BookingsPage() {
           </div>
         )}
 
-        {/* Bookings Table */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="w-10 px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedBookings.length === filteredBookings.length && filteredBookings.length > 0}
-                      onChange={handleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300 focus:ring-[#E67E22]"
-                      style={{ accentColor: COLORS.primary }}
-                    />
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div 
-                      className="flex items-center cursor-pointer hover:text-gray-700"
-                      onClick={() => handleSort('bookingNumber')}
-                    >
-                      Booking ID
-                      <ArrowUpDown className="h-4 w-4 ml-1" />
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sender
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Receiver
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Route
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type / Courier
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div 
-                      className="flex items-center cursor-pointer hover:text-gray-700"
-                      onClick={() => handleSort('createdAt')}
-                    >
-                      Created
-                      <ArrowUpDown className="h-4 w-4 ml-1" />
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Package
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pricing
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loading ? (
-                  <tr>
-                    <td colSpan="11" className="px-4 py-8 text-center">
-                      <div className="flex items-center justify-center">
-                        <Loader2 className="h-6 w-6 animate-spin" style={{ color: COLORS.primary }} />
-                        <span className="ml-2 text-sm text-gray-500">Loading bookings...</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredBookings.length === 0 ? (
-                  <tr>
-                    <td colSpan="11" className="px-4 py-8 text-center">
-                      <div className="flex flex-col items-center">
-                        <Package className="h-12 w-12 text-gray-400 mb-3" />
-                        <p className="text-sm text-gray-500">No bookings found</p>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => router.push('/create-booking')}
-                          className="mt-3"
-                          icon={<Plus className="h-4 w-4" />}
-                        >
-                          Create New Booking
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredBookings.map((booking) => {
-                    const packageTotals = calculatePackageTotals(booking.shipmentDetails?.packageDetails || []);
-                    const quoteValid = booking.quotedPrice ? isQuoteValid(booking.quotedPrice) : false;
-                    
-                    return (
-                      <tr 
-                        key={booking._id} 
-                        className="hover:bg-gray-50 transition-colors group"
-                      >
-                        <td className="px-4 py-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedBookings.includes(booking._id)}
-                            onChange={() => {
-                              if (selectedBookings.includes(booking._id)) {
-                                setSelectedBookings(selectedBookings.filter(id => id !== booking._id));
-                              } else {
-                                setSelectedBookings([...selectedBookings, booking._id]);
-                              }
-                            }}
-                            className="h-4 w-4 rounded border-gray-300 focus:ring-[#E67E22]"
-                            style={{ accentColor: COLORS.primary }}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div>
-                            <div 
-                              className="text-sm font-medium cursor-pointer hover:underline"
-                              style={{ color: COLORS.primary }}
-                              onClick={() => {
-                                setSelectedBooking(booking);
-                                setShowDetailsModal(true);
-                              }}
-                            >
-                              #{booking.bookingNumber || booking._id?.slice(-8).toUpperCase()}
-                            </div>
-                            {booking.trackingNumber && (
-                              <div className="text-xs text-gray-500 flex items-center mt-1">
-                                <Hash className="h-3 w-3 mr-1" />
-                                {booking.trackingNumber}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm font-medium text-gray-900">
-                            {getSenderName(booking.sender)}
-                          </div>
-                          {booking.sender?.email && (
-                            <div className="text-xs text-gray-500">
-                              {booking.sender.email}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm font-medium text-gray-900">
-                            {getReceiverName(booking.receiver)}
-                          </div>
-                          {booking.receiver?.email && (
-                            <div className="text-xs text-gray-500">
-                              {booking.receiver.email}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center text-xs">
-                            <span className="font-medium text-gray-900">{booking.shipmentDetails?.origin || 'N/A'}</span>
-                            <ChevronRight className="h-3 w-3 mx-1 text-gray-400" />
-                            <span className="font-medium text-gray-900">{booking.shipmentDetails?.destination || 'N/A'}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="space-y-1">
-                            <ShipmentTypeBadge type={booking.shipmentDetails?.shipmentType} />
-                            {booking.courier && (
-                              <CourierBadge company={booking.courier.company} serviceType={booking.courier.serviceType} />
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-xs text-gray-500">
-                            {formatDate(booking.createdAt, 'short')}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-xs">
-                            <div className="text-gray-900">
-                              {packageTotals.totalPackages} pkg
-                            </div>
-                            <div className="text-gray-500">
-                              {packageTotals.totalWeight.toFixed(1)} kg
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={booking.status} size="sm" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="space-y-1">
-                            <PricingStatusBadge status={booking.pricingStatus} />
-                            {booking.pricingStatus === 'quoted' && booking.quotedPrice && (
-                              <div className="text-xs">
-                                {quoteValid ? (
-                                  <span className="text-green-600">
-                                    {getQuoteDaysRemaining(booking.quotedPrice.validUntil)} days left
-                                  </span>
-                                ) : (
-                                  <span className="text-red-600">Expired</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <ActionMenu booking={booking} onAction={handleAction} />
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+        {/* Bookings Grid */}
+        {loading ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12">
+            <div className="flex flex-col items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-[#E67E22]" />
+              <p className="mt-4 text-sm text-gray-500">Loading bookings...</p>
+            </div>
           </div>
+        ) : filteredBookings.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12">
+            <div className="flex flex-col items-center justify-center">
+              <div className="h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <Package className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">No bookings found</h3>
+              <p className="mt-1 text-sm text-gray-500">Get started by creating your first booking</p>
+              <Button
+                variant="primary"
+                onClick={() => router.push('/create-booking')}
+                className="mt-4"
+                icon={<Plus className="h-4 w-4" />}
+              >
+                Create New Booking
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredBookings.map((booking) => (
+              <CollapsibleBookingCard
+                key={booking._id}
+                booking={booking}
+                selectedBookings={selectedBookings}
+                setSelectedBookings={setSelectedBookings}
+                onViewDetails={handleViewDetails}
+                onAction={handleAction}
+              />
+            ))}
+          </div>
+        )}
 
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="border-t px-4 py-3 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <span className="text-xs text-gray-600">
-                    Showing {(pagination.page - 1) * filters.limit + 1} to{' '}
-                    {Math.min(pagination.page * filters.limit, pagination.total)} of{' '}
-                    {pagination.total} results
-                  </span>
-                  <Select
-                    name="limit"
-                    value={filters.limit}
-                    onChange={handleFilterChange}
-                    options={[
-                      { value: 10, label: '10 / page' },
-                      { value: 20, label: '20 / page' },
-                      { value: 50, label: '50 / page' },
-                      { value: 100, label: '100 / page' }
-                    ]}
-                    className="w-24"
-                  />
-                </div>
+        {/* Pagination */}
+        {pagination.pages > 1 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 mt-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-gray-600">
+                  Showing {(pagination.page - 1) * filters.limit + 1} -{' '}
+                  {Math.min(pagination.page * filters.limit, pagination.total)} of{' '}
+                  {pagination.total} results
+                </span>
+                <select
+                  value={filters.limit}
+                  onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
+                  className="px-2 py-1 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22]"
+                >
+                  <option value={10}>10 per page</option>
+                  <option value={20}>20 per page</option>
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                </select>
+              </div>
 
-                <div className="flex items-center space-x-1">
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => setFilters(prev => ({ ...prev, page: 1 }))}
-                    disabled={filters.page === 1}
-                    icon={<ChevronsLeft className="h-4 w-4" />}
-                  />
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => setFilters(prev => ({ ...prev, page: prev.page - 1 }))}
-                    disabled={filters.page === 1}
-                    icon={<ChevronLeft className="h-4 w-4" />}
-                  />
-                  
-                  <span className="text-sm text-gray-600 px-3">
-                    Page {filters.page} of {pagination.pages}
-                  </span>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, page: 1 }))}
+                  disabled={filters.page === 1}
+                  className="p-2 text-gray-400 hover:text-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, page: prev.page - 1 }))}
+                  disabled={filters.page === 1}
+                  className="p-2 text-gray-400 hover:text-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                
+                <span className="text-sm text-gray-600 px-3">
+                  Page {filters.page} of {pagination.pages}
+                </span>
 
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
-                    disabled={filters.page === pagination.pages}
-                    icon={<ChevronRight className="h-4 w-4" />}
-                  />
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => setFilters(prev => ({ ...prev, page: pagination.pages }))}
-                    disabled={filters.page === pagination.pages}
-                    icon={<ChevronsRight className="h-4 w-4" />}
-                  />
-                </div>
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
+                  disabled={filters.page === pagination.pages}
+                  className="p-2 text-gray-400 hover:text-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, page: pagination.pages }))}
+                  disabled={filters.page === pagination.pages}
+                  className="p-2 text-gray-400 hover:text-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
@@ -2508,7 +2531,7 @@ export default function BookingsPage() {
         bookingId={selectedBooking?._id}
       />
 
-      <InvoiceModal                                 // Changed from InvoicesModal to InvoiceModal
+      <InvoiceModal
         isOpen={showInvoiceModal}
         onClose={() => setShowInvoiceModal(false)}
         bookingId={selectedBooking?._id}

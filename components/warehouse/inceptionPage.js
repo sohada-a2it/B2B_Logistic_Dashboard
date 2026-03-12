@@ -29,11 +29,24 @@ const INSPECTION_STATUS = {
 };
 
 const CONDITION_OPTIONS = [
-  { value: 'Good', label: '✅ Good - No Issues', color: 'green', icon: ThumbsUp },
-  { value: 'Minor Damage', label: '⚠️ Minor Damage', color: 'yellow', icon: AlertTriangle },
-  { value: 'Major Damage', label: '❌ Major Damage', color: 'red', icon: ThumbsDown },
-  { value: 'Partial', label: '🔄 Partially Damaged', color: 'orange', icon: AlertTriangle },
-  { value: 'Shortage', label: '📦 Shortage', color: 'blue', icon: Package }
+  { 
+    value: 'Good',           // ✅ model এ 'Good' আছে
+    label: '✅ Good - No Issues', 
+    color: 'green', 
+    icon: ThumbsUp 
+  },
+  { 
+    value: 'Minor Damage',    // ✅ model এ 'Minor Damage' আছে
+    label: '⚠️ Minor Damage', 
+    color: 'yellow', 
+    icon: AlertTriangle 
+  },
+  { 
+    value: 'Major Damage',    // ✅ model এ 'Major Damage' আছে
+    label: '❌ Major Damage', 
+    color: 'red', 
+    icon: ThumbsDown 
+  }, 
 ];
 
 const DISPOSITION_OPTIONS = [
@@ -261,67 +274,79 @@ const InspectionModal = ({ receipt, onClose, onComplete }) => {
   }, [receipt]);
 
   // Handle input changes
-  const handleInspectionChange = (field, value) => {
-    console.log('✏️ Changing field:', field, 'to:', value);
+  // inspection/page.jsx - handleInspectionChange ফাংশন আপডেট
+
+const handleInspectionChange = (field, value) => {
+  console.log('✏️ Changing field:', field, 'to:', value);
+  
+  if (packages.length === 0) {
+    toast.error('No packages to inspect');
+    return;
+  }
+
+  const currentPkg = packages[currentPackageIndex];
+  const maxQuantity = currentPkg?.quantity || 1;
+  
+  setInspections(prev => {
+    const updated = [...prev];
     
-    if (packages.length === 0) {
-      toast.error('No packages to inspect');
-      return;
+    // Initialize if not exists
+    if (!updated[currentPackageIndex]) {
+      updated[currentPackageIndex] = {
+        packageIndex: currentPackageIndex,
+        condition: 'Good',
+        quantity: maxQuantity,
+        passed: maxQuantity,
+        failed: 0,
+        notes: ''
+      };
     }
 
-    const currentPkg = packages[currentPackageIndex];
-    const maxQuantity = currentPkg?.quantity || 1;
+    // Handle condition field specifically
+    if (field === 'condition') {
+      console.log('🎯 Setting condition to:', value);
+      updated[currentPackageIndex] = {
+        ...updated[currentPackageIndex],
+        condition: value  // ✅ Directly set the condition
+      };
+    }
+    else if (field === 'passed' || field === 'failed') {
+      const otherField = field === 'passed' ? 'failed' : 'passed';
+      const otherValue = updated[currentPackageIndex]?.[otherField] || 0;
+      
+      const numValue = parseInt(value) || 0;
+      
+      if (numValue < 0) {
+        toast.warning('Value cannot be negative');
+        return prev;
+      }
+      
+      if (numValue + otherValue > maxQuantity) {
+        toast.warning(`Total cannot exceed ${maxQuantity} items`);
+        return prev;
+      }
+      
+      updated[currentPackageIndex] = {
+        ...updated[currentPackageIndex],
+        [field]: numValue
+      };
+    } 
+    else if (field === 'notes') {
+      updated[currentPackageIndex] = {
+        ...updated[currentPackageIndex],
+        notes: value
+      };
+    }
     
-    setInspections(prev => {
-      const updated = [...prev];
-      
-      if (!updated[currentPackageIndex]) {
-        updated[currentPackageIndex] = {
-          packageIndex: currentPackageIndex,
-          condition: 'Good',
-          quantity: maxQuantity,
-          passed: maxQuantity,
-          failed: 0,
-          notes: ''
-        };
-      }
+    return updated;
+  });
 
-      if (field === 'passed' || field === 'failed') {
-        const otherField = field === 'passed' ? 'failed' : 'passed';
-        const otherValue = updated[currentPackageIndex]?.[otherField] || 0;
-        
-        const numValue = parseInt(value) || 0;
-        
-        if (numValue < 0) {
-          toast.warning('Value cannot be negative');
-          return prev;
-        }
-        
-        if (numValue + otherValue > maxQuantity) {
-          toast.warning(`Total cannot exceed ${maxQuantity} items`);
-          return prev;
-        }
-        
-        updated[currentPackageIndex] = {
-          ...updated[currentPackageIndex],
-          [field]: numValue
-        };
-      } else {
-        updated[currentPackageIndex] = {
-          ...updated[currentPackageIndex],
-          [field]: value
-        };
-      }
-      
-      return updated;
-    });
-
-    // Clear error for this package
-    setPackageErrors(prev => ({
-      ...prev,
-      [currentPackageIndex]: null
-    }));
-  };
+  // Clear error for this package
+  setPackageErrors(prev => ({
+    ...prev,
+    [currentPackageIndex]: null
+  }));
+};
 
   // ========== নেক্সট বাটনের হ্যান্ডলার ==========
   const handleNext = () => {
@@ -400,91 +425,120 @@ const InspectionModal = ({ receipt, onClose, onComplete }) => {
   };
 
   // ========== সাবমিট হ্যান্ডলার ==========
-  const handleSubmit = async () => {
-    console.log('📤 Submit button clicked');
+  // inspection/page.jsx - handleSubmit ফাংশন আপডেট
+
+const handleSubmit = async () => {
+  console.log('📤 Submit button clicked');
+  
+  if (packages.length === 0) {
+    toast.error('No packages to inspect');
+    return;
+  }
+
+  // Validate all packages
+  let hasError = false;
+  const newErrors = {};
+
+  inspections.forEach((insp, index) => {
+    if (!insp) {
+      newErrors[index] = `Package ${index + 1}: Not inspected`;
+      hasError = true;
+      return;
+    }
     
-    if (packages.length === 0) {
-      toast.error('No packages to inspect');
-      return;
+    const total = (insp.passed || 0) + (insp.failed || 0);
+    const expected = packages[index]?.quantity || 1;
+    
+    if (total !== expected) {
+      newErrors[index] = `Package ${index + 1}: Total must equal ${expected}`;
+      hasError = true;
     }
+  });
 
-    // Validate all packages
-    let hasError = false;
-    const newErrors = {};
-
-    inspections.forEach((insp, index) => {
-      if (!insp) {
-        newErrors[index] = `Package ${index + 1}: Not inspected`;
-        hasError = true;
-        return;
-      }
-      
-      const total = (insp.passed || 0) + (insp.failed || 0);
-      const expected = packages[index]?.quantity || 1;
-      
-      if (total !== expected) {
-        newErrors[index] = `Package ${index + 1}: Total must equal ${expected}`;
-        hasError = true;
-      }
-    });
-
-    if (hasError) {
-      setPackageErrors(newErrors);
-      
-      // Find first error and go to that package
-      const firstErrorIndex = Object.keys(newErrors)[0];
-      if (firstErrorIndex) {
-        setCurrentPackageIndex(parseInt(firstErrorIndex));
-      }
-      
-      toast.error('Please fix all package errors');
-      return;
+  if (hasError) {
+    setPackageErrors(newErrors);
+    
+    // Find first error and go to that package
+    const firstErrorIndex = Object.keys(newErrors)[0];
+    if (firstErrorIndex) {
+      setCurrentPackageIndex(parseInt(firstErrorIndex));
     }
+    
+    toast.error('Please fix all package errors');
+    return;
+  }
 
-    setLoading(true);
-    try {
-      const totalGood = inspections.reduce((sum, i) => sum + (i?.passed || 0), 0);
-      const totalDamaged = inspections.reduce((sum, i) => sum + (i?.failed || 0), 0);
-      
-      let overallCondition = 'Good';
-      if (totalDamaged > 0 && totalGood === 0) {
-        overallCondition = 'Damaged';
-      } else if (totalDamaged > 0) {
-        overallCondition = 'Partial';
-      }
-
-      const inspectionData = {
-        condition: overallCondition,
-        findings: findings || 'Inspection completed',
-        photos: photos.map(p => p.preview || p.url).filter(Boolean),
-        disposition: disposition,
-        details: inspections,
-        summary: {
-          totalPackages: packages.length,
-          totalItems: inspections.reduce((sum, i) => sum + (i?.quantity || 1), 0),
-          goodItems: totalGood,
-          damagedItems: totalDamaged
-        }
-      };
-
-      console.log('📦 Submitting inspection:', inspectionData);
-
-      const result = await inspectShipment(receipt._id, inspectionData);
-      
-      if (result.success) {
-        toast.success('✅ Inspection completed successfully');
-        onComplete();
-        onClose();
-      } else {
-        toast.error(result.message || 'Failed to complete inspection');
-      }
-    } catch (error) {
-      console.error('❌ Inspection error:', error);
-      toast.error(error.message || 'Failed to complete inspection');
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    // Calculate totals
+    const totalGood = inspections.reduce((sum, i) => sum + (i?.passed || 0), 0);
+    const totalDamaged = inspections.reduce((sum, i) => sum + (i?.failed || 0), 0);
+    
+    // Determine overall condition - এটা model এর সাথে match করুন
+    let overallCondition = 'Good';
+    
+    // Check if any package has Major Damage or Minor Damage
+    const hasMajorDamage = inspections.some(i => i?.condition === 'Major Damage');
+    const hasMinorDamage = inspections.some(i => i?.condition === 'Minor Damage');
+    const hasGood = inspections.some(i => i?.condition === 'Good');
+    
+    if (hasMajorDamage) {
+      overallCondition = 'Major Damage';
+    } else if (hasMinorDamage && !hasGood) {
+      overallCondition = 'Minor Damage';
+    } else if (hasMinorDamage && hasGood) {
+      overallCondition = 'Minor Damage'; // Mixed but some damage
+    } else if (totalDamaged > 0) {
+      // If quantity mismatch but condition is Good
+      overallCondition = 'Minor Damage';
     }
-  };
+    
+    console.log('📊 Overall condition:', overallCondition);
+
+    const inspectionData = {
+      condition: overallCondition,  // ✅ 'Major Damage' or 'Minor Damage' or 'Good'
+      findings: findings || 'Inspection completed',
+      photos: photos.map(p => p.preview || p.url).filter(Boolean),
+      disposition: disposition,
+      details: inspections.map(insp => ({
+        ...insp,
+        // Ensure each package's condition is saved
+        condition: insp.condition || 'Good'
+      })),
+      summary: {
+        totalPackages: packages.length,
+        totalItems: inspections.reduce((sum, i) => sum + (i?.quantity || 1), 0),
+        goodItems: totalGood,
+        damagedItems: totalDamaged
+      }
+    };
+
+    console.log('📦 Submitting inspection:', inspectionData);
+
+    const result = await inspectShipment(receipt._id, inspectionData);
+    
+    if (result.success) {
+      toast.success('✅ Inspection completed successfully');
+      
+      // Show appropriate message based on condition
+      if (overallCondition !== 'Good') {
+        toast.warning(`⚠️ Shipment marked as ${overallCondition}`, {
+          autoClose: 5000
+        });
+      }
+      
+      onComplete();
+      onClose();
+    } else {
+      toast.error(result.message || 'Failed to complete inspection');
+    }
+  } catch (error) {
+    console.error('❌ Inspection error:', error);
+    toast.error(error.message || 'Failed to complete inspection');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Photo handlers
   const handleAddPhoto = (e) => {

@@ -134,11 +134,11 @@ const menuItems = [
         path: '/warehouse/all-consolidation',
         icon: <HiOutlineDownload className="w-4 h-4" />,
       },
-      // { 
-      //   title: 'Containers',
-      //   path: '/admin/warehouse/containers',
-      //   icon: <HiOutlineDownload className="w-4 h-4" />,
-      // },
+      { 
+        title: 'Damage Reports',
+        path: '/warehouse/damage',
+        icon: <HiOutlineDownload className="w-4 h-4" />,
+      },
       // {
       //   title: 'Consolidation',
       //   path: '/admin/warehouse/consolidation',

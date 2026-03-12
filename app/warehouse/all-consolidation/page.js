@@ -3818,43 +3818,7 @@ export default function ConsolidationsPage() {
                 New Consolidation
               </Link>
             </div>
-          </div>
-
-          {/* Stats Cards */}
-          {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6">
-              <StatCard 
-                title="Total Consolidations" 
-                value={stats.totalConsolidations || 0} 
-                icon={Package} 
-                color="orange"
-              />
-              <StatCard 
-                title="In Progress" 
-                value={stats.byStatus?.in_progress || 0} 
-                icon={Play} 
-                color="blue"
-              />
-              <StatCard 
-                title="Ready for Dispatch" 
-                value={readyForDispatchCount} 
-                icon={Send} 
-                color="orange"
-              />
-              <StatCard 
-                title="Total Volume" 
-                value={formatVolume(stats.totalVolume)} 
-                icon={Box} 
-                color="purple"
-              />
-              <StatCard 
-                title="Total Weight" 
-                value={formatWeight(stats.totalWeight)} 
-                icon={Weight} 
-                color="red"
-              />
-            </div>
-          )}
+          </div> 
         </div>
 
         {/* Filters */}
