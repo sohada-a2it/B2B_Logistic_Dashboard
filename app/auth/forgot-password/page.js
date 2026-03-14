@@ -37,7 +37,7 @@ const Button = ({
   return (
     <button
       type={type}
-      className={baseClasses + ' ' + variantClass + ' ' + sizeClass + ' ' + className + ' ' + (disabled || isLoading ? 'opacity-50 cursor-not-allowed' : '')}
+      className={`${baseClasses} ${variantClass} ${sizeClass} ${className} ${(disabled || isLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}
       disabled={disabled || isLoading}
       onClick={onClick}
     >
@@ -94,14 +94,9 @@ const Input = ({
           onBlur={onBlur}
           placeholder={placeholder}
           disabled={disabled}
-          className={
-            'w-full px-3 py-2 border rounded-lg shadow-sm ' +
-            'focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-[#E67E22] ' +
-            (error ? 'border-red-500 ' : 'border-gray-300 ') +
-            (disabled ? 'bg-gray-100 cursor-not-allowed ' : '') +
-            (icon ? 'pl-10 ' : '') +
-            className
-          }
+          className={`w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-[#E67E22] transition-all duration-200 ${
+            error ? 'border-red-500' : 'border-gray-300'
+          } ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''} ${icon ? 'pl-10' : ''} ${className}`}
           {...props}
         />
       </div>
@@ -129,17 +124,43 @@ const OtpInput = ({
       placeholder="0"
       maxLength={1}
       required
-      className={
-        'w-12 md:w-14 h-12 md:h-14 text-center text-xl font-bold border rounded-lg shadow-sm ' +
-        'focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-[#E67E22] ' +
-        (error ? 'border-red-500' : 'border-gray-300')
-      }
+      className={`w-12 md:w-14 h-12 md:h-14 text-center text-xl font-bold border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-[#E67E22] ${
+        error ? 'border-red-500' : 'border-gray-300'
+      }`}
     />
   );
 };
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    // Hide all header, sidebar, navbar elements
+    const elementsToHide = document.querySelectorAll(
+      'aside, .topbar, header, nav, .sidebar, .navbar, [class*="header"], [class*="sidebar"], [class*="navbar"]'
+    );
+    
+    elementsToHide.forEach(el => {
+      if (el && el.style) {
+        el.style.display = 'none';
+      }
+    });
+    
+    // Prevent scrolling on all devices
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    return () => {
+      elementsToHide.forEach(el => {
+        if (el && el.style) {
+          el.style.display = '';
+        }
+      });
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -234,7 +255,6 @@ export default function ForgotPasswordPage() {
     if (Object.keys(emailErrors).length === 0) {
       setLoading(true);
       try {
-        // Call your forgot password API
         await forgotPassword(email);
         
         toast.success('Reset code sent to your email!', {
@@ -267,7 +287,6 @@ export default function ForgotPasswordPage() {
       setLoading(true);
       try {
         const otpString = otp.join('');
-        // Verify OTP first
         await verifyResetOTP(email, otpString);
         
         toast.success('OTP verified successfully!', {
@@ -422,23 +441,23 @@ export default function ForgotPasswordPage() {
         theme="colored"
       />
       
-      <div className="h-[550px] bg-[#fffaf6] flex flex-col lg:flex-row">
-        {/* Left Side - Branding/Info */}
-        <div className="lg:w-1/2 bg-[#122652] p-8 lg:p-12 flex flex-col justify-between relative overflow-hidden">
-          {/* Background Pattern */}
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 -left-4 w-72 h-72 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-            <div className="absolute top-0 -right-4 w-72 h-72 bg-[#3C719D] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-            <div className="absolute -bottom-8 left-20 w-72 h-72 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
-          </div>
+      {/* Main Container - No Scroll */}
+      <div className="fixed inset-0 w-full h-full bg-[#fffaf6] overflow-hidden">
+        {/* Desktop Layout (lg and above) */}
+        <div className="hidden lg:flex w-full h-full">
+          {/* Left Side - Branding/Info */}
+          <div className="w-1/2 bg-[#122652] p-8 lg:p-12 flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 -left-4 w-72 h-72 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+              <div className="absolute top-0 -right-4 w-72 h-72 bg-[#3C719D] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+              <div className="absolute -bottom-8 left-20 w-72 h-72 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
+            </div>
 
-          {/* Content */}
-          <div className="relative z-10">
-            <div className="w-20 h-auto">
-                <img src="/logo.png" alt="LogiSwift Logo" />
+            <div className="relative z-10">
+              <div className="w-20 h-auto mb-6">
+                <img src="/logo.png" alt="LogiSwift Logo" className="w-full h-auto" />
               </div>
 
-            <div className="mt-6">
               <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight">
                 Reset Your
                 <span className="text-[#E67E22] block">Password</span>
@@ -449,26 +468,24 @@ export default function ForgotPasswordPage() {
             </div>
 
             {/* Progress Steps */}
-            <div className="mt-6">
+            <div className="relative z-10 mt-6">
               <div className="flex items-center space-x-4">
                 {[1, 2, 3].map((step) => (
                   <div key={step} className="flex items-center">
-                    <div className={
-                      'w-10 h-10 rounded-full flex items-center justify-center font-semibold ' +
-                      (currentStep >= step ? 'bg-[#E67E22] text-white' : 'bg-white/20 text-gray-300')
-                    }>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                      currentStep >= step ? 'bg-[#E67E22] text-white' : 'bg-white/20 text-gray-300'
+                    }`}>
                       {step}
                     </div>
                     {step < 3 && (
-                      <div className={
-                        'w-12 h-1 mx-2 rounded ' +
-                        (currentStep > step ? 'bg-[#E67E22]' : 'bg-white/20')
-                      } />
+                      <div className={`w-12 h-1 mx-2 rounded ${
+                        currentStep > step ? 'bg-[#E67E22]' : 'bg-white/20'
+                      }`} />
                     )}
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between mt-2 text-sm text-gray-300">
+              <div className="flex gap-8 sm:gap-10 mt-2 text-sm text-gray-300">
                 <span>Verify Email</span>
                 <span>Verify Code</span>
                 <span>New Password</span>
@@ -476,7 +493,7 @@ export default function ForgotPasswordPage() {
             </div>
 
             {/* Security Tips */}
-            <div className="mt-12 space-y-4">
+            <div className="relative z-10 mt-12 space-y-4">
               {currentStep === 1 && (
                 <>
                   <div className="flex items-center space-x-3">
@@ -538,19 +555,324 @@ export default function ForgotPasswordPage() {
                 </>
               )}
             </div>
-          </div> 
+          </div>
+
+          {/* Right Side - Form */}
+          <div className="w-1/2 flex items-center justify-center p-8 lg:p-12">
+            <div className="w-full max-w-md">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold text-[#122652]">
+                  {currentStep === 1 && 'Forgot Password?'}
+                  {currentStep === 2 && 'Verify Code'}
+                  {currentStep === 3 && 'Create New Password'}
+                </h2>
+                <p className="text-gray-600 mt-2">
+                  {currentStep === 1 && "Enter your email to receive a verification code"}
+                  {currentStep === 2 && `We've sent a code to ${email}`}
+                  {currentStep === 3 && "Enter your new password below"}
+                </p>
+                {currentStep === 2 && (
+                  <button
+                    onClick={handleResendOTP}
+                    disabled={!canResend || loading}
+                    className={`mt-2 text-sm font-semibold ${canResend && !loading ? 'text-[#E67E22] hover:underline' : 'text-gray-400 cursor-not-allowed'}`}
+                  >
+                    Resend code {!canResend && `(${timeLeft}s)`}
+                  </button>
+                )}
+              </div>
+
+              {/* Step 1: Email Form */}
+              {currentStep === 1 && (
+                <form onSubmit={handleEmailSubmit} className="space-y-6 animate-fadeIn">
+                  <Input
+                    label="Email Address"
+                    type="email"
+                    name="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => setTouched({ ...touched, email: true })}
+                    placeholder="john.doe@company.com"
+                    error={touched.email && errors.email}
+                    required
+                    icon={renderIcon('email')}
+                  />
+
+                  <div className="space-y-4">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="lg"
+                      isLoading={loading}
+                      className="w-full"
+                    >
+                      Send Reset Code
+                      <svg className="w-5 h-5 ml-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Button>
+
+                    <Link
+                      href="/"
+                      className="block text-center text-sm text-gray-600 hover:text-[#E67E22] transition-colors"
+                    >
+                      ← Back to Login
+                    </Link>
+                  </div>
+                </form>
+              )}
+
+              {/* Step 2: OTP Form */}
+              {currentStep === 2 && (
+                <form onSubmit={handleOtpSubmit} className="space-y-8 animate-fadeIn">
+                  <div className="space-y-4">
+                    <label className="block text-sm font-medium text-gray-700 text-center">
+                      Enter 6-digit verification code
+                    </label>
+                    
+                    <div className="flex justify-center gap-2 md:gap-4">
+                      {otp.map((digit, index) => (
+                        <OtpInput
+                          key={index}
+                          index={index}
+                          value={digit}
+                          onChange={(e) => handleOtpChange(index, e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(index, e)}
+                          onPaste={handlePaste}
+                          error={errors.otp}
+                        />
+                      ))}
+                    </div>
+
+                    {errors.otp && (
+                      <p className="text-center text-sm text-red-600 animate-pulse">
+                        {errors.otp}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="lg"
+                      isLoading={loading}
+                      className="w-full"
+                    >
+                      Verify Code
+                      <svg className="w-5 h-5 ml-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(1)}
+                      className="block w-full text-center text-sm text-gray-600 hover:text-[#E67E22] transition-colors"
+                    >
+                      ← Use different email
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Step 3: New Password Form */}
+              {currentStep === 3 && (
+                <form onSubmit={handlePasswordSubmit} className="space-y-6 animate-fadeIn">
+                  <div className="relative">
+                    <Input
+                      label="New Password"
+                      type={showPassword ? 'text' : 'password'}
+                      name="newPassword"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      onBlur={() => setTouched({ ...touched, newPassword: true })}
+                      placeholder="********"
+                      error={touched.newPassword && errors.newPassword}
+                      required
+                      icon={renderIcon('password')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-9 text-gray-500 hover:text-[#E67E22]"
+                    >
+                      {showPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Password Strength Meter */}
+                  {newPassword && (
+                    <div className="space-y-2 -mt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${getPasswordStrengthColor()} transition-all duration-300`}
+                            style={{ width: passwordStrength + '%' }}
+                          />
+                        </div>
+                        <span className="ml-3 text-sm font-medium text-gray-600">
+                          {getPasswordStrengthText()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="relative">
+                    <Input
+                      label="Confirm New Password"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onBlur={() => setTouched({ ...touched, confirmPassword: true })}
+                      placeholder="********"
+                      error={touched.confirmPassword && errors.confirmPassword}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-9 text-gray-500 hover:text-[#E67E22]"
+                    >
+                      {showConfirmPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Password Requirements */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Password requirements:</p>
+                    <ul className="text-xs text-gray-500 space-y-1">
+                      <li className="flex items-center">
+                        <span className={`mr-2 ${newPassword.length >= 8 ? 'text-green-500' : 'text-gray-400'}`}>
+                          {newPassword.length >= 8 ? '✓' : '○'}
+                        </span>
+                        At least 8 characters
+                      </li>
+                      <li className="flex items-center">
+                        <span className={`mr-2 ${/([a-z])/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`}>
+                          {/([a-z])/.test(newPassword) ? '✓' : '○'}
+                        </span>
+                        Contains lowercase letter
+                      </li>
+                      <li className="flex items-center">
+                        <span className={`mr-2 ${/([A-Z])/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`}>
+                          {/([A-Z])/.test(newPassword) ? '✓' : '○'}
+                        </span>
+                        Contains uppercase letter
+                      </li>
+                      <li className="flex items-center">
+                        <span className={`mr-2 ${/([0-9!@#$%^&*])/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`}>
+                          {/([0-9!@#$%^&*])/.test(newPassword) ? '✓' : '○'}
+                        </span>
+                        Contains number or special character
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="space-y-4">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="lg"
+                      isLoading={loading}
+                      className="w-full"
+                    >
+                      Reset Password
+                      <svg className="w-5 h-5 ml-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(2)}
+                      className="block w-full text-center text-sm text-gray-600 hover:text-[#E67E22] transition-colors"
+                    >
+                      ← Back to verification
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Right Side - Form */}
-        <div className="lg:w-1/2 flex items-center justify-center p-8 lg:p-12">
-          <div className="w-full max-w-md">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-[#122652]">
+        {/* Mobile Layout (below lg) - Scrollable with all content */}
+        <div className="lg:hidden w-full h-full overflow-y-auto">
+          {/* Header with Pattern */}
+          <div className="bg-[#122652] p-6 relative overflow-hidden">
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 -left-4 w-48 h-48 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+              <div className="absolute top-0 -right-4 w-48 h-48 bg-[#3C719D] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+            </div>
+
+            <div className="relative z-10">
+              <div className="w-16 h-auto mb-4">
+                <img src="/logo.png" alt="LogiSwift Logo" className="w-full h-auto" />
+              </div>
+
+              <h1 className="text-2xl font-bold text-white">
+                Reset Your Password
+              </h1>
+              <p className="text-gray-300 text-sm mt-2">
+                Don't worry! We'll help you get back into your account.
+              </p>
+            </div>
+          </div>
+
+          {/* Progress Steps - Mobile */}
+          <div className="px-6 py-4 bg-white border-b">
+            <div className="flex items-center justify-between">
+              {[1, 2, 3].map((step) => (
+                <div key={step} className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                    currentStep >= step ? 'bg-[#E67E22] text-white' : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {step}
+                  </div>
+                  {step < 3 && (
+                    <div className={`w-8 h-1 mx-1 rounded ${
+                      currentStep > step ? 'bg-[#E67E22]' : 'bg-gray-200'
+                    }`} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between mt-2 text-xs text-gray-500">
+              <span>Email</span>
+              <span>Verify</span>
+              <span>Password</span>
+            </div>
+          </div>
+
+          {/* Main Content - Mobile */}
+          <div className="p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-[#122652]">
                 {currentStep === 1 && 'Forgot Password?'}
                 {currentStep === 2 && 'Verify Code'}
                 {currentStep === 3 && 'Create New Password'}
               </h2>
-              <p className="text-gray-600 mt-2">
+              <p className="text-sm text-gray-600 mt-1">
                 {currentStep === 1 && "Enter your email to receive a verification code"}
                 {currentStep === 2 && `We've sent a code to ${email}`}
                 {currentStep === 3 && "Enter your new password below"}
@@ -559,16 +881,16 @@ export default function ForgotPasswordPage() {
                 <button
                   onClick={handleResendOTP}
                   disabled={!canResend || loading}
-                  className={'mt-2 text-sm font-semibold ' + (canResend && !loading ? 'text-[#E67E22] hover:underline' : 'text-gray-400 cursor-not-allowed')}
+                  className={`mt-2 text-sm font-semibold ${canResend && !loading ? 'text-[#E67E22]' : 'text-gray-400 cursor-not-allowed'}`}
                 >
                   Resend code {!canResend && `(${timeLeft}s)`}
                 </button>
               )}
             </div>
 
-            {/* Step 1: Email Form */}
+            {/* Step 1: Email Form - Mobile */}
             {currentStep === 1 && (
-              <form onSubmit={handleEmailSubmit} className="space-y-6 animate-fadeIn">
+              <form onSubmit={handleEmailSubmit} className="space-y-6">
                 <Input
                   label="Email Address"
                   type="email"
@@ -586,19 +908,16 @@ export default function ForgotPasswordPage() {
                   <Button
                     type="submit"
                     variant="primary"
-                    size="lg"
+                    size="md"
                     isLoading={loading}
                     className="w-full"
                   >
                     Send Reset Code
-                    <svg className="w-5 h-5 ml-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                    </svg>
                   </Button>
 
                   <Link
-                    href="/"
-                    className="block text-center text-sm text-gray-600 hover:text-[#E67E22] transition-colors"
+                    href="/auth/login"
+                    className="block text-center text-sm text-gray-600 hover:text-[#E67E22]"
                   >
                     ← Back to Login
                   </Link>
@@ -606,32 +925,30 @@ export default function ForgotPasswordPage() {
               </form>
             )}
 
-            {/* Step 2: OTP Form */}
+            {/* Step 2: OTP Form - Mobile */}
             {currentStep === 2 && (
-              <form onSubmit={handleOtpSubmit} className="space-y-8 animate-fadeIn">
+              <form onSubmit={handleOtpSubmit} className="space-y-6">
                 <div className="space-y-4">
                   <label className="block text-sm font-medium text-gray-700 text-center">
                     Enter 6-digit verification code
                   </label>
                   
-                  <div className="flex justify-center gap-2 md:gap-4">
-                    {otp.map(function(digit, index) {
-                      return (
-                        <OtpInput
-                          key={index}
-                          index={index}
-                          value={digit}
-                          onChange={(e) => handleOtpChange(index, e.target.value)}
-                          onKeyDown={(e) => handleKeyDown(index, e)}
-                          onPaste={handlePaste}
-                          error={errors.otp}
-                        />
-                      );
-                    })}
+                  <div className="flex justify-center gap-2">
+                    {otp.map((digit, index) => (
+                      <OtpInput
+                        key={index}
+                        index={index}
+                        value={digit}
+                        onChange={(e) => handleOtpChange(index, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(index, e)}
+                        onPaste={handlePaste}
+                        error={errors.otp}
+                      />
+                    ))}
                   </div>
 
                   {errors.otp && (
-                    <p className="text-center text-sm text-red-600 animate-pulse">
+                    <p className="text-center text-sm text-red-600">
                       {errors.otp}
                     </p>
                   )}
@@ -641,20 +958,17 @@ export default function ForgotPasswordPage() {
                   <Button
                     type="submit"
                     variant="primary"
-                    size="lg"
+                    size="md"
                     isLoading={loading}
                     className="w-full"
                   >
                     Verify Code
-                    <svg className="w-5 h-5 ml-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
                   </Button>
 
                   <button
                     type="button"
                     onClick={() => setCurrentStep(1)}
-                    className="block w-full text-center text-sm text-gray-600 hover:text-[#E67E22] transition-colors"
+                    className="block w-full text-center text-sm text-gray-600 hover:text-[#E67E22]"
                   >
                     ← Use different email
                   </button>
@@ -662,9 +976,9 @@ export default function ForgotPasswordPage() {
               </form>
             )}
 
-            {/* Step 3: New Password Form */}
+            {/* Step 3: New Password Form - Mobile */}
             {currentStep === 3 && (
-              <form onSubmit={handlePasswordSubmit} className="space-y-6 animate-fadeIn">
+              <form onSubmit={handlePasswordSubmit} className="space-y-5">
                 <div className="relative">
                   <Input
                     label="New Password"
@@ -681,7 +995,7 @@ export default function ForgotPasswordPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-9 text-gray-500 hover:text-[#E67E22]"
+                    className="absolute right-3 top-9 text-gray-500"
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -696,17 +1010,17 @@ export default function ForgotPasswordPage() {
                   </button>
                 </div>
 
-                {/* Password Strength Meter */}
+                {/* Password Strength Meter - Mobile */}
                 {newPassword && (
-                  <div className="space-y-2 -mt-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="space-y-1">
+                    <div className="flex items-center">
+                      <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                         <div
-                          className={'h-full ' + getPasswordStrengthColor() + ' transition-all duration-300'}
+                          className={`h-full ${getPasswordStrengthColor()}`}
                           style={{ width: passwordStrength + '%' }}
                         />
                       </div>
-                      <span className="ml-3 text-sm font-medium text-gray-600">
+                      <span className="ml-2 text-xs font-medium text-gray-600">
                         {getPasswordStrengthText()}
                       </span>
                     </div>
@@ -728,7 +1042,7 @@ export default function ForgotPasswordPage() {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-9 text-gray-500 hover:text-[#E67E22]"
+                    className="absolute right-3 top-9 text-gray-500"
                   >
                     {showConfirmPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -743,30 +1057,30 @@ export default function ForgotPasswordPage() {
                   </button>
                 </div>
 
-                {/* Password Requirements */}
-                <div className="bg-gray-50 p-4 rounded-lg">
+                {/* Password Requirements - Mobile */}
+                <div className="bg-gray-50 p-2 rounded-lg">
                   <p className="text-sm font-medium text-gray-700 mb-2">Password requirements:</p>
                   <ul className="text-xs text-gray-500 space-y-1">
                     <li className="flex items-center">
-                      <span className={'mr-2 ' + (newPassword.length >= 8 ? 'text-green-500' : 'text-gray-400')}>
+                      <span className={`mr-2 ${newPassword.length >= 8 ? 'text-green-500' : 'text-gray-400'}`}>
                         {newPassword.length >= 8 ? '✓' : '○'}
                       </span>
                       At least 8 characters
                     </li>
                     <li className="flex items-center">
-                      <span className={'mr-2 ' + (/([a-z])/.test(newPassword) ? 'text-green-500' : 'text-gray-400')}>
+                      <span className={`mr-2 ${/([a-z])/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`}>
                         {/([a-z])/.test(newPassword) ? '✓' : '○'}
                       </span>
                       Contains lowercase letter
                     </li>
                     <li className="flex items-center">
-                      <span className={'mr-2 ' + (/([A-Z])/.test(newPassword) ? 'text-green-500' : 'text-gray-400')}>
+                      <span className={`mr-2 ${/([A-Z])/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`}>
                         {/([A-Z])/.test(newPassword) ? '✓' : '○'}
                       </span>
                       Contains uppercase letter
                     </li>
                     <li className="flex items-center">
-                      <span className={'mr-2 ' + (/([0-9!@#$%^&*])/.test(newPassword) ? 'text-green-500' : 'text-gray-400')}>
+                      <span className={`mr-2 ${/([0-9!@#$%^&*])/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`}>
                         {/([0-9!@#$%^&*])/.test(newPassword) ? '✓' : '○'}
                       </span>
                       Contains number or special character
@@ -774,30 +1088,101 @@ export default function ForgotPasswordPage() {
                   </ul>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-4 pt-2">
                   <Button
                     type="submit"
                     variant="primary"
-                    size="lg"
+                    size="md"
                     isLoading={loading}
                     className="w-full"
                   >
                     Reset Password
-                    <svg className="w-5 h-5 ml-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                    </svg>
                   </Button>
 
                   <button
                     type="button"
                     onClick={() => setCurrentStep(2)}
-                    className="block w-full text-center text-sm text-gray-600 hover:text-[#E67E22] transition-colors"
+                    className="block w-full text-center text-sm text-gray-600 hover:text-[#E67E22]"
                   >
                     ← Back to verification
                   </button>
                 </div>
               </form>
             )}
+
+            {/* Security Tips - Mobile */}
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <p className="text-sm font-medium text-gray-700 mb-3">Security Tips:</p>
+              <div className="space-y-3">
+                {currentStep === 1 && (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-5 h-5 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <span className="text-xs text-gray-600">Enter your registered email address</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-5 h-5 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <span className="text-xs text-gray-600">We'll send a 6-digit verification code</span>
+                    </div>
+                  </>
+                )}
+                {currentStep === 2 && (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-5 h-5 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <span className="text-xs text-gray-600">Check your email for the verification code</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-5 h-5 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <span className="text-xs text-gray-600">Code expires in 10 minutes</span>
+                    </div>
+                  </>
+                )}
+                {currentStep === 3 && (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-5 h-5 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <span className="text-xs text-gray-600">Create a strong password</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-5 h-5 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <span className="text-xs text-gray-600">Use at least 8 characters with mix of letters, numbers & symbols</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Support Link - Mobile */}
+            {/* <div className="mt-6 text-center">
+              <p className="text-xs text-gray-400">
+                Need help? <a href="mailto:support@logiswift.com" className="text-[#E67E22]">Contact support</a>
+              </p>
+            </div> */}
           </div>
         </div>
       </div>

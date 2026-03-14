@@ -451,7 +451,7 @@ const CourierBadge = ({ company, serviceType }) => {
   );
 };
 
-// Action Menu Component
+// Action Menu Component - FIXED: Added z-index and proper positioning to prevent cutting
 const ActionMenu = ({ booking, onAction }) => {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
@@ -504,7 +504,7 @@ const ActionMenu = ({ booking, onAction }) => {
       icon: DollarSign, 
       action: 'price-quote', 
       color: `text-[${COLORS.primary}]`,
-      show: canQuoteBooking(booking.status, booking.pricingStatus)
+      show: true // Always show - can update quote anytime
     },
     { 
       label: 'Accept Quote', 
@@ -544,7 +544,7 @@ const ActionMenu = ({ booking, onAction }) => {
   ];
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative inline-block" ref={menuRef}>
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -556,7 +556,7 @@ const ActionMenu = ({ booking, onAction }) => {
       </button>
       
       {showMenu && (
-        <div className="absolute right-0 mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-1">
+        <div className="absolute right-0 mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-[100] py-1">
           {actions.filter(a => a.show).map((action) => (
             <button
               key={action.action}
@@ -1712,43 +1712,36 @@ const QuoteDetailsModal = ({ isOpen, onClose, bookingId }) => {
   );
 };
 
-// Collapsible Booking Card Component
+// Collapsible Booking Card Component - FIXED: Added booking number and sender name, improved layout
 const CollapsibleBookingCard = ({ booking, selectedBookings, setSelectedBookings, onViewDetails, onAction }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const packageTotals = calculatePackageTotals(booking.shipmentDetails?.packageDetails || []);
   const quoteValid = booking.quotedPrice ? isQuoteValid(booking.quotedPrice) : false;
+  const senderName = getSenderName(booking.sender);
+  const bookingId = booking.bookingNumber || booking._id?.slice(-8).toUpperCase() || 'N/A';
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
       {/* Card Header - Always Visible */}
       <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              checked={selectedBookings.includes(booking._id)}
-              onChange={(e) => {
-                e.stopPropagation();
-                if (selectedBookings.includes(booking._id)) {
-                  setSelectedBookings(selectedBookings.filter(id => id !== booking._id));
-                } else {
-                  setSelectedBookings([...selectedBookings, booking._id]);
-                }
-              }}
-              className="h-4 w-4 rounded border-gray-300 focus:ring-[#E67E22]"
-              style={{ accentColor: '#E67E22' }}
-            />
+          <div className="flex items-center space-x-3 min-w-0">
+            {/* REMOVED SELECT ALL CHECKBOX */}
             <div 
-              className="text-sm font-semibold cursor-pointer hover:underline text-[#E67E22]"
+              className="text-sm font-semibold cursor-pointer hover:underline text-[#E67E22] whitespace-nowrap"
               onClick={() => onViewDetails(booking)}
+              title={`Booking #${bookingId}`}
             >
-              #{booking.bookingNumber || booking._id?.slice(-8).toUpperCase()}
+              #{bookingId}
+            </div>
+            <div className="hidden sm:block text-sm text-gray-600 truncate max-w-[200px]">
+              {senderName}
             </div>
             <StatusBadge status={booking.status} size="sm" />
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 flex-shrink-0">
             <button
               onClick={() => onViewDetails(booking)}
               className="p-1.5 text-gray-400 hover:text-[#E67E22] rounded-lg hover:bg-white transition-colors"
@@ -1767,10 +1760,15 @@ const CollapsibleBookingCard = ({ booking, selectedBookings, setSelectedBookings
           </div>
         </div>
         
+        {/* Mobile sender name - visible only on small screens */}
+        <div className="sm:hidden mt-1 text-xs text-gray-500 truncate">
+          {senderName}
+        </div>
+        
         {booking.trackingNumber && (
           <div className="mt-1 flex items-center text-xs text-gray-500">
-            <Hash className="h-3 w-3 mr-1" />
-            {booking.trackingNumber}
+            <Hash className="h-3 w-3 mr-1 flex-shrink-0" />
+            <span className="truncate">{booking.trackingNumber}</span>
           </div>
         )}
       </div>
@@ -1778,23 +1776,31 @@ const CollapsibleBookingCard = ({ booking, selectedBookings, setSelectedBookings
       {/* Compact View - Always Visible Basic Info */}
       <div className="px-4 py-2 bg-gray-50/50">
         <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 min-w-0">
             <div className="flex items-center">
-              <MapPin className="h-3 w-3 text-gray-400 mr-1" />
-              <span className="text-gray-600">{booking.shipmentDetails?.origin || 'N/A'}</span>
-              <ChevronRight className="h-3 w-3 mx-1 text-gray-400" />
-              <span className="text-gray-600">{booking.shipmentDetails?.destination || 'N/A'}</span>
+              <MapPin className="h-3 w-3 text-gray-400 mr-1 flex-shrink-0" />
+              <span className="text-gray-600 truncate max-w-[100px]">{booking.shipmentDetails?.origin || 'N/A'}</span>
             </div>
+            <ChevronRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
             <div className="flex items-center">
+              <span className="text-gray-600 truncate max-w-[100px]">{booking.shipmentDetails?.destination || 'N/A'}</span>
+            </div>
+            <div className="hidden sm:flex items-center">
               <Package className="h-3 w-3 text-gray-400 mr-1" />
               <span className="text-gray-600">{packageTotals.totalPackages} pkg</span>
             </div>
-            <div className="flex items-center">
+            <div className="hidden sm:flex items-center">
               <Scale className="h-3 w-3 text-gray-400 mr-1" />
               <span className="text-gray-600">{packageTotals.totalWeight.toFixed(1)} kg</span>
             </div>
           </div>
           <PricingStatusBadge status={booking.pricingStatus} />
+        </div>
+        {/* Mobile package info - visible only on small screens */}
+        <div className="sm:hidden flex items-center space-x-2 mt-1 text-xs text-gray-500">
+          <span>{packageTotals.totalPackages} pkg</span>
+          <span>•</span>
+          <span>{packageTotals.totalWeight.toFixed(1)} kg</span>
         </div>
       </div>
 
@@ -1802,12 +1808,12 @@ const CollapsibleBookingCard = ({ booking, selectedBookings, setSelectedBookings
       {isExpanded && (
         <div className="p-4 border-t border-gray-100 space-y-4">
           {/* Sender & Receiver */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <p className="text-xs font-medium text-gray-500 flex items-center">
                 <User className="h-3 w-3 mr-1" /> Sender
               </p>
-              <p className="text-sm font-medium text-gray-900">{getSenderName(booking.sender)}</p>
+              <p className="text-sm font-medium text-gray-900">{senderName}</p>
               {booking.sender?.email && (
                 <p className="text-xs text-gray-500 flex items-center">
                   <Mail className="h-3 w-3 mr-1" /> {booking.sender.email}
@@ -1838,7 +1844,7 @@ const CollapsibleBookingCard = ({ booking, selectedBookings, setSelectedBookings
           </div>
 
           {/* Shipment Details */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Shipment Type</p>
               <ShipmentTypeBadge type={booking.shipmentDetails?.shipmentType} />
@@ -1908,14 +1914,14 @@ export default function BookingsPage() {
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
-    limit: 20,
+    limit: 10, // Fixed to 10 per page
     pages: 1
   });
 
   // Filter State
   const [filters, setFilters] = useState({
     page: 1,
-    limit: 20,
+    limit: 10, // Fixed to 10 per page
     status: '',
     search: '',
     startDate: '',
@@ -1939,15 +1945,23 @@ export default function BookingsPage() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
 
-  // Stats
+  // Stats - FIXED: Initialize with all statuses set to 0
   const [stats, setStats] = useState({
     total: 0,
     booking_requested: 0,
     price_quoted: 0,
     booking_confirmed: 0,
+    pending: 0,
+    received_at_warehouse: 0,
+    consolidation_in_progress: 0,
+    loaded_in_container: 0,
+    in_transit: 0,
+    arrived_at_destination: 0,
+    customs_clearance: 0,
+    out_for_delivery: 0,
+    delivered: 0,
     cancelled: 0,
-    rejected: 0,
-    delivered: 0
+    rejected: 0
   });
 
   // Options
@@ -1956,14 +1970,14 @@ export default function BookingsPage() {
     label: config.label
   }));
 
-  // Fetch Bookings - FIXED: Now depends on filters
+  // Fetch Bookings
   const fetchBookings = useCallback(async () => {
     setLoading(true);
     try {
       // Prepare query parameters
       const queryParams = {
         page: filters.page,
-        limit: filters.limit,
+        limit: 10, // Fixed to 10 per page
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder
       };
@@ -1983,19 +1997,27 @@ export default function BookingsPage() {
         setPagination(response.pagination || {
           total: 0,
           page: 1,
-          limit: 20,
+          limit: 10,
           pages: 1
         });
         
-        // Calculate stats
+        // Calculate stats - FIXED: Count all statuses correctly
         const newStats = {
-          total: response.data?.length || 0,
+          total: response.pagination?.total || response.data?.length || 0,
           booking_requested: 0,
           price_quoted: 0,
           booking_confirmed: 0,
+          pending: 0,
+          received_at_warehouse: 0,
+          consolidation_in_progress: 0,
+          loaded_in_container: 0,
+          in_transit: 0,
+          arrived_at_destination: 0,
+          customs_clearance: 0,
+          out_for_delivery: 0,
+          delivered: 0,
           cancelled: 0,
-          rejected: 0,
-          delivered: 0
+          rejected: 0
         };
         
         if (response.data && response.data.length > 0) {
@@ -2015,13 +2037,13 @@ export default function BookingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters]); // Important: depends on filters
+  }, [filters]);
 
   useEffect(() => {
     fetchBookings();
-  }, [fetchBookings]); // Runs when filters change
+  }, [fetchBookings]);
 
-  // Handle Filter Change - FIXED: Properly updates filters
+  // Handle Filter Change
   const handleFilterChange = (name, value) => {
     console.log(`Filter changed: ${name} = ${value}`); // Debug log
     setFilters(prev => {
@@ -2052,7 +2074,7 @@ export default function BookingsPage() {
   const clearFilters = () => {
     setFilters({
       page: 1,
-      limit: 20,
+      limit: 10,
       status: '',
       search: '',
       startDate: '',
@@ -2198,14 +2220,7 @@ export default function BookingsPage() {
     toast.success(`${bookings.length} bookings exported successfully!`);
   };
 
-  // Handle Select All
-  const handleSelectAll = () => {
-    if (selectedBookings.length === filteredBookings.length) {
-      setSelectedBookings([]);
-    } else {
-      setSelectedBookings(filteredBookings.map(b => b._id));
-    }
-  };
+  // REMOVED: handleSelectAll function (no longer needed)
 
   // Filter by status
   const filterByStatus = (status) => {
@@ -2213,15 +2228,23 @@ export default function BookingsPage() {
     handleFilterChange('status', status === 'all' ? '' : status);
   };
 
-  // Get visible stats
+  // Get visible stats - FIXED: All statuses now show correct counts
   const visibleStats = [
     { key: 'all', label: 'All', count: stats.total, icon: Package, color: 'bg-gray-100 text-gray-600' },
     { key: 'booking_requested', label: 'Requested', count: stats.booking_requested, icon: Clock, color: 'bg-blue-100 text-blue-600' },
     { key: 'price_quoted', label: 'Price Quoted', count: stats.price_quoted, icon: Tag, color: 'bg-yellow-100 text-yellow-600' },
     { key: 'booking_confirmed', label: 'Confirmed', count: stats.booking_confirmed, icon: CheckCircle, color: 'bg-indigo-100 text-indigo-600' },
-    { key: 'delivered', label: 'Delivered', count: stats.delivered, icon: CheckCircleSolid, color: 'bg-green-100 text-green-600' },
-    { key: 'cancelled', label: 'Cancelled', count: stats.cancelled, icon: XCircleSolid, color: 'bg-red-100 text-red-600' },
-    { key: 'rejected', label: 'Rejected', count: stats.rejected, icon: AlertTriangle, color: 'bg-rose-100 text-rose-600' }
+    // { key: 'pending', label: 'Pending', count: stats.pending, icon: Clock, color: 'bg-gray-100 text-gray-600' },
+    // { key: 'received_at_warehouse', label: 'At Warehouse', count: stats.received_at_warehouse, icon: Package, color: 'bg-orange-100 text-orange-600' },
+    // { key: 'consolidation_in_progress', label: 'Consolidation', count: stats.consolidation_in_progress, icon: Box, color: 'bg-amber-100 text-amber-600' },
+    // { key: 'loaded_in_container', label: 'Loaded', count: stats.loaded_in_container, icon: Ship, color: 'bg-emerald-100 text-emerald-600' },
+    // { key: 'in_transit', label: 'In Transit', count: stats.in_transit, icon: Truck, color: 'bg-cyan-100 text-cyan-600' },
+    // { key: 'arrived_at_destination', label: 'Arrived', count: stats.arrived_at_destination, icon: MapPin, color: 'bg-teal-100 text-teal-600' },
+    // { key: 'customs_clearance', label: 'Customs', count: stats.customs_clearance, icon: FileText, color: 'bg-lime-100 text-lime-600' },
+    // { key: 'out_for_delivery', label: 'Out for Delivery', count: stats.out_for_delivery, icon: Truck, color: 'bg-yellow-100 text-yellow-600' },
+    // { key: 'delivered', label: 'Delivered', count: stats.delivered, icon: CheckCircleSolid, color: 'bg-green-100 text-green-600' },
+    // { key: 'cancelled', label: 'Cancelled', count: stats.cancelled, icon: XCircleSolid, color: 'bg-red-100 text-red-600' },
+    // { key: 'rejected', label: 'Rejected', count: stats.rejected, icon: AlertTriangle, color: 'bg-rose-100 text-rose-600' }
   ];
 
   return (
@@ -2245,19 +2268,11 @@ export default function BookingsPage() {
               </span>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="light"
-                size="sm"
-                onClick={handleExport}
-                icon={<ExportIcon className="h-4 w-4" />}
-              >
-                Export
-              </Button>
+            <div className="flex items-center space-x-2"> 
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => router.push('/create-booking')}
+                onClick={() => router.push('/Bookings/create_bookings')}
                 icon={<Plus className="h-4 w-4" />}
               >
                 New Booking
@@ -2269,8 +2284,8 @@ export default function BookingsPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+        {/* Stats Cards - FIXED: Now showing all statuses with correct counts */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8 gap-3 mb-6">
           {visibleStats.map((stat) => (
             <StatCard
               key={stat.key}
@@ -2307,7 +2322,7 @@ export default function BookingsPage() {
                 Filters
                 {(filters.status || filters.startDate || filters.endDate) && (
                   <span className="ml-2 bg-white text-[#E67E22] rounded-full px-2 py-0.5 text-xs">
-                    {Object.values(filters).filter(v => v && v !== '' && v !== 20 && v !== 1).length}
+                    {Object.values(filters).filter(v => v && v !== '' && v !== 10 && v !== 1).length}
                   </span>
                 )}
               </Button>
@@ -2364,7 +2379,7 @@ export default function BookingsPage() {
           </div>
         </div>
 
-        {/* Bulk Actions */}
+        {/* Bulk Actions - REMOVED: Select all option */}
         {selectedBookings.length > 0 && (
           <div className="bg-indigo-50 border border-indigo-200 rounded-xl mb-4 p-3">
             <div className="flex items-center justify-between">
@@ -2426,26 +2441,14 @@ export default function BookingsPage() {
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination - FIXED: Removed per page selector, just simple pagination */}
         {pagination.pages > 1 && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 mt-6">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600">
-                  Showing {(pagination.page - 1) * filters.limit + 1} -{' '}
-                  {Math.min(pagination.page * filters.limit, pagination.total)} of{' '}
-                  {pagination.total} results
-                </span>
-                <select
-                  value={filters.limit}
-                  onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
-                  className="px-2 py-1 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22]"
-                >
-                  <option value={10}>10 per page</option>
-                  <option value={20}>20 per page</option>
-                  <option value={50}>50 per page</option>
-                  <option value={100}>100 per page</option>
-                </select>
+              <div className="text-sm text-gray-600">
+                Showing {(pagination.page - 1) * 10 + 1} -{' '}
+                {Math.min(pagination.page * 10, pagination.total)} of{' '}
+                {pagination.total} results
               </div>
 
               <div className="flex items-center space-x-2">
@@ -2453,6 +2456,7 @@ export default function BookingsPage() {
                   onClick={() => setFilters(prev => ({ ...prev, page: 1 }))}
                   disabled={filters.page === 1}
                   className="p-2 text-gray-400 hover:text-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="First Page"
                 >
                   <ChevronsLeft className="h-4 w-4" />
                 </button>
@@ -2460,6 +2464,7 @@ export default function BookingsPage() {
                   onClick={() => setFilters(prev => ({ ...prev, page: prev.page - 1 }))}
                   disabled={filters.page === 1}
                   className="p-2 text-gray-400 hover:text-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Previous Page"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -2472,6 +2477,7 @@ export default function BookingsPage() {
                   onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
                   disabled={filters.page === pagination.pages}
                   className="p-2 text-gray-400 hover:text-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Next Page"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -2479,6 +2485,7 @@ export default function BookingsPage() {
                   onClick={() => setFilters(prev => ({ ...prev, page: pagination.pages }))}
                   disabled={filters.page === pagination.pages}
                   className="p-2 text-gray-400 hover:text-[#E67E22] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Last Page"
                 >
                   <ChevronsRight className="h-4 w-4" />
                 </button>

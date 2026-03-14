@@ -40,7 +40,8 @@ a {
 }
 
 @media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+  :root {
+    --background: #ffff;    /* neutral-900 কাছাকাছি */
+    --foreground: #171717;    /* neutral-50 কাছাকাছি */
   }
 }

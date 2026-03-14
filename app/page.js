@@ -3,15 +3,15 @@ import {
   setAuthToken, 
   setUserDetails, 
   setEmail,
-  getAuthToken,  // Optional - for testing
-  getUserDetails // Optional - for testing
-} from '@/helper/SessionHelper'; // Adjust path according to your file structure
-import React, { useState } from 'react';
+  getAuthToken,
+  getUserDetails
+} from '@/helper/SessionHelper';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { login } from '@/Api/Authentication'; 
+import { login } from '@/Api/Authentication';
 
 const Button = ({
   children,
@@ -43,7 +43,7 @@ const Button = ({
   return (
     <button
       type={type}
-      className={baseClasses + ' ' + variantClass + ' ' + sizeClass + ' ' + className + ' ' + (disabled || isLoading ? 'opacity-50 cursor-not-allowed' : '')}
+      className={`${baseClasses} ${variantClass} ${sizeClass} ${className} ${(disabled || isLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}
       disabled={disabled || isLoading}
       onClick={onClick}
     >
@@ -78,9 +78,9 @@ const Input = ({
   ...props
 }) => {
   return (
-    <div className="mb-4">
+    <div className="mb-3">
       {label && (
-        <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor={name} className="block text-xs font-medium text-gray-700 mb-1">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -100,43 +100,48 @@ const Input = ({
           onBlur={onBlur}
           placeholder={placeholder}
           disabled={disabled}
-          className={
-            'w-full px-3 py-2 border rounded-lg shadow-sm ' +
-            'focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-[#E67E22] ' +
-            (error ? 'border-red-500 ' : 'border-gray-300 ') +
-            (disabled ? 'bg-gray-100 cursor-not-allowed ' : '') +
-            (icon ? 'pl-10 ' : '') +
-            className
-          }
+          className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E67E22] focus:border-[#E67E22] transition-all duration-200 text-sm ${
+            error ? 'border-red-500' : 'border-gray-300'
+          } ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''} ${icon ? 'pl-10' : ''} ${className}`}
           {...props}
         />
       </div>
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 };
 
 export default function LoginPage() {
   const router = useRouter();
-React.useEffect(() => {
-  // সবকিছু hide করার চেষ্টা করুন
-  const elements = document.querySelectorAll('aside, .topbar, header');
-  elements.forEach(el => {
-    if (el.tagName === 'ASIDE' || el.classList.contains('topbar')) {
-      el.style.display = 'none';
-    }
-  });
-  
-  return () => {
-    elements.forEach(el => {
-      if (el.tagName === 'ASIDE' || el.classList.contains('topbar')) {
-        el.style.display = '';
+
+  useEffect(() => {
+    // Hide all header, sidebar, navbar elements
+    const elementsToHide = document.querySelectorAll(
+      'aside, .topbar, header, nav, .sidebar, .navbar, [class*="header"], [class*="sidebar"], [class*="navbar"]'
+    );
+    
+    elementsToHide.forEach(el => {
+      if (el && el.style) {
+        el.style.display = 'none';
       }
     });
-  };
-}, []);
+    
+    // Prevent scrolling on all devices
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    return () => {
+      elementsToHide.forEach(el => {
+        if (el && el.style) {
+          el.style.display = '';
+        }
+      });
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
    
-  React.useEffect(() => {
+  useEffect(() => {
     const token = getAuthToken();
     const user = getUserDetails();
     
@@ -177,7 +182,6 @@ React.useEffect(() => {
       ...prev,
       [name]: value
     }));
-    // Clear error for this field when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -189,106 +193,99 @@ React.useEffect(() => {
     setErrors(validationErrors);
   };
  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    setTouched({
+      email: true,
+      password: true
+    });
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  setTouched({
-    email: true,
-    password: true
-  });
+    const validationErrors = validateForm();
+    setErrors(validationErrors);
 
-  const validationErrors = validateForm();
-  setErrors(validationErrors);
-
-  if (Object.keys(validationErrors).length === 0) {
-    setLoading(true);
-    try {
-      const response = await login(formData.email, formData.password);
-      
-      if (response.success) {
-        // Extract user data and token from response
-        const token = response.token || response.data?.token;
-        const userData = response.user || response.data?.user || response.data;
+    if (Object.keys(validationErrors).length === 0) {
+      setLoading(true);
+      try {
+        const response = await login(formData.email, formData.password);
         
-        console.log('👤 User Data:', userData);
-        console.log('👤 User Role:', userData?.role);
-        
-        // 🚫 CHECK USER ROLE - BLOCK CUSTOMERS
-        const allowedRoles = ['admin', 'employee', 'manager', 'superadmin','warehouse']; // Add all allowed roles here
-        
-        if (userData?.role === 'customer') {
-          // Customer-specific denial message
-          toast.error(
+        if (response.success) {
+          const token = response.token || response.data?.token;
+          const userData = response.user || response.data?.user || response.data;
+          
+          console.log('👤 User Data:', userData);
+          console.log('👤 User Role:', userData?.role);
+          
+          const allowedRoles = ['admin', 'employee', 'manager', 'superadmin', 'warehouse'];
+          
+          if (userData?.role === 'customer') {
+            toast.error(
+              <div>
+                <strong>⚠️ Customer Access Denied</strong>
+                <p className="text-sm mt-1">This portal is for employees and administrators only.</p>
+                <p className="text-xs mt-1">Please use the customer tracking portal to manage your shipments.</p>
+              </div>, 
+              {
+                position: 'top-right',
+                autoClose: 7000,
+                className: 'bg-red-50 border-l-4 border-red-500',
+              }
+            );
+            setLoading(false);
+            return;
+          }
+          
+          if (!allowedRoles.includes(userData?.role)) {
+            toast.error(`Access Denied: Role "${userData?.role}" does not have permission to access this portal.`, {
+              position: 'top-right',
+              autoClose: 5000,
+            });
+            setLoading(false);
+            return;
+          }
+          
+          if (token) {
+            setAuthToken(token);
+          }
+          
+          if (userData) {
+            setUserDetails(userData);
+          }
+          
+          setEmail(formData.email);
+          
+          toast.success(
             <div>
-              <strong>⚠️ Customer Access Denied</strong>
-              <p className="text-sm mt-1">This portal is for employees and administrators only.</p>
-              <p className="text-xs mt-1">Please use the customer tracking portal to manage your shipments.</p>
+              <strong>Login Successful!</strong>
+              <p className="text-sm mt-1">Welcome back, {userData?.firstName || userData?.name || 'User'}!</p>
+              <p className="text-xs mt-1">Role: {userData?.role}</p>
             </div>, 
             {
               position: 'top-right',
-              autoClose: 7000,
-              className: 'bg-red-50 border-l-4 border-red-500',
+              autoClose: 3000,
             }
           );
-          setLoading(false);
-          return; // Stop execution
-        }
-        
-        // Check if user has any of the allowed roles
-        if (!allowedRoles.includes(userData?.role)) {
-          toast.error(`Access Denied: Role "${userData?.role}" does not have permission to access this portal.`, {
+          
+          setTimeout(() => {
+            router.push('/dashboard');
+          }, 3000);
+        } else {
+          toast.error(response.message || 'Invalid email or password', {
             position: 'top-right',
             autoClose: 5000,
           });
-          setLoading(false);
-          return;
         }
-        
-        // ✅ Save to localStorage
-        if (token) {
-          setAuthToken(token);
-        }
-        
-        if (userData) {
-          setUserDetails(userData);
-        }
-        
-        setEmail(formData.email);
-        
-        // Show success message with role info
-        toast.success(
-          <div>
-            <strong>Login Successful!</strong>
-            <p className="text-sm mt-1">Welcome back, {userData?.firstName || userData?.name || 'User'}!</p>
-            <p className="text-xs mt-1">Role: {userData?.role}</p>
-          </div>, 
-          {
-            position: 'top-right',
-            autoClose: 3000,
-          }
-        );
-        
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 3000);
-      } else {
-        toast.error(response.message || 'Invalid email or password', {
+      } catch (error) {
+        console.error('❌ Login error:', error);
+        toast.error(error.message || 'Invalid email or password', {
           position: 'top-right',
           autoClose: 5000,
         });
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('❌ Login error:', error);
-      toast.error(error.message || 'Invalid email or password', {
-        position: 'top-right',
-        autoClose: 5000,
-      });
-    } finally {
-      setLoading(false);
     }
-  }
-};
+  };
 
   const renderIcon = (type) => {
     switch(type) {
@@ -324,66 +321,178 @@ const handleSubmit = async (e) => {
         theme="colored"
       />
       
-      <div className="h-[550px] bg-[#fffaf6] flex flex-col lg:flex-row">
-        {/* Left Side - Branding/Info */}
-        <div className="lg:w-1/2 bg-[#122652] p-8 lg:p-12 flex flex-col justify-between relative overflow-hidden">
-          {/* Background Pattern */}
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 -left-4 w-72 h-72 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-            <div className="absolute top-0 -right-4 w-72 h-72 bg-[#3C719D] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-            <div className="absolute -bottom-8 left-20 w-72 h-72 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
-          </div>
-
-          {/* Content */}
-          <div className="relative z-10 mt-4">
-            <div className="flex items-center space-x-2"> 
-              <div className="w-20 h-auto">
-                <img src="/logo.png" alt="LogiSwift Logo" />
-              </div>
+      {/* Main Container - No Scroll on any device */}
+      <div className="fixed inset-0 w-full h-full bg-[#fffaf6] overflow-hidden">
+        {/* Desktop Layout (lg and above) */}
+        <div className="hidden lg:flex w-full h-full">
+          {/* Left Side - Branding */}
+          <div className="w-1/2 bg-[#122652] relative overflow-hidden">
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 -left-4 w-72 h-72 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+              <div className="absolute top-0 -right-4 w-72 h-72 bg-[#3C719D] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+              <div className="absolute -bottom-8 left-20 w-72 h-72 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
             </div>
 
-            <div className="mt-6">
-              <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight">
+            <div className="relative z-10 h-full flex flex-col justify-center px-12">
+              <div className="mb-8 ">
+                <img src="/logo.png" alt="LogiSwift" className="w-24 h-auto text-white" />
+              </div>
+              
+              <h1 className="text-5xl font-bold text-white leading-tight mb-6">
                 Welcome Back to
-                <span className="text-[#E67E22] block">Your Logistics Hub</span>
+                <span className="text-[#E67E22] block text-4xl mt-2">Your Logistics Hub</span>
               </h1>
-              <p className="mt-6 text-gray-300 text-lg max-w-md">
+              
+              <p className="text-gray-300 text-lg max-w-md mb-8">
                 Access your dashboard, track shipments, and manage your global logistics operations.
               </p>
-            </div> 
 
-            {/* Features */}
-            <div className="mt-6 space-y-4">
-              {[
-                'Real-time shipment tracking',
-                'Digital documentation',
-                'Global network coverage',
-                'Competitive rates'
-              ].map(function(feature, index) {
-                return (
+              <div className="space-y-4">
+                {[
+                  'Real-time shipment tracking',
+                  'Digital documentation',
+                  'Global network coverage',
+                  'Competitive rates'
+                ].map((feature, index) => (
                   <div key={index} className="flex items-center space-x-3">
-                    <div className="flex-shrink-0 w-6 h-6 bg-[#E67E22] rounded-full flex items-center justify-center">
+                    <div className="w-6 h-6 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0">
                       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
-                    <span className="text-gray-200">{feature}</span>
+                    <span className="text-gray-200 text-base">{feature}</span>
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          </div> 
+          </div>
+
+          {/* Right Side - Login Form */}
+          <div className="w-1/2 flex items-center justify-center p-8">
+            <div className="w-full max-w-md">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold text-[#122652]">Sign In</h2>
+                <p className="text-gray-600 mt-2">Welcome back! Please enter your details</p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <Input
+                  label="Email Address"
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  onBlur={() => handleBlur('email')}
+                  placeholder="john.doe@company.com"
+                  error={touched.email && errors.email}
+                  required
+                  icon={renderIcon('email')}
+                />
+
+                <div className="relative">
+                  <Input
+                    label="Password"
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    onBlur={() => handleBlur('password')}
+                    placeholder="********"
+                    error={touched.password && errors.password}
+                    required
+                    icon={renderIcon('password')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-9 text-gray-500 hover:text-[#E67E22] transition-colors"
+                  >
+                    {showPassword ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="remember"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 text-[#E67E22] border-gray-300 rounded focus:ring-[#E67E22]"
+                    />
+                    <label htmlFor="remember" className="ml-2 text-sm text-gray-600">
+                      Remember me
+                    </label>
+                  </div>
+                  <Link
+                    href="/auth/forgot-password"
+                    className="text-sm text-[#E67E22] hover:underline font-medium"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  isLoading={loading}
+                  className="w-full"
+                >
+                  Sign In
+                </Button>
+              </form>
+            </div>
+          </div>
         </div>
 
-        {/* Right Side - Login Form */}
-        <div className="lg:w-1/2 flex items-center justify-center p-8 lg:p-12">
-          <div className="w-full max-w-md">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-[#122652]">Sign In</h2> 
+        {/* Mobile Layout (below lg) - Complete Information with No Scroll */}
+        <div className="lg:hidden w-full h-full flex flex-col">
+          {/* Header Section with Pattern */}
+          <div className="bg-[#122652] px-4 py-8 relative overflow-hidden flex-shrink-0">
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 -left-4 w-40 h-40 bg-[#E67E22] rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+              <div className="absolute top-0 -right-4 w-40 h-40 bg-[#3C719D] rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Email Field */}
+            <div className="relative z-10">
+              <div className="flex items-center justify-between">
+                <img src="/logo.png" alt="LogiSwift" className="w-12 h-auto" />
+                <span className="text-[#E67E22] text-xs font-medium px-2 py-1 bg-white/10 rounded-full">Logistics Hub</span>
+              </div>
+              
+              <div className="mt-2">
+                <h1 className="text-lg font-bold text-white">
+                  Welcome Back!
+                </h1>
+                <p className="text-gray-300 text-xs mt-0.5">
+                  Access your dashboard, track shipments, and manage your global logistics operations.
+
+
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content - Scrollable Area */}
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            {/* Welcome Message */}
+            <div className="mb-3">
+              <h2 className="text-base font-bold text-[#122652]">Sign In to Your Account</h2>
+              <p className="text-xs text-gray-600 mt-0.5">Access your dashboard and manage operations</p>
+            </div>
+
+            {/* Login Form */}
+            <form onSubmit={handleSubmit} className="mb-4">
               <Input
                 label="Email Address"
                 type="email"
@@ -391,13 +500,12 @@ const handleSubmit = async (e) => {
                 value={formData.email}
                 onChange={handleChange}
                 onBlur={() => handleBlur('email')}
-                placeholder="john.doe@company.com"
+                placeholder="Enter your email"
                 error={touched.email && errors.email}
                 required
                 icon={renderIcon('email')}
               />
 
-              {/* Password Field */}
               <div className="relative">
                 <Input
                   label="Password"
@@ -406,7 +514,7 @@ const handleSubmit = async (e) => {
                   value={formData.password}
                   onChange={handleChange}
                   onBlur={() => handleBlur('password')}
-                  placeholder="********"
+                  placeholder="Enter your password"
                   error={touched.password && errors.password}
                   required
                   icon={renderIcon('password')}
@@ -414,14 +522,14 @@ const handleSubmit = async (e) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-9 text-gray-500 hover:text-[#E67E22]"
+                  className="absolute right-3 top-7 text-gray-500 hover:text-[#E67E22]"
                 >
                   {showPassword ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
@@ -429,96 +537,95 @@ const handleSubmit = async (e) => {
                 </button>
               </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mt-2 mb-4">
                 <div className="flex items-center">
                   <input
                     type="checkbox"
                     id="remember"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 text-[#E67E22] border-gray-300 rounded focus:ring-[#E67E22]"
+                    className="w-3.5 h-3.5 text-[#E67E22] border-gray-300 rounded focus:ring-[#E67E22]"
                   />
-                  <label htmlFor="remember" className="ml-2 text-sm text-gray-600">
+                  <label htmlFor="remember" className="ml-1.5 text-xs text-gray-600">
                     Remember me
                   </label>
                 </div>
                 <Link
                   href="/auth/forgot-password"
-                  className="text-sm text-[#E67E22] hover:underline font-medium"
+                  className="text-xs text-[#E67E22] hover:underline font-medium"
                 >
                   Forgot password?
                 </Link>
               </div>
 
-              {/* Login Button */}
               <Button
                 type="submit"
                 variant="primary"
-                size="lg"
+                size="md"
                 isLoading={loading}
-                className="w-full"
+                className="w-full text-sm py-3"
               >
                 Sign In
-                <svg className="w-5 h-5 ml-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
               </Button>
+            </form>
 
-              {/* Alternative Login Options */}
-              <div className="relative my-8">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
+            {/* Features Section - All 4 features with full description */}
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+              <h3 className="text-xs font-semibold text-[#122652] mb-2">Why choose LogiSwift?</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-start space-x-1.5">
+                  <div className="w-4 h-4 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-800">Real-time tracking</p>
+                    <p className="text-[10px] text-gray-500">Live shipment updates</p>
+                  </div>
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-[#fffaf6] text-gray-500">Or continue with</span>
+                <div className="flex items-start space-x-1.5">
+                  <div className="w-4 h-4 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-800">Digital docs</p>
+                    <p className="text-[10px] text-gray-500">Paperless processing</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-1.5">
+                  <div className="w-4 h-4 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-800">Global network</p>
+                    <p className="text-[10px] text-gray-500">200+ countries</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-1.5">
+                  <div className="w-4 h-4 bg-[#E67E22] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-800">Best rates</p>
+                    <p className="text-[10px] text-gray-500">Competitive pricing</p>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  Google
-                </button>
-                <button
-                  type="button"
-                  className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <svg className="w-5 h-5 mr-2 text-[#0A66C2]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                  </svg>
-                  LinkedIn
-                </button>
-              </div> 
-
-              {/* Help Link */}
-              <p className="text-center text-sm text-gray-500">
-                Having trouble?{' '}
-                <a href="mailto:support@logiswift.com" className="text-[#E67E22] hover:underline">
-                  Contact support
-                </a>
+            {/* Support Info */}
+            {/* <div className="mt-3 text-center">
+              <p className="text-[10px] text-gray-400">
+                Need help? <a href="mailto:support@logiswift.com" className="text-[#E67E22]">Contact support</a>
               </p>
-            </form>
+            </div> */}
           </div>
         </div>
       </div>

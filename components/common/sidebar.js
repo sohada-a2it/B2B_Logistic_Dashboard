@@ -41,6 +41,30 @@ const menuItems = [
     icon: <HiOutlineHome className="w-5 h-5" />,
     activeIcon: <HiHome className="w-5 h-5" />,
   },
+    {
+    title: 'User Roles',
+    path: '/admin/customers',
+    icon: <HiOutlineUsers className="w-5 h-5" />,
+    activeIcon: <HiUsers className="w-5 h-5" />, 
+    badgeColor: '#3C719D',
+    children: [
+      // {
+      //   title: 'All Users',
+      //   path: '/users',
+      //   icon: <HiOutlineUserGroup className="w-4 h-4" />,
+      // },
+      {
+        title: 'All Users',
+        path: '/users/customers',
+        icon: <HiOutlineUserGroup className="w-4 h-4" />,
+      },
+      {
+        title: 'Create Staff',
+        path: '/users/create_staff',
+        icon: <HiOutlinePlus className="w-4 h-4" />,
+      },
+    ],
+  },
   {
     title: 'Bookings',
     path: '/admin/Bookings',
@@ -71,30 +95,6 @@ const menuItems = [
         title: 'All Shipping',
         path: '/shippings/all_shipping',
         icon: <HiOutlineClipboardList className="w-4 h-4" />,
-      },
-    ],
-  },
-  {
-    title: 'User Roles',
-    path: '/admin/customers',
-    icon: <HiOutlineUsers className="w-5 h-5" />,
-    activeIcon: <HiUsers className="w-5 h-5" />, 
-    badgeColor: '#3C719D',
-    children: [
-      // {
-      //   title: 'All Users',
-      //   path: '/users',
-      //   icon: <HiOutlineUserGroup className="w-4 h-4" />,
-      // },
-      {
-        title: 'All Users',
-        path: '/users/customers',
-        icon: <HiOutlineUserGroup className="w-4 h-4" />,
-      },
-      {
-        title: 'Create Staff',
-        path: '/users/create_staff',
-        icon: <HiOutlinePlus className="w-4 h-4" />,
       },
     ],
   },
@@ -607,16 +607,7 @@ export default function Sidebar({ user: propUser = null }) {
                 setOpenMenuKey={setOpenMenuKey}
               />
             ))}
-          </div>
-
-          {!collapsed && (
-            <div className="px-4 py-3 border-t border-gray-200">
-              <Link href="/admin/help" className="flex items-center text-sm text-gray-600 hover:text-[#E67E22] transition-colors">
-                <HiOutlineQuestionMarkCircle className="w-4 h-4 mr-2" />
-                Help & Support
-              </Link>
-            </div>
-          )}
+          </div> 
 
           <UserProfile collapsed={collapsed} user={user} onLogout={handleLogout} />
         </div>

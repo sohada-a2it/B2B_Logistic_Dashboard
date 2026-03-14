@@ -1112,7 +1112,7 @@ useEffect(() => {
         localStorage.removeItem('selectedCustomer');
         
         setTimeout(() => {
-          router.push('/bookings/all-bookings');
+          router.push('/Bookings/all_bookings');
         }, 2000);
       } else {
         setServerErrors([{ msg: response.message || 'Failed to create booking' }]);

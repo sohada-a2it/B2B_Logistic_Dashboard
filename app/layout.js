@@ -22,7 +22,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}> 
-        <div style={{ display: "flex", height: "calc(100vh - 60px)" }}> 
+        <div style={{ display: "flex" }}> 
           <Sidebar /> 
           <main style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
               {/* <Topbar /> */}
