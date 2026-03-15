@@ -3785,7 +3785,7 @@ export default function ConsolidationsPage() {
             </div>
             
             <div className="flex items-center space-x-2">
-              {/* <button
+              <button
                 onClick={handleRefresh}
                 disabled={refreshing}
                 className="p-2 hover:bg-gray-100 rounded-lg"
@@ -3800,7 +3800,7 @@ export default function ConsolidationsPage() {
               >
                 <DownloadCloud className="h-4 w-4 mr-2" />
                 Export
-              </button> */}
+              </button>
               
               <Link
                 href="/warehouse/consolidation-queue"
@@ -3810,13 +3810,13 @@ export default function ConsolidationsPage() {
                 Queue
               </Link>
               
-              {/* <Link
+              <Link
                 href="/warehouse/consolidations/create"
                 className="px-4 py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400] text-sm flex items-center"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 New Consolidation
-              </Link> */}
+              </Link>
             </div>
           </div> 
         </div>

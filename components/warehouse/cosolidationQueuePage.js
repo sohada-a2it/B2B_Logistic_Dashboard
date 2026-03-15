@@ -10,8 +10,12 @@ import {
   getMainTypeName,
   getSubTypeName,
   formatContainerType,
-  estimateContainerType
+  estimateContainerType,
+  getConsolidationStatusColor,
+  getConsolidationStatusDisplayText,
+  formatDestination
 } from '@/Api/consolidation';
+import { formatDate } from '@/Api/booking';
 import { toast } from 'react-toastify';
 import {
   Loader2, Package, Search, Calendar, MapPin, User,
@@ -20,10 +24,7 @@ import {
   ChevronDown, ChevronUp, X, CheckCircle, AlertCircle,
   Anchor, Container, FileText, Download, Printer,
   Plus, Minus, Edit, Save, Clock, Hash, Map,
-  Info, AlertTriangle, Check, RefreshCw, Phone, Mail,
-  Home, Building2, Tag, PackageCheck, PackageOpen,
-  Ruler, Scale, Palette, HashIcon, CalendarDays
-  // Removed Cube as it doesn't exist
+  Info, AlertTriangle, Check, RefreshCw
 } from 'lucide-react';
 
 // ==================== CONSTANTS ====================
@@ -60,19 +61,6 @@ const CONTAINER_TYPES = [
   { value: 'LCL', label: 'LCL - Less than Container Load', maxVolume: 999, icon: '📦' }
 ];
 
-const PACKAGING_TYPES = {
-  box: { label: 'Box', icon: '📦', color: 'blue' },
-  carton: { label: 'Carton', icon: '📦', color: 'green' },
-  pallet: { label: 'Pallet', icon: '⚓', color: 'orange' },
-  crate: { label: 'Crate', icon: '🔲', color: 'brown' },
-  drum: { label: 'Drum', icon: '🛢️', color: 'red' },
-  bag: { label: 'Bag', icon: '👜', color: 'purple' },
-  envelope: { label: 'Envelope', icon: '✉️', color: 'gray' },
-  roll: { label: 'Roll', icon: '🧻', color: 'teal' },
-  bundle: { label: 'Bundle', icon: '🎁', color: 'pink' },
-  other: { label: 'Other', icon: '📦', color: 'gray' }
-};
-
 // ==================== HELPER FUNCTIONS ====================
 
 const getStatusInfo = (status) => {
@@ -106,605 +94,819 @@ const formatDateTime = (date) => {
   });
 };
 
-const formatDateOnly = (date) => {
-  if (!date) return 'N/A';
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-};
-
-const getPackagingInfo = (type) => {
-  return PACKAGING_TYPES[type?.toLowerCase()] || PACKAGING_TYPES.other;
-};
-
-const formatDimensions = (dimensions) => {
-  if (!dimensions) return 'N/A';
-  const { length, width, height, unit = 'cm' } = dimensions;
-  if (!length && !width && !height) return 'N/A';
-  return `${length || 0} × ${width || 0} × ${height || 0} ${unit}`;
-};
-
-const formatAddress = (address) => {
-  if (!address) return 'N/A';
-  if (typeof address === 'string') return address;
-  
-  const parts = [];
-  if (address.street) parts.push(address.street);
-  if (address.city) parts.push(address.city);
-  if (address.state) parts.push(address.state);
-  if (address.postalCode) parts.push(address.postalCode);
-  if (address.country) parts.push(address.country);
-  
-  return parts.join(', ') || 'N/A';
-};
-
-const getInitials = (name) => {
-  if (!name) return '?';
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-};
-
 // ==================== COMPONENTS ====================
 
-// Debug Component to show raw data (temporary)
-const DebugInfo = ({ data, label }) => {
-  const [show, setShow] = useState(false);
-  
-  if (!data) return null;
-  
-  return (
-    <div className="text-xs border border-gray-200 rounded p-1 mt-1">
-      <button 
-        onClick={() => setShow(!show)}
-        className="text-blue-500 flex items-center hover:text-blue-700"
-      >
-        <Info className="h-3 w-3 mr-1" />
-        {label} Debug {show ? '▲' : '▼'}
-      </button>
-      {show && (
-        <pre className="mt-1 p-1 bg-gray-100 overflow-auto max-h-40 text-[10px]">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-};
+// Stat Card Component
+const StatCard = ({ title, value, icon: Icon, color = 'orange', subtitle }) => {
+  const colorClasses = {
+    orange: 'bg-orange-50 text-orange-600',
+    blue: 'bg-blue-50 text-blue-600',
+    green: 'bg-green-50 text-green-600',
+    yellow: 'bg-yellow-50 text-yellow-600',
+    purple: 'bg-purple-50 text-purple-600'
+  };
 
-// Enhanced Package Card - Fixed: Replaced Cube with Box
-const PackageCard = ({ pkg, index }) => {
-  if (!pkg) return null;
-  
-  const packagingInfo = getPackagingInfo(pkg.packagingType);
-  
   return (
-    <div className="border rounded p-3 mb-2 bg-gray-50 hover:bg-gray-100 transition">
-      <div className="flex justify-between items-center mb-2">
-        <div className="flex items-center">
-          <span className="text-xl mr-2">{packagingInfo.icon}</span>
-          <span className="font-medium">Package #{index + 1}</span>
+    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</p>
+          <p className="text-xl font-bold text-gray-900 mt-1">{value}</p>
+          {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
         </div>
-        <span className={`text-xs px-2 py-1 bg-${packagingInfo.color}-100 text-${packagingInfo.color}-800 rounded-full`}>
-          {packagingInfo.label}
-        </span>
-      </div>
-      
-      <div className="grid grid-cols-3 gap-2 text-sm">
-        <div className="flex items-center">
-          <Hash className="h-3.5 w-3.5 mr-1 text-gray-500" />
-          <span>Qty: <span className="font-medium">{pkg.quantity || 1}</span></span>
+        <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
+          <Icon className="h-5 w-5" />
         </div>
-        <div className="flex items-center">
-          <Scale className="h-3.5 w-3.5 mr-1 text-gray-500" />
-          <span>Weight: <span className="font-medium">{pkg.weight || 0} kg</span></span>
-        </div>
-        <div className="flex items-center">
-          <Box className="h-3.5 w-3.5 mr-1 text-gray-500" /> {/* Changed from Cube to Box */}
-          <span>Volume: <span className="font-medium">{pkg.volume || 0} m³</span></span>
-        </div>
-      </div>
-      
-      {pkg.dimensions && (pkg.dimensions.length || pkg.dimensions.width || pkg.dimensions.height) && (
-        <div className="text-xs mt-2 text-gray-600 flex items-center">
-          <Ruler className="h-3.5 w-3.5 mr-1" />
-          Dimensions: {formatDimensions(pkg.dimensions)}
-        </div>
-      )}
-      
-      {pkg.description && (
-        <div className="text-xs mt-2 text-gray-600 bg-white p-2 rounded">
-          <span className="font-medium">Description:</span> {pkg.description}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Enhanced Sender Info Component
-const SenderInfo = ({ customer }) => {
-  if (!customer) return (
-    <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
-      <div className="flex items-center text-orange-800">
-        <User className="h-4 w-4 mr-2" />
-        <span className="font-medium">No sender information available</span>
-      </div>
-    </div>
-  );
-  
-  // Log customer data for debugging
-  console.log('📧 Sender Data:', customer);
-  
-  const companyName = customer.companyName || customer.name || customer.contactName || 'Unknown Company';
-  const email = customer.email || customer.contactEmail || '';
-  const phone = customer.phone || customer.contactPhone || customer.mobile || '';
-  const address = customer.address || customer.location || {};
-  
-  return (
-    <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-      <div className="flex items-center mb-3">
-        <Building2 className="h-5 w-5 text-orange-600 mr-2" />
-        <span className="font-bold text-gray-900 text-lg">{companyName}</span>
-      </div>
-      
-      <div className="space-y-2 ml-2">
-        {email && (
-          <div className="flex items-center text-sm">
-            <Mail className="h-4 w-4 mr-2 text-gray-500" />
-            <span className="text-gray-700">{email}</span>
-          </div>
-        )}
-        {phone && (
-          <div className="flex items-center text-sm">
-            <Phone className="h-4 w-4 mr-2 text-gray-500" />
-            <span className="text-gray-700">{phone}</span>
-          </div>
-        )}
-        {address && typeof address === 'object' && Object.keys(address).length > 0 && (
-          <div className="flex items-start text-sm">
-            <MapPin className="h-4 w-4 mr-2 mt-0.5 text-gray-500" />
-            <span className="text-gray-700">{formatAddress(address)}</span>
-          </div>
-        )}
       </div>
     </div>
   );
 };
 
-// Enhanced Receiver Info Component
-const ReceiverInfo = ({ receiver }) => {
-  if (!receiver || Object.keys(receiver).length === 0) return null;
-  
-  return (
-    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-      <div className="flex items-center mb-2">
-        <User className="h-4 w-4 text-blue-600 mr-2" />
-        <span className="font-medium text-blue-800">Receiver Details</span>
-      </div>
-      
-      <div className="space-y-1 ml-2 text-sm">
-        {receiver.name && (
-          <div className="flex items-center">
-            <span className="font-medium text-gray-600">Name:</span>
-            <span className="ml-2">{receiver.name}</span>
-          </div>
-        )}
-        {receiver.email && (
-          <div className="flex items-center">
-            <Mail className="h-3.5 w-3.5 mr-1 text-gray-500" />
-            <span>{receiver.email}</span>
-          </div>
-        )}
-        {receiver.phone && (
-          <div className="flex items-center">
-            <Phone className="h-3.5 w-3.5 mr-1 text-gray-500" />
-            <span>{receiver.phone}</span>
-          </div>
-        )}
-        {receiver.address && (
-          <div className="flex items-start">
-            <MapPin className="h-3.5 w-3.5 mr-1 mt-0.5 text-gray-500" />
-            <span>{formatAddress(receiver.address)}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+// Package Badge Component
+const PackageBadge = ({ type, quantity }) => {
+  const getIcon = () => {
+    const icons = {
+      pallet: '📦',
+      carton: '📦',
+      crate: '📦',
+      box: '📦',
+      envelope: '✉️',
+      container: '📦',
+      default: '📦'
+    };
+    return icons[type?.toLowerCase()] || icons.default;
+  };
 
-// Enhanced Shipment Card - Fixed: Replaced Cube with Box
-const ShipmentCard = ({ item }) => {
-  if (!item) return null;
-  
-  console.log('🚀 Full Shipment Item:', item);
-  
-  // Comprehensive data extraction
-  const shipmentId = item.shipmentId || item.shipment || {};
-  
-  // Extract customer/sender info from ALL possible locations
-  const customer = 
-    item.customerId || 
-    item.customer || 
-    shipmentId.customer || 
-    shipmentId.customerId || 
-    item.sender || 
-    shipmentId.sender || 
-    {};
-  
-  // Extract receiver info
-  const receiver = 
-    item.receiverDetails || 
-    shipmentId.receiverDetails || 
-    item.receiver || 
-    shipmentId.receiver || 
-    {};
-  
-  // Extract packages
-  const packages = item.packages || shipmentId.packages || [];
-  const packagesArray = Array.isArray(packages) ? packages : [];
-  
-  // Tracking number
-  const trackingNumber = item.trackingNumber || shipmentId.trackingNumber || 'N/A';
-  
-  // Status
-  const statusInfo = getStatusInfo(item.status || shipmentId.status);
-  const StatusIcon = statusInfo.icon;
-  
-  // Route information
-  const origin = item.origin || shipmentId.origin || 'N/A';
-  const destination = item.destination || shipmentId.destination || 'N/A';
-  
-  // Totals
-  const totalPackages = item.totalPackages || shipmentId.totalPackages || packagesArray.length || 0;
-  const totalWeight = item.totalWeight || shipmentId.totalWeight || packagesArray.reduce((sum, p) => sum + (p.weight || 0), 0);
-  const totalVolume = item.totalVolume || shipmentId.totalVolume || packagesArray.reduce((sum, p) => sum + (p.volume || 0), 0);
-  
   return (
-    <div className="bg-white border rounded-lg p-4 mb-3 shadow-sm hover:shadow-md transition">
-      {/* Header with Tracking Number */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="bg-orange-100 px-3 py-1 rounded-lg">
-          <span className="font-mono font-bold text-orange-800">#{trackingNumber}</span>
-        </div>
-        <span className={`px-2 py-1 text-xs rounded-full inline-flex items-center ${statusInfo.bg} ${statusInfo.text}`}>
-          <StatusIcon className="h-3 w-3 mr-1" />
-          {statusInfo.label}
-        </span>
-      </div>
-      
-      {/* Sender Information - Highlighted as in the image */}
-      <div className="mb-4">
-        <SenderInfo customer={customer} />
-      </div>
-      
-      {/* Shipment Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 bg-gray-50 p-3 rounded-lg">
-        <div className="flex items-center">
-          <Package className="h-4 w-4 mr-2 text-gray-500" />
-          <div>
-            <div className="text-xs text-gray-500">Packages</div>
-            <div className="font-medium">{totalPackages}</div>
-          </div>
-        </div>
-        <div className="flex items-center">
-          <Scale className="h-4 w-4 mr-2 text-gray-500" />
-          <div>
-            <div className="text-xs text-gray-500">Weight</div>
-            <div className="font-medium">{formatWeight(totalWeight)}</div>
-          </div>
-        </div>
-        <div className="flex items-center">
-          <Box className="h-4 w-4 mr-2 text-gray-500" /> {/* Changed from Cube to Box */}
-          <div>
-            <div className="text-xs text-gray-500">Volume</div>
-            <div className="font-medium">{formatVolume(totalVolume)}</div>
-          </div>
-        </div>
-        <div className="flex items-center">
-          <CalendarDays className="h-4 w-4 mr-2 text-gray-500" />
-          <div>
-            <div className="text-xs text-gray-500">Added</div>
-            <div className="font-medium">{formatDateOnly(item.addedAt || item.createdAt)}</div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Route */}
-      <div className="flex items-center text-sm bg-blue-50 p-2 rounded-lg mb-3">
-        <MapPin className="h-4 w-4 mr-2 text-blue-500" />
-        <span className="font-medium">Route:</span>
-        <span className="ml-2">{origin}</span>
-        <ChevronRight className="h-4 w-4 mx-1 text-gray-400" />
-        <span>{destination}</span>
-      </div>
-      
-      {/* Receiver Information */}
-      <ReceiverInfo receiver={receiver} />
-      
-      {/* Packages List */}
-      {packagesArray.length > 0 && (
-        <div className="mt-3">
-          <div className="font-medium text-sm mb-2 flex items-center">
-            <Package className="h-4 w-4 mr-1 text-gray-600" />
-            Packages ({packagesArray.length})
-          </div>
-          <div className="space-y-2 max-h-60 overflow-auto pr-1">
-            {packagesArray.map((pkg, idx) => (
-              <PackageCard key={idx} pkg={pkg} index={idx} />
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Debug Info - Remove in production */}
-      {/* <DebugInfo data={item} label="Raw Data" /> */}
-    </div>
+    <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+      <span className="mr-1">{getIcon()}</span>
+      {type || 'Package'} x{quantity || 1}
+    </span>
   );
 };
 
 // Group Card Component
 const GroupCard = ({ group, onSelectShipments, onRemoveShipment }) => {
   const [expanded, setExpanded] = useState(true);
-  const [selected, setSelected] = useState({});
-  
-  if (!group) return null;
-  
-  console.log('📦 Group Data:', group);
-  
-  const shipments = Array.isArray(group.shipments) ? group.shipments : [];
-  
-  const toggleSelect = (id) => {
-    if (!id) return;
-    setSelected(prev => ({ ...prev, [id]: !prev[id] }));
+  const [selectedShipments, setSelectedShipments] = useState({});
+
+  const toggleShipment = (shipmentId) => {
+    setSelectedShipments(prev => ({
+      ...prev,
+      [shipmentId]: !prev[shipmentId]
+    }));
   };
-  
+
   const selectAll = () => {
-    const all = {};
-    shipments.forEach(s => { 
-      if (s?._id) all[s._id] = true; 
+    const allSelected = {};
+    group.shipments.forEach(s => {
+      allSelected[s._id] = true;
     });
-    setSelected(all);
+    setSelectedShipments(allSelected);
+    toast.info(`${group.shipments.length} shipments selected`);
   };
+
+  const clearAll = () => {
+    setSelectedShipments({});
+    toast.info('Selection cleared');
+  };
+
+  const getSelectedCount = () => Object.values(selectedShipments).filter(Boolean).length;
   
-  const clearAll = () => setSelected({});
-  
-  const selectedCount = Object.values(selected).filter(Boolean).length;
-  
+  const getSelectedWeight = () => {
+    return group.shipments
+      .filter(s => selectedShipments[s._id])
+      .reduce((sum, s) => sum + (s.totalWeight || 0), 0);
+  };
+
+  const getSelectedVolume = () => {
+    return group.shipments
+      .filter(s => selectedShipments[s._id])
+      .reduce((sum, s) => sum + (s.totalVolume || 0), 0);
+  };
+
+  const selectedCount = getSelectedCount();
+  const selectedWeight = getSelectedWeight();
+  const selectedVolume = getSelectedVolume();
+  const suggestedContainer = estimateContainerType(selectedVolume || group.totalVolume);
+
   return (
-    <div className="border rounded-xl overflow-hidden mb-4 bg-white">
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-4 hover:shadow-lg transition-all">
       {/* Header */}
       <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-b">
-        <div className="flex justify-between items-start">
-          <div className="flex items-start space-x-2 flex-1">
-            <button 
-              onClick={() => setExpanded(!expanded)} 
-              className="p-1 hover:bg-orange-100 rounded"
+        <div className="flex items-start justify-between">
+          <div className="flex items-start space-x-3 flex-1">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="p-1 hover:bg-orange-200 rounded-lg transition-colors"
             >
-              {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              {expanded ? 
+                <ChevronUp className="h-5 w-5 text-orange-600" /> : 
+                <ChevronDown className="h-5 w-5 text-orange-600" />
+              }
             </button>
+            
             <div className="flex-1">
-              <h2 className="font-semibold text-lg">
-                {getMainTypeName(group.mainType)} - {getSubTypeName(group.subType)}
-              </h2>
-              <p className="text-sm text-gray-600 flex items-center">
-                <MapPin className="h-3 w-3 mr-1" />
-                {group.origin} → {group.destination}
-              </p>
-              <div className="flex gap-4 mt-2 text-sm">
-                <span className="flex items-center">
-                  <Package className="h-4 w-4 mr-1 text-gray-500" />
-                  {group.totalPackages || 0} packages
-                </span>
-                <span className="flex items-center">
-                  <Scale className="h-4 w-4 mr-1 text-gray-500" />
-                  {formatWeight(group.totalWeight)}
-                </span>
-                <span className="flex items-center">
-                  <Box className="h-4 w-4 mr-1 text-gray-500" /> {/* Changed from Cube to Box */}
-                  {formatVolume(group.totalVolume)}
+              {/* Group Title */}
+              <div className="flex items-center flex-wrap gap-2">
+                <Globe className="h-5 w-5 text-orange-600" />
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {getMainTypeName(group.mainType)} - {getSubTypeName(group.subType)}
+                </h2>
+                <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">
+                  {group.count} Shipments
                 </span>
               </div>
+
+              {/* Route */}
+              <div className="flex items-center space-x-2 mt-1">
+                <MapPin className="h-3 w-3 text-gray-400" />
+                <span className="text-sm text-gray-600">
+                  {group.origin} → {group.destination}
+                </span>
+                {group.destinationCountry && (
+                  <span className="text-xs text-gray-400">
+                    ({group.destinationCountry})
+                  </span>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="flex flex-wrap gap-4 mt-2 text-sm">
+                <div className="flex items-center text-gray-600">
+                  <Package className="h-4 w-4 mr-1" />
+                  <span>{group.totalPackages} packages</span>
+                </div>
+                <div className="flex items-center text-gray-600">
+                  <Weight className="h-4 w-4 mr-1" />
+                  <span>{formatWeight(group.totalWeight)}</span>
+                </div>
+                <div className="flex items-center text-gray-600">
+                  <Box className="h-4 w-4 mr-1" />
+                  <span>{formatVolume(group.totalVolume)}</span>
+                </div>
+                <div className="flex items-center bg-orange-100 px-2 py-0.5 rounded-full">
+                  <Container className="h-4 w-4 mr-1 text-orange-600" />
+                  <span className="text-orange-700 text-xs font-medium">
+                    Suggested: {formatContainerType(suggestedContainer)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Selected Stats */}
+              {selectedCount > 0 && (
+                <div className="mt-2 p-2 bg-blue-50 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center space-x-4 text-sm">
+                    <span className="text-blue-700 font-medium">
+                      {selectedCount} selected
+                    </span>
+                    <span className="text-blue-600">{formatWeight(selectedWeight)}</span>
+                    <span className="text-blue-600">{formatVolume(selectedVolume)}</span>
+                  </div>
+                  <button
+                    onClick={clearAll}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-          
-          <div className="flex gap-2">
-            <button 
-              onClick={selectAll} 
-              className="text-xs px-3 py-1 border rounded hover:bg-white"
+
+          {/* Actions */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={selectAll}
+              className="px-3 py-1.5 text-xs bg-white border rounded-lg hover:bg-gray-50 transition-colors flex items-center"
             >
+              <CheckCircle className="h-3 w-3 mr-1" />
               Select All
             </button>
-            <button 
-              onClick={() => onSelectShipments(group, selected)}
+            <button
+              onClick={() => onSelectShipments(group, selectedShipments)}
               disabled={selectedCount === 0}
-              className={`px-4 py-1 rounded text-sm transition ${
-                selectedCount > 0 
-                  ? 'bg-orange-500 text-white hover:bg-orange-600' 
+              className={`px-4 py-1.5 rounded-lg flex items-center text-sm transition-colors ${
+                selectedCount > 0
+                  ? 'bg-[#E67E22] text-white hover:bg-[#d35400]'
                   : 'bg-gray-200 text-gray-500 cursor-not-allowed'
               }`}
             >
+              <Ship className="h-4 w-4 mr-1" />
               Consolidate ({selectedCount})
             </button>
           </div>
         </div>
-        
-        {selectedCount > 0 && (
-          <div className="mt-2 p-2 bg-blue-50 rounded flex justify-between items-center">
-            <span className="text-sm font-medium">{selectedCount} shipment(s) selected</span>
-            <button onClick={clearAll} className="text-blue-600 text-xs hover:underline">
-              Clear Selection
-            </button>
-          </div>
-        )}
       </div>
-      
-      {/* Shipments */}
+
+      {/* Shipments List */}
       {expanded && (
-        <div className="divide-y max-h-[600px] overflow-auto">
-          {shipments.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <Package className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-              <p>No shipments in this group</p>
-            </div>
-          ) : (
-            shipments.map((item) => (
-              <div key={item?._id || Math.random()} className="relative p-4 hover:bg-gray-50">
-                <div className="absolute left-4 top-6">
+        <div className="divide-y max-h-96 overflow-y-auto">
+          {group.shipments.map((item) => {
+            const statusInfo = getStatusInfo(item.status);
+            const StatusIcon = statusInfo.icon;
+            const shipment = item.shipmentId || {};
+            const customer = item.customerId || {};
+
+            return (
+              <div key={item._id} className="p-4 hover:bg-gray-50 transition-colors">
+                <div className="flex items-start space-x-3">
                   <input
                     type="checkbox"
-                    checked={selected[item?._id] || false}
-                    onChange={() => item?._id && toggleSelect(item._id)}
-                    className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                    checked={selectedShipments[item._id] || false}
+                    onChange={() => toggleShipment(item._id)}
+                    className="mt-1 h-4 w-4 text-[#E67E22] rounded border-gray-300 focus:ring-[#E67E22]"
                   />
+
+                  <div className="flex-1">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900">
+                          {shipment.trackingNumber || item.trackingNumber}
+                        </span>
+                        <span className={`px-2 py-0.5 text-xs rounded-full flex items-center ${statusInfo.bg} ${statusInfo.text}`}>
+                          <StatusIcon className="h-3 w-3 mr-1" />
+                          {statusInfo.label}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400 flex items-center">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        {formatDateTime(item.addedAt)}
+                      </span>
+                    </div>
+
+                    {/* Customer */}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Customer: {customer.companyName || 
+                        `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'N/A'}
+                      {item.addedBy && (
+                        <> • Added by: {item.addedBy.firstName} {item.addedBy.lastName}</>
+                      )}
+                    </p>
+
+                    {/* Package Details */}
+                    <div className="grid grid-cols-4 gap-4 mt-2 text-xs">
+                      <div className="flex items-center text-gray-600">
+                        <Package className="h-3 w-3 mr-1" />
+                        {item.totalPackages || 0} pkgs
+                      </div>
+                      <div className="flex items-center text-gray-600">
+                        <Weight className="h-3 w-3 mr-1" />
+                        {formatWeight(item.totalWeight)}
+                      </div>
+                      <div className="flex items-center text-gray-600">
+                        <Box className="h-3 w-3 mr-1" />
+                        {formatVolume(item.totalVolume)}
+                      </div>
+                      <div className="flex items-center text-gray-600">
+                        <Layers className="h-3 w-3 mr-1" />
+                        {shipment.packages?.length || 0} types
+                      </div>
+                    </div>
+
+                    {/* Package Types */}
+                    {shipment.packages && shipment.packages.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {shipment.packages.slice(0, 3).map((pkg, idx) => (
+                          <PackageBadge
+                            key={idx}
+                            type={pkg.packagingType}
+                            quantity={pkg.quantity}
+                          />
+                        ))}
+                        {shipment.packages.length > 3 && (
+                          <span className="text-xs text-gray-400">
+                            +{shipment.packages.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Route */}
+                    <div className="flex items-center space-x-4 mt-2 text-xs text-gray-400">
+                      <span className="flex items-center">
+                        <MapPin className="h-3 w-3 mr-1" />
+                        {item.origin} → {item.destination}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => window.open(`/shipments/${shipment._id}`, '_blank')}
+                      className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="View shipment"
+                    >
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    </button>
+                    <button
+                      onClick={() => onRemoveShipment(item._id)}
+                      className="p-1 hover:bg-red-100 rounded-lg transition-colors"
+                      title="Remove from queue"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-400" />
+                    </button>
+                  </div>
                 </div>
-                <div className="pl-8">
-                  <ShipmentCard item={item} />
-                </div>
-                <button
-                  onClick={() => onRemoveShipment(item?._id)}
-                  className="absolute right-4 top-6 text-red-400 hover:text-red-600 transition"
-                  title="Remove from queue"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               </div>
-            ))
-          )}
+            );
+          })}
         </div>
       )}
     </div>
   );
 };
 
-// Stat Card Component
-const StatCard = ({ title, value, icon: Icon, color }) => (
-  <div className="bg-white p-4 rounded-xl border hover:shadow-md transition">
-    <div className="flex justify-between items-center">
-      <div>
-        <p className="text-sm text-gray-500">{title}</p>
-        <p className="text-xl font-bold mt-1">{value}</p>
-      </div>
-      <div className={`p-3 rounded-lg bg-${color}-50 text-${color}-600`}>
-        <Icon className="h-5 w-5" />
-      </div>
-    </div>
-  </div>
-);
-
-// Empty State Component
-const EmptyQueue = ({ onRefresh }) => (
-  <div className="text-center py-16 bg-white rounded-xl border">
-    <Package className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-    <h3 className="text-lg font-medium mb-2">No shipments in queue</h3>
-    <p className="text-sm text-gray-500 mb-6">Complete inspection to add shipments to the consolidation queue</p>
-    <div className="flex justify-center gap-3">
-      <Link 
-        href="/warehouse/inspection" 
-        className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-      >
-        Go to Inspection
-      </Link>
-      <button 
-        onClick={onRefresh} 
-        className="px-6 py-2 border rounded-lg hover:bg-gray-50 transition"
-      >
-        Refresh
-      </button>
-    </div>
-  </div>
-);
-
 // Create Consolidation Modal
-const CreateConsolidationModal = ({ group, selectedShipments, onClose, onCreate }) => {
-  const [containerType, setContainerType] = useState('');
+// Create Consolidation Modal - FIXED VERSION
+const CreateConsolidationModal = ({ isOpen, onClose, group, selectedShipments, onCreateSuccess }) => {
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(1);
+  const [autoGenerate, setAutoGenerate] = useState({
+    containerNumber: true,
+    sealNumber: true
+  });
+  const [formData, setFormData] = useState({
+    groupKey: group?.groupKey || '',
+    containerNumber: '',
+    containerType: '',
+    sealNumber: '',
+    estimatedDeparture: ''
+  });
+
+  // Auto-generate functions
+  const generateContainerNumber = (type) => {
+    const prefixes = {
+      '20ft': 'MSKU',
+      '40ft': 'SCXU',
+      '40ft HC': 'HJCU',
+      '45ft': 'TGHU',
+      'LCL': 'LCL'
+    };
+    
+    const prefix = prefixes[type] || 'CNTR';
+    const year = new Date().getFullYear().toString().slice(-2);
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    
+    return `${prefix}${year}${month}${random}`;
+  };
+
+  const generateSealNumber = () => {
+    const year = new Date().getFullYear().toString().slice(-2);
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const day = String(new Date().getDate()).padStart(2, '0');
+    const random = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+    
+    return `${year}${month}${day}${random}`;
+  };
+
+  // Auto-generate when container type changes
+  useEffect(() => {
+    if (formData.containerType && autoGenerate.containerNumber) {
+      const generated = generateContainerNumber(formData.containerType);
+      setFormData(prev => ({ ...prev, containerNumber: generated }));
+    }
+  }, [formData.containerType, autoGenerate.containerNumber]);
+
+  // Auto-generate seal number on mount
+  useEffect(() => {
+    if (autoGenerate.sealNumber && !formData.sealNumber) {
+      const generated = generateSealNumber();
+      setFormData(prev => ({ ...prev, sealNumber: generated }));
+    }
+  }, [autoGenerate.sealNumber]);
+
+  // Toggle auto-generate
+  const toggleAutoGenerate = (field) => {
+    setAutoGenerate(prev => {
+      const newState = { ...prev, [field]: !prev[field] };
+      
+      // If turning off, clear the field
+      if (!newState[field]) {
+        setFormData(prev => ({ ...prev, [field]: '' }));
+      } 
+      // If turning on, generate new value
+      else {
+        if (field === 'containerNumber' && formData.containerType) {
+          const generated = generateContainerNumber(formData.containerType);
+          setFormData(prev => ({ ...prev, containerNumber: generated }));
+        } else if (field === 'sealNumber') {
+          const generated = generateSealNumber();
+          setFormData(prev => ({ ...prev, sealNumber: generated }));
+        }
+      }
+      
+      return newState;
+    });
+  };
+
+  // Get selected shipments list - FIXED: Extract shipment data correctly
+// CreateConsolidationModal এ এই অংশটি replace করুন:
+
+// Get selected shipments list
+const selectedShipmentsList = React.useMemo(() => {
+  if (!group?.shipments) return [];
   
-  const selectedCount = Object.values(selectedShipments).filter(Boolean).length;
-  const selectedIds = Object.keys(selectedShipments).filter(id => selectedShipments[id]);
-  
-  const handleCreate = async () => {
-    if (!containerType) {
+  return group.shipments
+    .filter(item => selectedShipments[item._id])
+    .map(item => ({
+      queueItemId: item._id, // <- এইটা important! queue item ID
+      shipment: item.shipmentId || {},
+      trackingNumber: item.trackingNumber || item.shipmentId?.trackingNumber,
+      totalPackages: item.totalPackages || item.shipmentId?.totalPackages || 0,
+      totalWeight: item.totalWeight || item.shipmentId?.totalWeight || 0,
+      totalVolume: item.totalVolume || item.shipmentId?.totalVolume || 0,
+      origin: item.origin || item.shipmentId?.origin,
+      destination: item.destination || item.shipmentId?.destination
+    }));
+}, [group, selectedShipments]);
+
+// Calculate totals
+const totalVolume = selectedShipmentsList.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
+const totalWeight = selectedShipmentsList.reduce((sum, s) => sum + (s.totalWeight || 0), 0);
+const totalPackages = selectedShipmentsList.reduce((sum, s) => sum + (s.totalPackages || 1), 0);
+
+// IMPORTANT: Get queue item IDs for API
+const selectedQueueItemIds = React.useMemo(() => {
+  return selectedShipmentsList
+    .map(s => s.queueItemId) // <- queue item ID
+    .filter(Boolean);
+}, [selectedShipmentsList]);
+
+// handleSubmit এ ব্যবহার করুন:
+const handleSubmit = async () => {
+  if (step === 1) {
+    if (!formData.containerType) {
       toast.warning('Please select container type');
       return;
     }
+    setStep(2);
+    return;
+  }
+
+  console.log('🔍 Queue Item IDs for API:', selectedQueueItemIds);
+
+  if (selectedQueueItemIds.length === 0) {
+    toast.error('No valid shipments selected');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const consolidationData = {
+      groupKey: group?.groupKey,
+      selectedShipmentIds: selectedQueueItemIds, // <- queue item ID পাঠান
+      containerNumber: formData.containerNumber,
+      containerType: formData.containerType,
+      sealNumber: formData.sealNumber,
+      estimatedDeparture: formData.estimatedDeparture
+    };
     
-    setLoading(true);
-    try {
-      const result = await createConsolidation({
-        groupKey: group.groupKey,
-        shipmentIds: selectedIds,
-        containerType
-      });
-      
-      if (result.success) {
-        toast.success('Consolidation created successfully');
-        onClose(true);
-      } else {
-        toast.error(result.message);
-      }
-    } catch (error) {
-      toast.error('Failed to create consolidation');
-    } finally {
-      setLoading(false);
+    console.log('📤 Sending to backend:', consolidationData);
+    
+    const result = await createConsolidation(consolidationData);
+    
+    if (result.success) {
+      toast.success(`✅ Consolidation created: ${result.data.consolidationNumber || result.data._id}`);
+      onCreateSuccess();
+      onClose();
+    } else {
+      toast.error(`❌ ${result.message}`);
+      console.error('API Error:', result.error);
     }
-  };
-  
+  } catch (error) {
+    console.error('❌ Submit error:', error);
+    toast.error(error.response?.data?.message || 'Failed to create consolidation');
+  } finally {
+    setLoading(false);
+  }
+};
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl max-w-md w-full p-6">
-        <h2 className="text-xl font-bold mb-4">Create Consolidation</h2>
-        
-        <div className="mb-4 p-3 bg-orange-50 rounded-lg">
-          <p className="text-sm">
-            <span className="font-medium">Selected:</span> {selectedCount} shipment(s)
-          </p>
-          <p className="text-sm">
-            <span className="font-medium">Route:</span> {group.origin} → {group.destination}
-          </p>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b p-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold">Create Consolidation</h2>
+              <p className="text-sm text-gray-500 mt-1">Step {step} of 2</p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex mt-4">
+            <div className={`flex-1 h-1 rounded-l ${step >= 1 ? 'bg-[#E67E22]' : 'bg-gray-200'}`} />
+            <div className={`flex-1 h-1 rounded-r ${step >= 2 ? 'bg-[#E67E22]' : 'bg-gray-200'}`} />
+          </div>
         </div>
-        
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">
-            Container Type <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={containerType}
-            onChange={(e) => setContainerType(e.target.value)}
-            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Select container type</option>
-            {CONTAINER_TYPES.map(type => (
-              <option key={type.value} value={type.value}>
-                {type.icon} {type.label}
-              </option>
-            ))}
-          </select>
+
+        {/* Body */}
+        <div className="p-6">
+          {step === 1 ? (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="bg-orange-50 p-4 rounded-lg">
+                <h3 className="font-medium mb-2">Selected Shipments</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Count</p>
+                    <p className="text-lg font-bold">{selectedShipmentsList.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Volume</p>
+                    <p className="text-lg font-bold">{formatVolume(totalVolume)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Weight</p>
+                    <p className="text-lg font-bold">{formatWeight(totalWeight)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Container Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Container Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.containerType}
+                  onChange={(e) => setFormData({ ...formData, containerType: e.target.value })}
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+                >
+                  <option value="">Select Container Type</option>
+                  {CONTAINER_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.icon} {type.label} (Max: {type.maxVolume}m³)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Container Number with Auto-toggle */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Container Number
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleAutoGenerate('containerNumber')}
+                    className={`text-xs px-2 py-1 rounded-full flex items-center ${
+                      autoGenerate.containerNumber 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${autoGenerate.containerNumber ? 'animate-spin' : ''}`} />
+                    {autoGenerate.containerNumber ? 'Auto' : 'Manual'}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.containerNumber}
+                    onChange={(e) => {
+                      setFormData({ ...formData, containerNumber: e.target.value });
+                      if (autoGenerate.containerNumber) {
+                        setAutoGenerate(prev => ({ ...prev, containerNumber: false }));
+                      }
+                    }}
+                    placeholder={autoGenerate.containerNumber ? "Auto-generated..." : "e.g., MSKU1234567"}
+                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22] ${
+                      autoGenerate.containerNumber ? 'bg-gray-50' : ''
+                    }`}
+                    readOnly={autoGenerate.containerNumber}
+                  />
+                  {autoGenerate.containerNumber && (
+                    <button
+                      onClick={() => {
+                        const generated = generateContainerNumber(formData.containerType);
+                        setFormData(prev => ({ ...prev, containerNumber: generated }));
+                      }}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-[#E67E22] hover:text-[#d35400]"
+                      title="Generate new"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {autoGenerate.containerNumber && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ Auto-generating container number based on type
+                  </p>
+                )}
+              </div>
+
+              {/* Seal Number with Auto-toggle */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Seal Number
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleAutoGenerate('sealNumber')}
+                    className={`text-xs px-2 py-1 rounded-full flex items-center ${
+                      autoGenerate.sealNumber 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${autoGenerate.sealNumber ? 'animate-spin' : ''}`} />
+                    {autoGenerate.sealNumber ? 'Auto' : 'Manual'}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.sealNumber}
+                    onChange={(e) => {
+                      setFormData({ ...formData, sealNumber: e.target.value });
+                      if (autoGenerate.sealNumber) {
+                        setAutoGenerate(prev => ({ ...prev, sealNumber: false }));
+                      }
+                    }}
+                    placeholder={autoGenerate.sealNumber ? "Auto-generated..." : "e.g., SL123456"}
+                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22] ${
+                      autoGenerate.sealNumber ? 'bg-gray-50' : ''
+                    }`}
+                    readOnly={autoGenerate.sealNumber}
+                  />
+                  {autoGenerate.sealNumber && (
+                    <button
+                      onClick={() => {
+                        const generated = generateSealNumber();
+                        setFormData(prev => ({ ...prev, sealNumber: generated }));
+                      }}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-[#E67E22] hover:text-[#d35400]"
+                      title="Generate new"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {autoGenerate.sealNumber && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ Auto-generating unique seal number
+                  </p>
+                )}
+              </div>
+
+              {/* Estimated Departure */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Estimated Departure
+                </label>
+                <input
+                  type="date"
+                  value={formData.estimatedDeparture}
+                  onChange={(e) => setFormData({ ...formData, estimatedDeparture: e.target.value })}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Review Details */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-medium mb-3">Consolidation Summary</h3>
+                <dl className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <dt className="text-gray-500">Container Type</dt>
+                    <dd className="font-medium">{formData.containerType}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Container Number</dt>
+                    <dd className="font-medium">{formData.containerNumber || 'Auto-generated'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Total Shipments</dt>
+                    <dd className="font-medium">{selectedShipmentsList.length}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Total Packages</dt>
+                    <dd className="font-medium">{totalPackages}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Total Weight</dt>
+                    <dd className="font-medium">{formatWeight(totalWeight)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Total Volume</dt>
+                    <dd className="font-medium">{formatVolume(totalVolume)}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              {/* Shipments List */}
+              <div className="border rounded-lg">
+                <div className="p-3 bg-gray-50 border-b">
+                  <h3 className="font-medium">Selected Shipments</h3>
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {selectedShipmentsList.map((item, idx) => (
+                    <div key={idx} className="p-3 border-b last:border-0">
+                      <div className="flex justify-between">
+                        <div>
+                          <p className="font-medium">{item.trackingNumber || 'N/A'}</p>
+                          <p className="text-xs text-gray-500">
+                            {item.totalPackages} packages • {formatWeight(item.totalWeight)}
+                          </p>
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {item.origin || '?'} → {item.destination || '?'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={() => onClose(false)}
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
-            disabled={loading}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={loading || !containerType}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Create Consolidation
-          </button>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-white border-t p-6">
+          <div className="flex justify-between">
+            {step === 2 ? (
+              <button
+                onClick={() => setStep(1)}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                Back
+              </button>
+            ) : (
+              <button
+                onClick={onClose}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              onClick={handleSubmit}
+              disabled={loading || (step === 1 && !formData.containerType)}
+              className="px-6 py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400] disabled:bg-gray-300 flex items-center"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : step === 1 ? (
+                'Next'
+              ) : (
+                'Create Consolidation'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
+// Empty State
+const EmptyQueue = ({ onRefresh }) => (
+  <div className="text-center py-16 bg-white rounded-xl border">
+    <div className="bg-orange-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+      <Package className="h-10 w-10 text-[#E67E22]" />
+    </div>
+    <h3 className="text-lg font-medium text-gray-900 mb-2">No shipments in queue</h3>
+    <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+      Complete inspection of received shipments to add them to the consolidation queue.
+    </p>
+    <div className="flex items-center justify-center space-x-3">
+      <Link
+        href="/warehouse/inspection"
+        className="inline-flex items-center px-4 py-2 bg-[#E67E22] text-white rounded-lg hover:bg-[#d35400]"
+      >
+        <CheckCircle className="h-4 w-4 mr-2" />
+        Go to Inspection
+      </Link>
+      <button
+        onClick={onRefresh}
+        className="inline-flex items-center px-4 py-2 border rounded-lg hover:bg-gray-50"
+      >
+        <RefreshCw className="h-4 w-4 mr-2" />
+        Refresh
+      </button>
+    </div>
+  </div>
+);
+
 // ==================== MAIN PAGE ====================
 
 export default function ConsolidationQueuePage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [queueData, setQueueData] = useState(null);
@@ -720,18 +922,13 @@ export default function ConsolidationQueuePage() {
   const loadQueue = async () => {
     setLoading(true);
     try {
-      console.log('📡 Loading queue...');
       const result = await getConsolidationQueue();
-      console.log('📊 Queue API Response:', result);
-      
       if (result.success) {
         setQueueData(result.data);
-        console.log('✅ Queue Data:', result.data);
       } else {
-        toast.error(result.message || 'Failed to load queue');
+        toast.error(result.message);
       }
     } catch (error) {
-      console.error('❌ Load error:', error);
       toast.error('Failed to load queue');
     } finally {
       setLoading(false);
@@ -742,11 +939,12 @@ export default function ConsolidationQueuePage() {
     setRefreshing(true);
     await loadQueue();
     setRefreshing(false);
+    toast.success('Queue refreshed');
   };
 
   const handleSelectShipments = (group, selections) => {
-    const count = Object.values(selections).filter(Boolean).length;
-    if (count === 0) {
+    const hasSelections = Object.values(selections).some(Boolean);
+    if (!hasSelections) {
       toast.warning('Please select at least one shipment');
       return;
     }
@@ -755,81 +953,73 @@ export default function ConsolidationQueuePage() {
     setShowCreateModal(true);
   };
 
-  const handleCreateConsolidation = async (refresh) => {
-    setShowCreateModal(false);
-    if (refresh) {
-      await loadQueue();
-    }
-  };
-
-  const handleRemoveFromQueue = async (id) => {
-    if (!id) return;
-    
-    if (!confirm('Are you sure you want to remove this shipment from the queue?')) {
-      return;
-    }
+  const handleRemoveFromQueue = async (queueId) => {
+    if (!confirm('Remove this shipment from queue?')) return;
     
     try {
-      const result = await removeFromQueue(id);
+      const result = await removeFromQueue(queueId);
       if (result.success) {
         toast.success('Shipment removed from queue');
         loadQueue();
       } else {
-        toast.error(result.message || 'Failed to remove');
+        toast.error(result.message);
       }
     } catch (error) {
-      console.error('Remove error:', error);
       toast.error('Failed to remove shipment');
     }
   };
 
-  // Safe data extraction
+  const handleCreateSuccess = () => {
+    loadQueue();
+  };
+
+  // Filter groups
   const groups = queueData?.groups || [];
-  const safeGroups = Array.isArray(groups) ? groups : [];
   
   const filteredGroups = searchTerm
-    ? safeGroups.filter(g => 
-        g?.destination?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        g?.origin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        g?.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
+    ? groups.filter(group => 
+        group.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        group.destination?.toLowerCase().includes(searchTerm.toLowerCase())
       )
-    : safeGroups;
+    : groups;
 
-  // Stats
+  // Calculate stats
   const totalShipments = queueData?.totalItems || 0;
   const totalGroups = queueData?.totalGroups || 0;
-  const totalVolume = safeGroups.reduce((sum, g) => sum + (g?.totalVolume || 0), 0);
-  const totalWeight = safeGroups.reduce((sum, g) => sum + (g?.totalWeight || 0), 0);
+  const totalVolume = groups.reduce((sum, g) => sum + (g.totalVolume || 0), 0);
+  const totalWeight = groups.reduce((sum, g) => sum + (g.totalWeight || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-            <div className="flex items-center gap-3">
-              <Link 
-                href="/warehouse" 
-                className="p-2 hover:bg-gray-200 rounded-lg transition"
-              >
-                <ArrowLeft className="h-5 w-5" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <Link href="/warehouse" className="p-2 hover:bg-gray-100 rounded-lg">
+                <ArrowLeft className="h-5 w-5 text-gray-600" />
               </Link>
-              <h1 className="text-2xl font-bold flex items-center">
-                <Package className="h-6 w-6 mr-2 text-orange-500" />
-                Consolidation Queue
-              </h1>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 flex items-center">
+                  <Package className="h-6 w-6 mr-2 text-[#E67E22]" />
+                  Consolidation Queue
+                </h1>
+                <p className="text-sm text-gray-500 mt-1">
+                  Shipments grouped by type and destination
+                </p>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={handleRefresh} 
-                className="p-2 hover:bg-gray-200 rounded-lg transition"
-                title="Refresh"
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="p-2 hover:bg-gray-100 rounded-lg"
               >
-                <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-5 w-5 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} />
               </button>
-              <Link 
-                href="/warehouse/consolidations" 
-                className="px-4 py-2 border rounded-lg flex items-center hover:bg-gray-50 transition"
+              <Link
+                href="/warehouse/consolidations"
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm flex items-center"
               >
                 <Eye className="h-4 w-4 mr-2" />
                 View Consolidations
@@ -837,34 +1027,34 @@ export default function ConsolidationQueuePage() {
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          {/* Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <StatCard title="Total Shipments" value={totalShipments} icon={Package} color="blue" />
-            <StatCard title="Groups" value={totalGroups} icon={Layers} color="green" />
-            <StatCard title="Total Volume" value={formatVolume(totalVolume)} icon={Box} color="orange" /> {/* Changed from Cube to Box */}
-            <StatCard title="Total Weight" value={formatWeight(totalWeight)} icon={Scale} color="purple" />
+            <StatCard title="Destination Groups" value={totalGroups} icon={Globe} color="green" />
+            <StatCard title="Total Volume" value={formatVolume(totalVolume)} icon={Box} color="orange" />
+            <StatCard title="Total Weight" value={formatWeight(totalWeight)} icon={Weight} color="purple" />
           </div>
 
-          {/* Search Bar */}
-          <div className="bg-white p-4 rounded-xl border">
+          {/* Search */}
+          <div className="bg-white rounded-xl border p-4 mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by origin, destination, or group name..."
+                placeholder="Search by destination..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full pl-9 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#E67E22]"
               />
             </div>
           </div>
         </div>
 
-        {/* Content */}
+        {/* Queue Content */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl">
-            <Loader2 className="h-12 w-12 animate-spin text-orange-500 mb-4" />
-            <p className="text-gray-600">Loading queue...</p>
+          <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border">
+            <Loader2 className="h-10 w-10 animate-spin text-[#E67E22] mb-4" />
+            <p className="text-sm text-gray-500">Loading consolidation queue...</p>
           </div>
         ) : filteredGroups.length === 0 ? (
           <EmptyQueue onRefresh={handleRefresh} />
@@ -872,7 +1062,7 @@ export default function ConsolidationQueuePage() {
           <div className="space-y-4">
             {filteredGroups.map((group) => (
               <GroupCard
-                key={group?.groupKey || Math.random()}
+                key={group.groupKey}
                 group={group}
                 onSelectShipments={handleSelectShipments}
                 onRemoveShipment={handleRemoveFromQueue}
@@ -882,15 +1072,18 @@ export default function ConsolidationQueuePage() {
         )}
       </div>
 
-      {/* Create Consolidation Modal */}
-      {showCreateModal && selectedGroup && (
-        <CreateConsolidationModal
-          group={selectedGroup}
-          selectedShipments={selectedShipments}
-          onClose={handleCreateConsolidation}
-          onCreate={() => {}}
-        />
-      )}
+      {/* Create Modal */}
+      <CreateConsolidationModal
+        isOpen={showCreateModal}
+        onClose={() => {
+          setShowCreateModal(false);
+          setSelectedGroup(null);
+          setSelectedShipments({});
+        }}
+        group={selectedGroup}
+        selectedShipments={selectedShipments}
+        onCreateSuccess={handleCreateSuccess}
+      />
     </div>
   );
 }
