@@ -148,45 +148,45 @@ const menuItems = [
     roles: ['admin', 'warehouse'],
     children: [
       {
-        title: 'Expected Shipments',
+        title: 'Warehouse Management',
         path: '/warehouse',
         icon: <HiOutlineDownload className="w-4 h-4" />,
         roles: ['admin', 'warehouse']
       },
+      // {
+      //   title: 'Received Shipments',
+      //   path: '/warehouse/recieve-shipments',
+      //   icon: <HiOutlineDownload className="w-4 h-4" />,
+      //   roles: ['admin', 'warehouse']
+      // },
+      // {
+      //   title: 'Inception Shipments',
+      //   path: '/warehouse/inception',
+      //   icon: <HiOutlineDownload className="w-4 h-4" />,
+      //   roles: ['admin', 'warehouse']
+      // },
       {
-        title: 'Received Shipments',
-        path: '/warehouse/recieve-shipments',
-        icon: <HiOutlineDownload className="w-4 h-4" />,
-        roles: ['admin', 'warehouse']
-      },
-      {
-        title: 'Inception Shipments',
-        path: '/warehouse/inception',
-        icon: <HiOutlineDownload className="w-4 h-4" />,
-        roles: ['admin', 'warehouse']
-      },
-      {
-        title: 'Consolidated Shipments',
+        title: 'Shipments Queue',
         path: '/warehouse/consolidation-queue',
         icon: <HiOutlineDownload className="w-4 h-4" />,
         roles: ['admin', 'warehouse']
       },
       {
-        title: 'Shipments In Container',
+        title: 'Shipments Processing',
         path: '/warehouse/all-consolidation',
         icon: <HiOutlineDownload className="w-4 h-4" />,
         roles: ['admin', 'warehouse']
       },
-      { 
-        title: 'Damage Reports',
-        path: '/warehouse/damage',
-        icon: <HiOutlineDownload className="w-4 h-4" />,
-        roles: ['admin', 'warehouse']
-      },
+      // { 
+      //   title: 'Damage Reports',
+      //   path: '/warehouse/damage',
+      //   icon: <HiOutlineDownload className="w-4 h-4" />,
+      //   roles: ['admin', 'warehouse']
+      // },
     ],
   },
   {
-    title: 'Finance',
+    title: 'Informations',
     path: '/shippings/invoice',
     icon: <MdAttachMoney className="w-5 h-5" />,
     activeIcon: <MdAttachMoney className="w-5 h-5" />, 
@@ -685,7 +685,7 @@ export default function Sidebar({ user: propUser = null }) {
 
           {/* Search */}
           {!collapsed && (
-            <div className="px-3 mb-4">
+            <div className="px-3 mb-4 mt-5">
               <div className="relative">
                 <HiOutlineSearch className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input

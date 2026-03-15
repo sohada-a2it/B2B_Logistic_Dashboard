@@ -385,23 +385,7 @@ const InvoiceTableRow = ({ invoice, onView, onEdit, onDelete, onMarkPaid, onPDF,
             title="View"
           >
             <Eye className="h-4 w-4 text-gray-600" />
-          </button>
-          {canEditInvoice(invoice.status) && (
-            <button
-              onClick={() => onEdit(invoice._id)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg"
-              title="Edit"
-            >
-              <Edit className="h-4 w-4 text-gray-600" />
-            </button>
-          )}
-          <button
-            onClick={() => onPDF(invoice._id)}
-            className="p-1.5 hover:bg-gray-100 rounded-lg"
-            title="PDF"
-          >
-            <Edit className="h-4 w-4 text-gray-600" />
-          </button>
+          </button> 
           {canMarkAsPaid(invoice.paymentStatus) && (
             <button
               onClick={() => onMarkPaid(invoice)}

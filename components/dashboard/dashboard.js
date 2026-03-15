@@ -534,19 +534,19 @@ const DashboardSummary = () => {
           </Typography>
         </Box>
         <Box>
-          <Tooltip title="Refresh Data">
+          {/* <Tooltip title="Refresh Data">
             <IconButton onClick={() => setRefreshKey(prev => prev + 1)}>
               <Refresh />
             </IconButton>
-          </Tooltip>
+          </Tooltip> */}
           <Tooltip title="Export Report">
-            <IconButton onClick={() => exportDashboardReport(summary)}>
+            {/* <IconButton onClick={() => exportDashboardReport(summary)}>
               <Download />
-            </IconButton>
+            </IconButton> */}
           </Tooltip>
-          <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
+          {/* <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
             <MoreVert />
-          </IconButton>
+          </IconButton> */}
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
@@ -749,7 +749,7 @@ const DashboardSummary = () => {
         </Grid>
 
         {/* Tracking Status */}
-        {isAdminUser && (
+        {/* {isAdminUser && (
           <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
@@ -762,7 +762,7 @@ const DashboardSummary = () => {
               </CardContent>
             </Card>
           </Grid>
-        )}
+        )} */}
 
         {/* Consolidation Status */}
         {isStaffUser && (
@@ -839,82 +839,7 @@ const DashboardSummary = () => {
               ))}
             </CardContent>
           </Card>
-        </Grid>
-
-        {/* Alerts */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Alerts & Notifications
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              {/* Overdue Invoices Alert */}
-              {summary.invoices.overdue > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, p: 1, bgcolor: 'error.light', borderRadius: 1 }}>
-                  <Warning sx={{ color: 'error.main', mr: 1 }} />
-                  <Typography variant="body2" color="error.dark">
-                    {summary.invoices.overdue} overdue invoices require attention
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Storage Alert */}
-              {summary.warehouse.storageUsed > 90 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, p: 1, bgcolor: 'warning.light', borderRadius: 1 }}>
-                  <Warning sx={{ color: 'warning.main', mr: 1 }} />
-                  <Typography variant="body2" color="warning.dark">
-                    Warehouse storage is nearly full ({summary.warehouse.storageUsed}% used)
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Pending Inspections */}
-              {summary.warehouse.pendingInspection > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, p: 1, bgcolor: 'info.light', borderRadius: 1 }}>
-                  <Info sx={{ color: 'info.main', mr: 1 }} />
-                  <Typography variant="body2" color="info.dark">
-                    {summary.warehouse.pendingInspection} items pending inspection
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Delayed Shipments */}
-              {summary.tracking.delayed > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, p: 1, bgcolor: 'warning.light', borderRadius: 1 }}>
-                  <Warning sx={{ color: 'warning.main', mr: 1 }} />
-                  <Typography variant="body2" color="warning.dark">
-                    {summary.tracking.delayed} shipments are delayed
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Ready for Dispatch */}
-              {summary.consolidation.readyForDispatch > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, p: 1, bgcolor: 'success.light', borderRadius: 1 }}>
-                  <CheckCircle sx={{ color: 'success.main', mr: 1 }} />
-                  <Typography variant="body2" color="success.dark">
-                    {summary.consolidation.readyForDispatch} consolidations ready for dispatch
-                  </Typography>
-                </Box>
-              )}
-
-              {summary.invoices.overdue === 0 && 
-               summary.warehouse.storageUsed <= 90 && 
-               summary.warehouse.pendingInspection === 0 && 
-               summary.tracking.delayed === 0 && 
-               summary.consolidation.readyForDispatch === 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 3 }}>
-                  <CheckCircle sx={{ color: 'success.main', fontSize: 40, mr: 1 }} />
-                  <Typography variant="body1" color="success.main">
-                    All systems operational
-                  </Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
+        </Grid> 
       </Grid>
     </Box>
   );

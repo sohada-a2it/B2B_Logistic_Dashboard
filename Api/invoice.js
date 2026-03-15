@@ -133,7 +133,7 @@ export const updateInvoice = async (invoiceId, updateData) => {
 // Endpoint: DELETE /invoices/:id
 export const deleteInvoice = async (invoiceId) => {
   try {
-    const response = await axiosInstance.delete(`/invoices/${invoiceId}`);
+    const response = await axiosInstance.delete(`/deleteInvoice/${invoiceId}`);
     
     if (response.data.success) {
       return {
@@ -159,7 +159,7 @@ export const deleteInvoice = async (invoiceId) => {
 // Endpoint: PUT /invoices/:id/mark-paid
 export const markInvoiceAsPaid = async (invoiceId, paymentData) => {
   try {
-    const response = await axiosInstance.put(`/invoices/${invoiceId}/mark-paid`, paymentData);
+    const response = await axiosInstance.put(`/mark-paid/${invoiceId}`, paymentData);
     
     if (response.data.success) {
       return {

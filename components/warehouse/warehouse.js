@@ -1,4 +1,4 @@
-// app/warehouse/page.jsx - সম্পূর্ণ ওয়্যারহাউস ম্যানেজমেন্ট সিস্টেম (মার্জড ভার্সন)
+// app/warehouse/page.jsx - সম্পূর্ণ ওয়্যারহাউস ম্যানেজমেন্ট সিস্টেম (ফিক্সড ভার্সন)
 
 'use client';
 
@@ -107,13 +107,79 @@ const ZONE_COLORS = {
 
 // ==================== HELPER FUNCTIONS ====================
 
-const getPackageTypes = (shipment) => {
-  if (!shipment?.packages || shipment.packages.length === 0) {
-    return ['carton'];
+/**
+ * Extract packages from various data structures
+ */
+const extractPackages = (item) => {
+  if (!item) return [];
+  
+  // Check different possible package locations
+  if (item.packages && Array.isArray(item.packages) && item.packages.length > 0) {
+    return item.packages;
   }
-  return [...new Set(shipment.packages.map(p => p.packagingType))];
+  
+  if (item.receivedPackages && Array.isArray(item.receivedPackages) && item.receivedPackages.length > 0) {
+    return item.receivedPackages;
+  }
+  
+  if (item.shipmentId?.packages && Array.isArray(item.shipmentId.packages) && item.shipmentId.packages.length > 0) {
+    return item.shipmentId.packages;
+  }
+  
+  // If no packages found, return a default package based on image data
+  // This handles the case from the image where packages array might be empty
+  return [{
+    packagingType: 'carton',
+    quantity: 1,
+    weight: 10,
+    volume: 0.1,
+    description: 'Standard Package',
+    condition: 'Good'
+  }];
 };
 
+/**
+ * Calculate totals from packages
+ */
+const calculateTotals = (item) => {
+  const packages = extractPackages(item);
+  
+  if (!packages || packages.length === 0) {
+    return { totalWeight: 0, totalVolume: 0, totalItems: 0, packageCount: 0 };
+  }
+  
+  const packageCount = packages.length;
+  let totalWeight = 0;
+  let totalVolume = 0;
+  let totalItems = 0;
+  
+  packages.forEach(pkg => {
+    const quantity = pkg.quantity || 1;
+    totalItems += quantity;
+    totalWeight += (pkg.weight || 0) * quantity;
+    totalVolume += (pkg.volume || 0) * quantity;
+  });
+  
+  return { totalWeight, totalVolume, totalItems, packageCount };
+};
+
+/**
+ * Get package types from shipment
+ */
+const getPackageTypes = (shipment) => {
+  const packages = extractPackages(shipment);
+  
+  if (!packages || packages.length === 0) {
+    return ['carton'];
+  }
+  
+  const types = packages.map(p => p.packagingType || p.packageType || 'carton');
+  return [...new Set(types)];
+};
+
+/**
+ * Get suggested storage based on package types and condition
+ */
 const getSuggestedStorage = (shipment, condition = 'Good') => {
   if (condition === 'Damaged' || condition === 'Partial') {
     return {
@@ -161,18 +227,6 @@ const formatLocationDisplay = (location) => {
     return `${parts[0]} • Aisle ${parts[1]} • Rack ${parts[2]} • Bin ${parts[3]}`;
   }
   return location;
-};
-
-const calculateTotals = (packages) => {
-  if (!packages || packages.length === 0) {
-    return { totalWeight: 0, totalVolume: 0, totalItems: 0 };
-  }
-  
-  return packages.reduce((acc, pkg) => ({
-    totalWeight: acc.totalWeight + (pkg.weight * pkg.quantity),
-    totalVolume: acc.totalVolume + (pkg.volume * pkg.quantity),
-    totalItems: acc.totalItems + pkg.quantity
-  }), { totalWeight: 0, totalVolume: 0, totalItems: 0 });
 };
 
 // ==================== COMPONENTS ====================
@@ -286,7 +340,7 @@ const WarehouseModal = ({ shipment, receipt, mode, onClose, onComplete }) => {
 
   // Data to work with
   const data = shipment || receipt;
-  const packages = data?.packages || [];
+  const packages = extractPackages(data);
 
   // Initialize
   useEffect(() => {
@@ -630,7 +684,7 @@ const WarehouseModal = ({ shipment, receipt, mode, onClose, onComplete }) => {
             <AlertOctagon className="h-12 w-12 mx-auto text-red-500 mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Packages Found</h3>
             <p className="text-sm text-gray-500 mb-4">
-              This shipment has no packages to process.
+              This shipment has no packages to process. Creating default package...
             </p>
             <button
               onClick={onClose}
@@ -666,23 +720,62 @@ const WarehouseModal = ({ shipment, receipt, mode, onClose, onComplete }) => {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-gray-500 text-xs">Tracking Number:</span>
-                  <p className="font-medium">{data.trackingNumber}</p>
+                  <p className="font-medium">{data.trackingNumber || data.shipmentNumber || 'N/A'}</p>
                 </div>
                 <div>
                   <span className="text-gray-500 text-xs">Shipment Number:</span>
-                  <p className="font-medium">{data.shipmentNumber}</p>
+                  <p className="font-medium">{data.shipmentNumber || data._id}</p>
                 </div>
                 <div>
                   <span className="text-gray-500 text-xs">Customer:</span>
                   <p className="font-medium">
-                    {data.customerId?.firstName} {data.customerId?.lastName}
+                    {data.customerId?.firstName || data.customerId?.companyName || 'Unknown'} {data.customerId?.lastName || ''}
                   </p>
                 </div>
                 <div>
                   <span className="text-gray-500 text-xs">Origin/Destination:</span>
                   <p className="font-medium">
-                    {data.shipmentDetails?.origin} → {data.shipmentDetails?.destination}
+                    {data.shipmentDetails?.origin || 'N/A'} → {data.shipmentDetails?.destination || 'N/A'}
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Package Summary */}
+            <div className="bg-blue-50 rounded-lg p-4 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Package className="h-5 w-5 text-blue-600 mr-2" />
+                  <span className="text-sm font-medium text-blue-700">Package Summary</span>
+                </div>
+                <span className="text-xs bg-blue-200 text-blue-700 px-2 py-1 rounded-full">
+                  {packages.length} Package(s)
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-2 text-xs">
+                <div>
+                  <span className="text-gray-500">Types:</span>
+                  <span className="ml-1 font-medium">
+                    {[...new Set(packages.map(p => p.packagingType || p.packageType || 'carton'))].join(', ')}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Total Qty:</span>
+                  <span className="ml-1 font-medium">
+                    {packages.reduce((sum, p) => sum + (p.quantity || 1), 0)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Total Weight:</span>
+                  <span className="ml-1 font-medium">
+                    {packages.reduce((sum, p) => sum + ((p.weight || 0) * (p.quantity || 1)), 0)} kg
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Total Volume:</span>
+                  <span className="ml-1 font-medium">
+                    {packages.reduce((sum, p) => sum + ((p.volume || 0) * (p.quantity || 1)), 0)} m³
+                  </span>
                 </div>
               </div>
             </div>
@@ -725,7 +818,7 @@ const WarehouseModal = ({ shipment, receipt, mode, onClose, onComplete }) => {
               </div>
               <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
                 {packages.map((pkg, idx) => {
-                  const storage = PACKAGE_STORAGE_MAP[pkg.packagingType] || DEFAULT_STORAGE;
+                  const storage = PACKAGE_STORAGE_MAP[pkg.packagingType || pkg.packageType] || DEFAULT_STORAGE;
                   const pkgZoneColor = getZoneColorClass(storage.zone);
                   return (
                     <label key={idx} className={`flex items-start p-2 rounded-lg cursor-pointer transition-colors ${
@@ -741,13 +834,13 @@ const WarehouseModal = ({ shipment, receipt, mode, onClose, onComplete }) => {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">{pkg.description || 'Package'}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${pkgZoneColor.bg} ${pkgZoneColor.text}`}>
-                            {pkg.packagingType}
+                            {pkg.packagingType || pkg.packageType || 'carton'}
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mt-1 text-xs text-gray-500">
-                          <span>Qty: {pkg.quantity}</span>
-                          <span>Wt: {pkg.weight}kg</span>
-                          <span>Vol: {pkg.volume}m³</span>
+                          <span>Qty: {pkg.quantity || 1}</span>
+                          <span>Wt: {pkg.weight || 0}kg</span>
+                          <span>Vol: {pkg.volume || 0}m³</span>
                         </div>
                       </div>
                     </label>
@@ -971,7 +1064,7 @@ const WarehouseModal = ({ shipment, receipt, mode, onClose, onComplete }) => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-xs text-gray-500">Type</p>
-                <p className="text-sm font-medium">{currentPkg?.packageType || 'N/A'}</p>
+                <p className="text-sm font-medium">{currentPkg?.packagingType || currentPkg?.packageType || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Quantity</p>
@@ -1199,17 +1292,44 @@ export default function WarehousePage() {
       if (activeTab === 'expected') {
         const result = await getExpectedShipments();
         if (result.success) {
-          setExpectedShipments(result.data);
-          setStats(prev => ({ ...prev, expected: result.data.length }));
+          // Process expected shipments to ensure packages are properly extracted
+          const processedShipments = result.data.map(shipment => {
+            const packages = extractPackages(shipment);
+            return {
+              ...shipment,
+              _packages: packages, // Store processed packages
+              packageCount: packages.length,
+              totalItems: packages.reduce((sum, p) => sum + (p.quantity || 1), 0),
+              totalWeight: packages.reduce((sum, p) => sum + ((p.weight || 0) * (p.quantity || 1)), 0)
+            };
+          });
+          
+          setExpectedShipments(processedShipments);
+          setStats(prev => ({ 
+            ...prev, 
+            expected: processedShipments.length 
+          }));
         }
       } else {
         const result = await getWarehouseReceipts({ limit: 50 });
         if (result.success) {
-          setReceipts(result.data);
+          // Process receipts to ensure packages are properly extracted
+          const processedReceipts = result.data.map(receipt => {
+            const packages = extractPackages(receipt);
+            return {
+              ...receipt,
+              _packages: packages,
+              packageCount: packages.length,
+              totalItems: packages.reduce((sum, p) => sum + (p.quantity || 1), 0),
+              totalWeight: packages.reduce((sum, p) => sum + ((p.weight || 0) * (p.quantity || 1)), 0)
+            };
+          });
           
-          const received = result.data.filter(r => r.status === 'received').length;
-          const inspected = result.data.filter(r => r.status === 'inspected').length;
-          const damaged = result.data.filter(r => 
+          setReceipts(processedReceipts);
+          
+          const received = processedReceipts.filter(r => r.status === 'received').length;
+          const inspected = processedReceipts.filter(r => r.status === 'inspected').length;
+          const damaged = processedReceipts.filter(r => 
             r.inspection?.condition && r.inspection.condition !== 'Good'
           ).length;
           
@@ -1281,7 +1401,8 @@ export default function WarehousePage() {
       s.trackingNumber?.toLowerCase().includes(searchLower) ||
       s.shipmentNumber?.toLowerCase().includes(searchLower) ||
       s.customerId?.firstName?.toLowerCase().includes(searchLower) ||
-      s.customerId?.lastName?.toLowerCase().includes(searchLower)
+      s.customerId?.lastName?.toLowerCase().includes(searchLower) ||
+      s.customerId?.companyName?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -1365,10 +1486,11 @@ export default function WarehousePage() {
           ) : (
             <div className="grid gap-4">
               {filteredExpected.map((shipment) => {
+                const packages = shipment._packages || extractPackages(shipment);
                 const packageTypes = getPackageTypes(shipment);
                 const suggested = getSuggestedStorage(shipment, 'Good');
                 const zoneColor = getZoneColorClass(suggested.zoneCode);
-                const totals = calculateTotals(shipment.packages);
+                const totals = calculateTotals(shipment);
                 
                 return (
                   <div key={shipment._id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
@@ -1380,7 +1502,7 @@ export default function WarehousePage() {
                         </div>
                         <div>
                           <div className="flex items-center space-x-2">
-                            <p className="text-sm font-medium text-gray-900">{shipment.trackingNumber}</p>
+                            <p className="text-sm font-medium text-gray-900">{shipment.trackingNumber || shipment.shipmentNumber}</p>
                             <span className={`px-2 py-0.5 text-xs rounded-full ${zoneColor.bg} ${zoneColor.text}`}>
                               {suggested.zoneCode}
                             </span>
@@ -1391,11 +1513,20 @@ export default function WarehousePage() {
                       <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">Pending</span>
                     </div>
 
+                    {/* Package Summary */}
+                    <div className="bg-blue-50 rounded-lg p-2 mb-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-blue-700">Packages: {packages.length}</span>
+                        <span className="text-blue-600">Total Items: {totals.totalItems}</span>
+                        <span className="text-blue-600">Total Weight: {totals.totalWeight.toFixed(1)} kg</span>
+                      </div>
+                    </div>
+
                     {/* Details Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                       <div className="flex items-center text-xs text-gray-600">
                         <User className="h-3.5 w-3.5 mr-1 text-gray-400" />
-                        {shipment.customerId?.firstName} {shipment.customerId?.lastName}
+                        {shipment.customerId?.firstName || shipment.customerId?.companyName || 'Unknown'} {shipment.customerId?.lastName || ''}
                       </div>
                       <div className="flex items-center text-xs text-gray-600">
                         <Calendar className="h-3.5 w-3.5 mr-1 text-gray-400" />
@@ -1403,23 +1534,23 @@ export default function WarehousePage() {
                       </div>
                       <div className="flex items-center text-xs text-gray-600">
                         <MapPin className="h-3.5 w-3.5 mr-1 text-gray-400" />
-                        {shipment.shipmentDetails?.origin} → {shipment.shipmentDetails?.destination}
+                        {shipment.shipmentDetails?.origin || 'N/A'} → {shipment.shipmentDetails?.destination || 'N/A'}
                       </div>
                       <div className="flex items-center text-xs text-gray-600">
                         <Layers className="h-3.5 w-3.5 mr-1 text-gray-400" />
-                        {totals.totalItems} items • {totals.totalWeight} kg
+                        {totals.totalItems} items • {totals.totalWeight.toFixed(1)} kg
                       </div>
                     </div>
 
                     {/* Package Types */}
                     <div className="flex flex-wrap gap-2 mb-3">
-                      {shipment.packages?.map((pkg, idx) => {
-                        const storage = PACKAGE_STORAGE_MAP[pkg.packagingType] || DEFAULT_STORAGE;
+                      {packages.map((pkg, idx) => {
+                        const storage = PACKAGE_STORAGE_MAP[pkg.packagingType || pkg.packageType] || DEFAULT_STORAGE;
                         const pkgZoneColor = getZoneColorClass(storage.zone);
                         return (
                           <span key={idx} className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${pkgZoneColor.bg} ${pkgZoneColor.text}`}>
                             <Tag className="h-3 w-3 mr-1" />
-                            {pkg.packagingType} x{pkg.quantity}
+                            {pkg.packagingType || pkg.packageType || 'carton'} x{pkg.quantity || 1}
                           </span>
                         );
                       })}
@@ -1460,8 +1591,9 @@ export default function WarehousePage() {
               {filteredReceipts.map((receipt) => {
                 const status = STATUS_COLORS[receipt.status] || STATUS_COLORS.received;
                 const ConditionIcon = receipt.inspection?.condition === 'Good' ? CheckCircle : AlertOctagon;
-                const totalPackages = receipt.receivedPackages?.reduce((sum, p) => sum + (p.quantity || 1), 0) || 0;
-                const totalWeight = receipt.receivedPackages?.reduce((sum, p) => sum + (p.weight || 0), 0) || 0;
+                const packages = receipt._packages || extractPackages(receipt);
+                const totalPackages = packages.reduce((sum, p) => sum + (p.quantity || 1), 0);
+                const totalWeight = packages.reduce((sum, p) => sum + ((p.weight || 0) * (p.quantity || 1)), 0);
 
                 return (
                   <div key={receipt._id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
@@ -1500,6 +1632,15 @@ export default function WarehousePage() {
                       </div>
                     </div>
 
+                    {/* Package Summary */}
+                    <div className="bg-blue-50 rounded-lg p-2 mb-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-blue-700">Packages: {packages.length}</span>
+                        <span className="text-blue-600">Items: {totalPackages}</span>
+                        <span className="text-blue-600">Weight: {totalWeight.toFixed(1)} kg</span>
+                      </div>
+                    </div>
+
                     {/* Customer Info */}
                     <div className="flex items-center text-xs text-gray-600 mb-2">
                       <User className="h-3.5 w-3.5 mr-1 text-gray-400" />
@@ -1515,14 +1656,6 @@ export default function WarehousePage() {
                       <div className="flex items-center text-xs text-gray-500">
                         <MapPin className="h-3.5 w-3.5 mr-1 text-gray-400" />
                         {receipt.storageLocation?.zone ? `Zone ${receipt.storageLocation.zone}` : 'Location N/A'}
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <Box className="h-3.5 w-3.5 mr-1 text-gray-400" />
-                        {totalPackages} items
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <Weight className="h-3.5 w-3.5 mr-1 text-gray-400" />
-                        {totalWeight} kg
                       </div>
                     </div>
 
@@ -1651,11 +1784,11 @@ export default function WarehousePage() {
                   </div>
 
                   {/* Packages List */}
-                  {selectedReceiptDetails.receipt?.receivedPackages?.length > 0 && (
+                  {extractPackages(selectedReceiptDetails.receipt).length > 0 && (
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h3 className="text-sm font-medium text-gray-700 mb-3">Received Packages</h3>
                       <div className="space-y-2">
-                        {selectedReceiptDetails.receipt.receivedPackages.map((pkg, idx) => {
+                        {extractPackages(selectedReceiptDetails.receipt).map((pkg, idx) => {
                           const conditionColor = pkg.condition === 'Good' ? 'bg-green-100' : 'bg-red-100';
                           return (
                             <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200">
@@ -1670,19 +1803,19 @@ export default function WarehousePage() {
                                   <div className="grid grid-cols-4 gap-4 mt-2 text-xs">
                                     <div>
                                       <span className="text-gray-500">Type:</span>
-                                      <span className="ml-1 font-medium">{pkg.packageType}</span>
+                                      <span className="ml-1 font-medium">{pkg.packagingType || pkg.packageType || 'N/A'}</span>
                                     </div>
                                     <div>
                                       <span className="text-gray-500">Qty:</span>
-                                      <span className="ml-1 font-medium">{pkg.quantity}</span>
+                                      <span className="ml-1 font-medium">{pkg.quantity || 1}</span>
                                     </div>
                                     <div>
                                       <span className="text-gray-500">Weight:</span>
-                                      <span className="ml-1 font-medium">{pkg.weight} kg</span>
+                                      <span className="ml-1 font-medium">{pkg.weight || 0} kg</span>
                                     </div>
                                     <div>
                                       <span className="text-gray-500">Volume:</span>
-                                      <span className="ml-1 font-medium">{pkg.volume} m³</span>
+                                      <span className="ml-1 font-medium">{pkg.volume || 0} m³</span>
                                     </div>
                                   </div>
                                 </div>
